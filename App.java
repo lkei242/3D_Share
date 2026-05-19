@@ -1,1 +1,1 @@
-hola, luka sobame la quena
+hola, german sobame la quena
