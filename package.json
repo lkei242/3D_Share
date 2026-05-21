@@ -1,10 +1,11 @@
 {
   "name": "prueba",
   "version": "1.0.0",
-  "description": "",
+  "description": "Una aplicación enfocada en impresión 3D que combina red social y marketplace. Presenta una solución innovadora para conectar a usuarios con distintas necesidades dentro del ecosistema de fabricación digital.",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -20,5 +21,13 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lkei242/3D_Share.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lkei242/3D_Share/issues"
+  },
+  "homepage": "https://github.com/lkei242/3D_Share#readme"
 }
