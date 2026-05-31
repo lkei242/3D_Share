@@ -74,6 +74,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     textAlign: 'center',
     marginBottom: 40,
+    fontFamily: 'Nunito-Bold',
   },
 
   input: {
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: 'Nunito-Bold',
   },
 
   link: {
@@ -104,7 +105,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 25,
     textDecorationLine: 'underline',
+    fontFamily: 'Nunito-Bold',
   },
+
   logoContainer: {
     alignItems: 'center',
     marginBottom: 20,

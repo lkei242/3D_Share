@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   title: {
     color: 'white',
     fontSize: 24,
-    fontWeight: '300',
+    fontFamily: 'Nunito-Bold',
   },
 
   buttonsContainer: {
@@ -102,16 +102,18 @@ const styles = StyleSheet.create({
   loginText: {
     color: 'white',
     fontSize: 16,
+    fontFamily: 'Nunito-Bold',
   },
 
   registerText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Nunito-Bold',
   },
 
   aboutText: {
     color: '#bbb',
     textDecorationLine: 'underline',
+    fontFamily: 'Nunito-Bold',
   },
 });
