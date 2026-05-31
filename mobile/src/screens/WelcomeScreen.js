@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 
 export default function WelcomeScreen({ navigation }) {
@@ -11,7 +12,10 @@ export default function WelcomeScreen({ navigation }) {
     <View style={styles.container}>
 
       <View style={styles.logoContainer}>
-        <View style={styles.logoCircle} />
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+        />
 
         <Text style={styles.title}>
           Iniciar Sesión en 3D Share
@@ -63,12 +67,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  logoCircle: {
+  logo: {
     width: 120,
     height: 120,
-    borderRadius: 60,
-    backgroundColor: GREEN,
-    marginBottom: 30,
+    resizeMode: 'contain',
+    marginBottom: 20,
   },
 
   title: {

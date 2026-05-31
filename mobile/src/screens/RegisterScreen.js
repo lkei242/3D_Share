@@ -3,8 +3,9 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 
 export default function RegisterScreen({ navigation }) {
@@ -14,6 +15,13 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+        />
+      </View>
 
       <Text style={styles.title}>
         Registrarse
@@ -105,5 +113,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 25,
     textDecorationLine: 'underline',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  logo: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
   },
 });
