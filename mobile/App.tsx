@@ -1,113 +1,36 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-export default function WelcomeScreen({ navigation }) {
+import WelcomeScreen from './src/screens/WelcomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+
+const Stack = createNativeStackNavigator();
+
+export default function App() {
   return (
-    <View style={styles.container}>
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+        />
 
-      <View style={styles.logoContainer}>
-        <View style={styles.logoCircle} />
-        <Text style={styles.title}>
-          Iniciar Sesión en 3D Share
-        </Text>
-      </View>
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+        />
 
-      <View style={styles.buttonsContainer}>
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={() => navigation.navigate('Login')}
-        >
-          <Text style={styles.loginText}>
-            Iniciar Sesión
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.registerButton}
-          onPress={() => navigation.navigate('Register')}
-        >
-          <Text style={styles.registerText}>
-            Registrarse
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity>
-        <Text style={styles.aboutText}>
-          Acerca de nosotros
-        </Text>
-      </TouchableOpacity>
-
-    </View>
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const GREEN = '#9DBD3F';
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-
-  logoContainer: {
-    alignItems: 'center',
-  },
-
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: GREEN,
-    marginBottom: 30,
-  },
-
-  title: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: '300',
-  },
-
-  buttonsContainer: {
-    flexDirection: 'row',
-    gap: 15,
-  },
-
-  loginButton: {
-    backgroundColor: '#111',
-    paddingHorizontal: 25,
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-
-  registerButton: {
-    backgroundColor: GREEN,
-    paddingHorizontal: 25,
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-
-  loginText: {
-    color: 'white',
-    fontSize: 16,
-  },
-
-  registerText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  aboutText: {
-    color: '#bbb',
-    textDecorationLine: 'underline',
-  },
-});
