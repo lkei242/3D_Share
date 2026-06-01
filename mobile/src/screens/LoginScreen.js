@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 
 export default function LoginScreen({ navigation }) {
@@ -13,7 +15,14 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+
+      <Text style={styles.title}>
+        Iniciar Sesión
+      </Text>
 
       <View style={styles.logoContainer}>
         <Image
@@ -22,29 +31,35 @@ export default function LoginScreen({ navigation }) {
         />
       </View>
 
-      <Text style={styles.title}>
-        Iniciar Sesión
-      </Text>
-
       <TextInput
         style={styles.input}
         placeholder="Email"
-        placeholderTextColor="#888"
+        placeholderTextColor="#707070"
         value={email}
         onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
 
       <TextInput
-        style={styles.input}
+        style={styles.input2}
         placeholder="Contraseña"
-        placeholderTextColor="#888"
+        placeholderTextColor="#707070"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity 
-        style={styles.button} 
+      <TouchableOpacity
+        onPress={() => navigation.navigate('ForgotPassword')}
+      >
+        <Text style={styles.forgotPassword}>
+          ¿Olvidaste tu contraseña?
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.button}
         onPress={() => navigation.replace('Home')}
       >
         <Text style={styles.buttonText}>
@@ -57,17 +72,14 @@ export default function LoginScreen({ navigation }) {
           Volver
         </Text>
       </TouchableOpacity>
-
-    </View>
+    </KeyboardAvoidingView>
   );
 }
-
-const GREEN = '#9DBD3F';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#121212',
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
@@ -76,21 +88,46 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 30,
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 180,
+    marginTop: -170, // lo mueve hacia arriba
+    transform: [{ translateY: -25 }],
     fontFamily: 'Nunito-Bold',
   },
 
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 50,
+    marginTop: -140,
+  },
+
+  logo: {
+    width: 220,
+    height: 220,
+    transform: [{ translateY: -20 }],
+    resizeMode: 'contain',
+  },
+
   input: {
-    backgroundColor: '#111',
-    color: 'white',
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    color: '#000000',
+    borderRadius: 5,
     paddingHorizontal: 15,
     paddingVertical: 12,
+    marginTop: 0,
     marginBottom: 15,
   },
 
+  input2: {
+    backgroundColor: '#FFFFFF',
+    color: '#000000',
+    borderRadius: 5,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    marginBottom: 2,
+  },
+
   button: {
-    backgroundColor: GREEN,
+    backgroundColor: '#546F1C',
     borderRadius: 10,
     paddingVertical: 15,
     marginTop: 10,
@@ -100,25 +137,25 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontSize: 18,
-    fontFamily: 'Nunito-Bold',
+    fontFamily: 'Nunito-Light',
   },
 
   link: {
-    color: '#bbb',
+    color: '#cacaca',
     textAlign: 'center',
+    fontSize: 14,
     marginTop: 25,
     textDecorationLine: 'underline',
     fontFamily: 'Nunito-Bold',
+    letterSpacing: 0.4, // 👈 esto separa las letras
   },
-
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  logo: {
-    width: 120,
-    height: 120,
-    resizeMode: 'contain',
+  forgotPassword: {
+    color: '#9DBD3F',
+    textAlign: 'right',
+    fontSize: 12,
+    marginTop: 15,
+    fontFamily: 'Nunito-Bold',
+    letterSpacing: 1,
+    marginBottom: 12,
   },
 });

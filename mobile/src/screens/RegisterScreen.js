@@ -16,6 +16,10 @@ export default function RegisterScreen({ navigation }) {
   return (
     <View style={styles.container}>
       
+      <Text style={styles.title}>
+        Registrarse
+      </Text>
+
       <View style={styles.logoContainer}>
         <Image
           source={require('../../assets/logo.png')}
@@ -23,14 +27,11 @@ export default function RegisterScreen({ navigation }) {
         />
       </View>
 
-      <Text style={styles.title}>
-        Registrarse
-      </Text>
 
       <TextInput
         style={styles.input}
         placeholder="Usuario"
-        placeholderTextColor="#888"
+        placeholderTextColor="#707070"
         value={username}
         onChangeText={setUsername}
       />
@@ -38,7 +39,7 @@ export default function RegisterScreen({ navigation }) {
       <TextInput
         style={styles.input}
         placeholder="Email"
-        placeholderTextColor="#888"
+        placeholderTextColor="#707070"
         value={email}
         onChangeText={setEmail}
       />
@@ -46,7 +47,7 @@ export default function RegisterScreen({ navigation }) {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
-        placeholderTextColor="#888"
+        placeholderTextColor="#707070"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -73,7 +74,7 @@ const GREEN = '#9DBD3F';
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#121212',
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
@@ -86,10 +87,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Bold',
   },
 
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  logo: {
+    width: 220,
+    height: 220,
+    resizeMode: 'contain',
+  },
+
   input: {
-    backgroundColor: '#111',
+    backgroundColor: '#FFFFFF',
     color: 'white',
-    borderRadius: 10,
+    borderRadius: 5,
     paddingHorizontal: 15,
     paddingVertical: 12,
     marginBottom: 15,
@@ -97,7 +109,7 @@ const styles = StyleSheet.create({
   },
 
   button: {
-    backgroundColor: GREEN,
+    backgroundColor: '#546F1C',
     borderRadius: 10,
     paddingVertical: 15,
     marginTop: 10,
@@ -107,7 +119,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontSize: 18,
-    fontFamily: 'Nunito-Bold',
+    fontFamily: 'Nunito-Light',
   },
 
   link: {
@@ -116,16 +128,7 @@ const styles = StyleSheet.create({
     marginTop: 25,
     textDecorationLine: 'underline',
     fontFamily: 'Nunito-Bold',
+    letterSpacing: 0.4,
   },
 
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  logo: {
-    width: 120,
-    height: 120,
-    resizeMode: 'contain',
-  },
 });
