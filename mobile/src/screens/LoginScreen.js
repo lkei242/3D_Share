@@ -43,7 +43,10 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity 
+        style={styles.button} 
+        onPress={() => navigation.replace('Home')}
+      >
         <Text style={styles.buttonText}>
           Ingresar
         </Text>
