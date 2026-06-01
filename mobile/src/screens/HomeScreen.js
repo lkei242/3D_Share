@@ -151,7 +151,7 @@ function TabBarIcon({ children, isActive, onPress }) {
 
               <Stop offset="0%" stopColor="#546F1C" stopOpacity="1" />
 
-              <Stop offset="95%" stopColor="#0B0F03" stopOpacity="1" /> 
+              <Stop offset="94%" stopColor="#0B0F03" stopOpacity="1" /> 
 
               <Stop offset="100%" stopColor="#0B0F03" stopOpacity="1" />
             </LinearGradient>
