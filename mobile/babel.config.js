@@ -16,7 +16,7 @@ module.exports = {
           'mdi:bookmark-outline',
           'mdi:chart-bar',
         ],
-        entry: 'App.tsx', // Mantiene la entrada de TypeScript configurada
+        entry: 'App.tsx', 
       },
     ],
   ],
