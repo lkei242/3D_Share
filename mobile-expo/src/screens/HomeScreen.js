@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { MaterialCommunityIcons, Feather, Ionicons, Octicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomTabBar from './components/BottomTabBar';
 
 import {
   View,
@@ -190,10 +189,6 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* ── Barra de navegación inferior con el margen nativo inferior del celular ── */}
-      <View>
-        <BottomTabBar activeTab="home" navigation={navigation} />
-      </View>
     </View>
   );
 }

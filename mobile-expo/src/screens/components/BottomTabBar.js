@@ -1,26 +1,10 @@
 import React from 'react';
-import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
-
-import {
-  Feather,
-  Ionicons,
-  Octicons,
-} from '@expo/vector-icons';
-
+import {View, TouchableOpacity, StyleSheet} from 'react-native';
+import {Feather, Ionicons, Octicons} from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, {Defs, LinearGradient, Stop, Rect} from 'react-native-svg';
 
-import Svg, {
-  Defs,
-  LinearGradient,
-  Stop,
-  Rect,
-} from 'react-native-svg';
-
-const GREEN = '#546F1C';
+const GREEN = '#546F1C', BLACK = '#0B0F03';
 
 function TabButton({
   active,
@@ -54,7 +38,7 @@ function TabButton({
 
               <Stop
                 offset="94%"
-                stopColor="#0B0F03"
+                stopColor={BLACK}
               />
 
               <Stop
@@ -79,64 +63,43 @@ function TabButton({
   );
 }
 
-export default function BottomTabBar({
-  activeTab,
-  navigation,
-}) {
+const TAB_ICONS = ['Home', 'Chat', 'Search', 'Profile'];
+export default function BottomTabBar({ state, navigation }) {
   const insets = useSafeAreaInsets();
-
   return (
-    <View
-      style={[
-        styles.tabBar,
-        {
-          paddingBottom: insets.bottom + 8,
-        },
-      ]}
-    >
-      <TabButton
-        active={activeTab === 'home'}
-        onPress={() => navigation.navigate('Home')}
-      >
-        <Feather
-          name="home"
-          size={28}
-          color="#FFF"
-        />
-      </TabButton>
-
-      <TabButton
-        active={activeTab === 'chat'}
-        onPress={() => navigation.navigate('Chat')}
-      >
-        <Ionicons
-          name="chatbox-outline"
-          size={28}
-          color="#FFF"
-        />
-      </TabButton>
-
-      <TabButton
-        active={activeTab === 'search'}
-        onPress={() => navigation.navigate('Search')}
-      >
-        <Feather
-          name="search"
-          size={28}
-          color="#FFF"
-        />
-      </TabButton>
-
-      <TabButton
-        active={activeTab === 'profile'}
-        onPress={() => navigation.navigate('Profile')}
-      >
-        <Octicons
-          name="person"
-          size={28}
-          color="#FFF"
-        />
-      </TabButton>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 8 }]}>
+      {state.routes.map((route, index) => {
+        const isFocused = state.index === index;
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+        const icon = () => {
+          switch (route.name) {
+            case 'Home':
+              return <Feather name="home" size={24} color="#FFF" />;
+            case 'Chat':
+              return <Ionicons name="chatbox-outline" size={24} color="#FFF" />;
+            case 'Search':
+              return <Feather name="search" size={24} color="#FFF" />;
+            case 'Profile':
+              return <Octicons name="person" size={24} color="#FFF" />;
+            default:
+              return null;
+          }
+        };
+        return (
+          <TabButton key={route.key} active={isFocused} onPress={onPress}>
+            {icon()}
+          </TabButton>
+        );
+      })}
     </View>
   );
 }
@@ -153,9 +116,9 @@ const styles = StyleSheet.create({
 
   tabItem: {
     flex: 1,
-    height: 44,
+    height: 34,
 
-    marginHorizontal: 12,
+    marginHorizontal: 16,
 
     borderRadius: 20,
 

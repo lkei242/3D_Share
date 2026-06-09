@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import BottomTabBar from './components/BottomTabBar';
 
 const GREEN_DARK = '#1F2611'; // Verde opaco para el buscador
 const GREEN_ACCENT = '#546F1C'; // Verde principal
@@ -109,8 +108,6 @@ export default function ChatScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* ── Barra inferior reutilizable ── */}
-      <BottomTabBar activeTab="chat" navigation={navigation} />
     </View>
   );
 }

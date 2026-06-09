@@ -2,7 +2,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomTabBar from './components/BottomTabBar';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -16,7 +15,6 @@ export default function SearchScreen({ navigation }) {
       <View style={styles.content}>
         <Text style={styles.text}>Pantalla de Búsqueda (En desarrollo)</Text>
       </View>
-      <BottomTabBar activeTab="search" navigation={navigation} />
     </View>
   );
 }

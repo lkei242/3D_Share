@@ -3,7 +3,10 @@ node_modules/
 mobile/node_modules/
 
 # Variables de entorno
-.env
+#.env 
+#.env.local
+#.env*.local
+#(sacar el # cuando sea necesario)
 
 # Logs
 *.log
@@ -11,5 +14,3 @@ mobile/node_modules/
 # Archivos del sistema
 .DS_Store
 Thumbs.db
-
-mobile/android/local.properties
