@@ -36,7 +36,7 @@ export default function ProfileScreen({ navigation }) {
         >
           <View>
             <Text style={styles.username}>
-              Usuario
+              NombreUsuario
             </Text>
 
             <Text style={styles.handle}>
@@ -44,11 +44,13 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </View>
 
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+          >
             <Ionicons
               name="settings-outline"
               size={28}
-              color="#FFF"
+              color="white"
             />
           </TouchableOpacity>
         </View>
@@ -173,20 +175,12 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* PUBLICACIONES */}
+        
         <View style={styles.postsSection}>
           <Text style={styles.postsTitle}>
-            PUBLICACIONES
+            Todavía no has publicado nada
           </Text>
 
-          <View style={styles.postsGrid}>
-            <View style={styles.postCard} />
-            <View style={styles.postCard} />
-            <View style={styles.postCard} />
-            <View style={styles.postCard} />
-            <View style={styles.postCard} />
-            <View style={styles.postCard} />
-          </View>
         </View>
       </ScrollView>
 
@@ -201,7 +195,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    backgroundColor: '#0B0B0B',
+    backgroundColor: '#121212',
     paddingHorizontal: 20,
     paddingBottom: 15,
 
@@ -331,6 +325,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 20,
     letterSpacing: 1,
+    transform: [{ translateY: 120 }],
     fontFamily: 'Nunito-Bold',
   },
 
