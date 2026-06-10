@@ -34,7 +34,9 @@ export default function ProfileScreen({ navigation }) {
             },
           ]}
         >
-          <View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AccountSwitcher')}
+          >
             <Text style={styles.username}>
               NombreUsuario
             </Text>
@@ -42,7 +44,7 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.handle}>
               @usuario
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => navigation.navigate('Settings')}

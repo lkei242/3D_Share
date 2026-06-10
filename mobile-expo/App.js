@@ -21,6 +21,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import AccountSwitcherScreen from './src/screens/AccountSwitcherScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -69,6 +70,10 @@ export default function App() {
           <Stack.Screen
             name="Settings"
             component={SettingsScreen}
+          />
+          <Stack.Screen
+            name="AccountSwitcher"
+            component={AccountSwitcherScreen}
           />
         </Stack.Navigator>
       </NavigationContainer>
