@@ -14,15 +14,27 @@ export default function AccountSwitcherScreen({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Settings')}
-        >
+
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
-            name="settings-outline"
-            size={28}
+            name="arrow-back"
+            size={26}
             color="white"
           />
         </TouchableOpacity>
+
+        <Text style={styles.title}>
+          Cambiar cuenta
+        </Text>
+
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+          <Ionicons
+            name="settings-outline"
+            size={26}
+            color="white"
+          />
+        </TouchableOpacity>
+
       </View>
 
       {/* Perfil */}
@@ -45,21 +57,15 @@ export default function AccountSwitcherScreen({ navigation }) {
       <View style={styles.accountsSection}>
 
         <TouchableOpacity style={styles.accountButton}>
-          <Text style={styles.accountText}>
-            Cuenta 1
-          </Text>
+          <Text style={styles.accountText}>Cuenta 1</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.accountButton}>
-          <Text style={styles.accountText}>
-            Agregar cuenta
-          </Text>
+          <Text style={styles.accountText}>Agregar cuenta</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.accountButton}>
-          <Text style={styles.accountText}>
-            Ver todas las cuentas
-          </Text>
+          <Text style={styles.accountText}>Ver todas las cuentas</Text>
         </TouchableOpacity>
 
       </View>
@@ -74,12 +80,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
 
+  /* HEADER */
   header: {
     paddingTop: 60,
     paddingHorizontal: 20,
-    alignItems: 'flex-end',
+    marginBottom: 30,
+    marginTop: -20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
+  title: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+
+  /* PERFIL */
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -111,6 +129,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
 
+  /* CUENTAS */
   accountsSection: {
     padding: 25,
     gap: 15,

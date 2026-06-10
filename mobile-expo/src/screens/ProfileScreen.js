@@ -68,34 +68,34 @@ export default function ProfileScreen({ navigation }) {
 
           <View style={styles.statsContainer}>
             <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                12
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Publicaciones
-              </Text>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => navigation.navigate('Contacts')}
+              >
+                <Text style={styles.statNumber}>0</Text>
+                <Text style={styles.statLabel}>Publicaciones</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                58
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Contactos
-              </Text>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => navigation.navigate('Contacts')}
+              >
+                <Text style={styles.statNumber}>0</Text>
+                <Text style={styles.statLabel}>Contactos</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                120
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Seguidores
-              </Text>
-            </View>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => navigation.navigate('Contacts')}
+              >
+                <Text style={styles.statNumber}>0</Text>
+                <Text style={styles.statLabel}>Seguidores</Text>
+              </TouchableOpacity>
+              </View>
           </View>
         </View>
 
