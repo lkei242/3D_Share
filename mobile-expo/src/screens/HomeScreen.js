@@ -1,6 +1,6 @@
 // src/screens/HomeScreen.js
-
-import React, { useState } from 'react';
+import { API_URL } from './config/api';
+import React, { useState, useEffect } from 'react';
 import { MaterialCommunityIcons, Feather, Ionicons, Octicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  ActivityIndicator
 } from 'react-native';
 
 const GREEN = '#9DBD3F';
@@ -138,6 +139,31 @@ function PostCard({ item, onPress }) {
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets(); // Obtiene insets nativos de Android 15 / Pixel 8
 
+    const [posts, setPosts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const fetchPosts = async () => {
+    if (loading || !hasMore) return;
+    setLoading(true);
+    try {
+      // Reemplazá TU_IP con la IP local de tu PC cuando conectes el backend
+      const res = await fetch(`${API_URL}/api/posts/feed?page=${page}&limit=10`);
+      const data = await res.json();
+      setPosts(prev => [...prev, ...data.posts]); // Añade los nuevos posts al final
+      setHasMore(data.hasMore);                   // El backend nos dice si hay más
+      setPage(prev => prev + 1);                  // Avanzamos de página
+    } catch (error) {
+      console.log("Error cargando posts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Cargar primera página al abrir la app
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
   const renderItem = ({ item }) => (
     <PostCard
       item={item}
@@ -180,13 +206,17 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── Grid de publicaciones ── */}
       <FlatList
-        data={POSTS}
+        data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+
+        onEndReached={fetchPosts}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={loading ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />
 
     </View>

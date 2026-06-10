@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { auth } from './config/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import {
   View,
   Text,
@@ -12,6 +14,23 @@ export default function RegisterScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const handleRegister = async () => {
+    if (!email || !password) {
+      alert("Por favor, completa todos los campos.");
+      return;
+    }
+    try {
+      // 1. Crear usuario en Firebase Auth
+      await createUserWithEmailAndPassword(auth, email, password);
+      alert("Cuenta creada con éxito!");
+      
+      // 2. Redirigir a la app principal
+      navigation.replace('MainTabs');
+    } catch (error) {
+      alert(error.message);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -53,7 +72,7 @@ export default function RegisterScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={handleRegister}>
         <Text style={styles.buttonText}>
           Crear Cuenta
         </Text>
@@ -100,7 +119,7 @@ const styles = StyleSheet.create({
 
   input: {
     backgroundColor: '#FFFFFF',
-    color: 'white',
+    color: '#000000',
     borderRadius: 5,
     paddingHorizontal: 15,
     paddingVertical: 12,

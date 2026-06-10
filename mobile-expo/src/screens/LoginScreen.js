@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { auth } from './config/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import {
   View,
   Text,
@@ -13,6 +15,23 @@ import {
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    try {
+      // 1. Loguearse en Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      // 2. Obtener el Token JWT generado por Firebase
+      const token = await user.getIdToken();
+      // 3. Guardar el token en almacenamiento local o enviarlo en headers
+      console.log("Token JWT listo para enviar al backend:", token);
+      
+      // Redirigir a la app principal
+      navigation.replace('MainTabs');
+    } catch (error) {
+      alert(error.message);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -60,7 +79,7 @@ export default function LoginScreen({ navigation }) {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.replace('MainTabs')}
+        onPress={handleLogin}
       >
         <Text style={styles.buttonText}>
           Ingresar
