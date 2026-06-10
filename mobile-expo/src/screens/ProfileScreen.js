@@ -1,24 +1,13 @@
 // src/screens/ProfileScreen.js
 
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  StatusBar,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-} from 'react-native';
-
+import {View, Text, StyleSheet, StatusBar, TouchableOpacity, ScrollView, Image} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Ionicons,
   Feather,
 } from '@expo/vector-icons';
-
-import BottomTabBar from './components/BottomTabBar';
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -201,10 +190,6 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <BottomTabBar
-        activeTab="profile"
-        navigation={navigation}
-      />
     </View>
   );
 }
