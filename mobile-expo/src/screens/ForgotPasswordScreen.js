@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
 import {
   View,
@@ -6,6 +7,9 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
 
 export default function ForgotPasswordScreen({ navigation }) {
@@ -17,8 +21,10 @@ export default function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>
             Recuperar Contraseña
         </Text>
@@ -59,7 +65,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         </Text>
       </TouchableOpacity>
 
-    </View>
+      </KeyboardAwareScrollView>
   );
 }
 

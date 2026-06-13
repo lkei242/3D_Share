@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
 import { auth } from './config/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -8,6 +9,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
 
 export default function RegisterScreen({ navigation }) {
@@ -33,8 +37,12 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      
+    <KeyboardAwareScrollView
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.container}
+    >
+          
       <Text style={styles.title}>
         Registrarse
       </Text>
@@ -83,8 +91,7 @@ export default function RegisterScreen({ navigation }) {
           Volver
         </Text>
       </TouchableOpacity>
-
-    </View>
+    </KeyboardAwareScrollView>
   );
 }
 

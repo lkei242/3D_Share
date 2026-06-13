@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React, { useState } from 'react';
 import { auth } from './config/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -9,9 +10,9 @@ import {
   TouchableOpacity,
   Image,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
 } from 'react-native';
-
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,11 +35,11 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAwareScrollView
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.container}
     >
-
       <Text style={styles.title}>
         Iniciar Sesión
       </Text>
@@ -91,7 +92,7 @@ export default function LoginScreen({ navigation }) {
           Volver
         </Text>
       </TouchableOpacity>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

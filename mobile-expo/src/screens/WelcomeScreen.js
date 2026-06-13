@@ -45,13 +45,13 @@ export default function WelcomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* ABOUT EDITABLE */}
+      {/* FALTA HACER un link que lleve a la pantalla AcercaDeNosotros despues */}
       <View style={styles.bottomContainer}>
-        <TextInput
-          value={about}
-          onChangeText={setAbout}
-          style={styles.aboutInput}
-        />
+        <View style={styles.bottomContainer}>
+          <Text style={styles.aboutInput}>
+            Acerca de nosotros
+          </Text>
+        </View>
       </View>
 
     </View>
