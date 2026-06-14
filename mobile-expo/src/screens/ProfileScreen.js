@@ -122,7 +122,7 @@ export default function ProfileScreen({ navigation }) {
 
         {/* REDES */}
         <View style={styles.socialSection}>
-          <TouchableOpacity style={styles.socialItem}>
+          <TouchableOpacity style={styles.socialItem}onPress={() => navigation.navigate('SocialNetworks')}>
             <Feather
               name="message-circle"
               size={24}
@@ -131,9 +131,10 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.socialText}>
               WhatsApp
             </Text>
+            
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialItem}>
+          <TouchableOpacity style={styles.socialItem}onPress={() => navigation.navigate('SocialNetworks')}>
             <Feather
               name="twitter"
               size={24}
@@ -144,7 +145,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialItem}>
+          <TouchableOpacity style={styles.socialItem}onPress={() => navigation.navigate('SocialNetworks')}>
             <Feather
               name="facebook"
               size={24}
@@ -155,7 +156,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialItem}>
+          <TouchableOpacity style={styles.socialItem}onPress={() => navigation.navigate('SocialNetworks')}>
             <Feather
               name="instagram"
               size={24}
@@ -166,7 +167,7 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialItem}>
+          <TouchableOpacity style={styles.socialItem}onPress={() => navigation.navigate('SocialNetworks')}>
             <Text style={styles.tiktok}>
               ♪
             </Text>

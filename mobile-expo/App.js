@@ -23,6 +23,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import AccountSwitcherScreen from './src/screens/AccountSwitcherScreen';
 import ContactsScreen from './src/screens/ContactsScreen';
+import SocialNetworksScreen from './src/screens/SocialNetworksScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -79,6 +80,11 @@ export default function App() {
           <Stack.Screen
             name="Contacts"
             component={ContactsScreen}
+          />
+          <Stack.Screen
+            name="SocialNetworks"
+            component={SocialNetworksScreen}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>
