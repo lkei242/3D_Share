@@ -30,7 +30,7 @@ import NotificationsScreen from './src/screens/profile_screens/NotificationsScre
 import PublishScreen from './src/screens/PublishScreen';
 import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
 import PreferencesScreen from './src/screens/profile_screens/PreferencesScreen';
-
+import LikesScreen from './src/screens/profile_screens/Tu_actividad/LikesScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -122,6 +122,11 @@ export default function App() {
           <Stack.Screen
             name="Preferences"
             component={PreferencesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="LikesScreen"
+            component={LikesScreen}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>

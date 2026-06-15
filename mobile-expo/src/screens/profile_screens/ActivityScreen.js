@@ -37,21 +37,26 @@ export default function ActivityScreen({ navigation }) {
 
       <ScrollView>
         {options.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.option}
-          >
-            <Text style={styles.optionText}>
-              {item}
-            </Text>
+            <TouchableOpacity
+              key={index}
+              style={styles.option}
+              onPress={() => {
+                if (item === 'Me gusta') {
+                  navigation.navigate('LikesScreen');
+                }
+              }}
+            >
+              <Text style={styles.optionText}>
+                {item}
+              </Text>
 
-            <Ionicons
-              name="chevron-forward"
-              size={24}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-        ))}
+              <Ionicons
+                name="chevron-forward"
+                size={24}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          ))}
       </ScrollView>
     </View>
   );
