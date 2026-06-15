@@ -35,12 +35,12 @@ return (
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.option}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Security')}>
         <Text style={styles.optionText}>Seguridad</Text>
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.option}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Notifications')}>
         <Text style={styles.optionText}>Notificaciones</Text>
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>

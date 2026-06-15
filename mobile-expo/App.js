@@ -25,8 +25,8 @@ import AccountSwitcherScreen from './src/screens/AccountSwitcherScreen';
 import ContactsScreen from './src/screens/ContactsScreen';
 import SocialNetworksScreen from './src/screens/SocialNetworksScreen';
 import AccountScreen from './src/screens/AccountScreen';
-
-
+import SecurityScreen from './src/screens/SecurityScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 
 
 
@@ -96,6 +96,16 @@ export default function App() {
           <Stack.Screen
             name="Account"
             component={AccountScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Security"
+            component={SecurityScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Notifications"
+            component={NotificationsScreen}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>
