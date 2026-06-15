@@ -40,7 +40,7 @@ export default function AccountSwitcherScreen({ navigation }) {
       {/* Perfil */}
       <View style={styles.profileSection}>
         <Image
-          source={require('../../assets/profile_picture.jpg')}
+          source={require('../../../assets/profile_picture.jpg')}
           style={styles.avatar}
         />
 

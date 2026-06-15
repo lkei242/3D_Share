@@ -34,7 +34,7 @@ export default function ContactsScreen({ navigation }) {
             <Ionicons name="arrow-back" size={28} color="#fff" />
             </TouchableOpacity>
 
-            <Text style={styles.title}>Contactos</Text>
+            <Text style={styles.title}>Usuario</Text>
         </View>
 
         {/* Estadísticas */}
@@ -54,9 +54,7 @@ export default function ContactsScreen({ navigation }) {
 
             {/* Seguidores */}
             <View style={{ width: width - 40 }}>
-            <Text style={styles.sectionTitle}>
-                Seguidores
-            </Text>
+
             <TextInput
                 placeholder="Buscar"
                 placeholderTextColor="#999"
@@ -83,9 +81,7 @@ export default function ContactsScreen({ navigation }) {
 
             {/* Seguidos */}
             <View style={{ width: width - 40 }}>
-            <Text style={styles.sectionTitle}>
-                Seguidos
-            </Text>
+
             <TextInput
                 placeholder="Buscar"
                 placeholderTextColor="#999"

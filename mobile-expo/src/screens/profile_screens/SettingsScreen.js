@@ -24,7 +24,7 @@ return (
     <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.profileSection}>
         <Image
-            source={require('../../assets/profile_picture.jpg')}
+            source={require('../../../assets/profile_picture.jpg')}
             style={styles.avatar}
         />
         <Text style={styles.username}>Nombre</Text>
@@ -45,12 +45,12 @@ return (
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.option}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Preferences')}>
         <Text style={styles.optionText}>Preferencias</Text>
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.option}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Activity')}>
         <Text style={styles.optionText}>Tu Actividad</Text>
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>

@@ -83,7 +83,7 @@ export default function ProfileScreen({ navigation }) {
                 onPress={() => navigation.navigate('Contacts')}
               >
                 <Text style={styles.statNumber}>0</Text>
-                <Text style={styles.statLabel}>Contactos</Text>
+                <Text style={styles.statLabel}>Seguidores</Text>
               </TouchableOpacity>
             </View>
 
@@ -93,7 +93,7 @@ export default function ProfileScreen({ navigation }) {
                 onPress={() => navigation.navigate('Contacts')}
               >
                 <Text style={styles.statNumber}>0</Text>
-                <Text style={styles.statLabel}>Seguidores</Text>
+                <Text style={styles.statLabel}>Seguidos</Text>
               </TouchableOpacity>
               </View>
           </View>

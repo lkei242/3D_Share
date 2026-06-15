@@ -20,14 +20,17 @@ import HomeScreen from './src/screens/HomeScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import AccountSwitcherScreen from './src/screens/AccountSwitcherScreen';
-import ContactsScreen from './src/screens/ContactsScreen';
-import SocialNetworksScreen from './src/screens/SocialNetworksScreen';
-import AccountScreen from './src/screens/AccountScreen';
-import SecurityScreen from './src/screens/SecurityScreen';
-import NotificationsScreen from './src/screens/NotificationsScreen';
+import SettingsScreen from './src/screens/profile_screens/SettingsScreen';
+import AccountSwitcherScreen from './src/screens/profile_screens/AccountSwitcherScreen';
+import ContactsScreen from './src/screens/profile_screens/ContactsScreen';
+import SocialNetworksScreen from './src/screens/profile_screens/SocialNetworksScreen';
+import AccountScreen from './src/screens/profile_screens/AccountScreen';
+import SecurityScreen from './src/screens/profile_screens/SecurityScreen';
+import NotificationsScreen from './src/screens/profile_screens/NotificationsScreen';
 import PublishScreen from './src/screens/PublishScreen';
+import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
+import PreferencesScreen from './src/screens/PreferencesScreen';
+
 
 
 const Stack = createNativeStackNavigator();
@@ -109,6 +112,16 @@ export default function App() {
           <Stack.Screen
             name="Publish"
             component={PublishScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Activity"
+            component={ActivityScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Preferences"
+            component={PreferencesScreen}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>
