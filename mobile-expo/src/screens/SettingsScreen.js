@@ -30,7 +30,7 @@ return (
         <Text style={styles.username}>Nombre</Text>
         </View>
 
-        <TouchableOpacity style={styles.option}>
+        <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('Account')}>
         <Text style={styles.optionText}>Cuenta</Text>
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
