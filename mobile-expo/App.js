@@ -29,7 +29,7 @@ import SecurityScreen from './src/screens/profile_screens/SecurityScreen';
 import NotificationsScreen from './src/screens/profile_screens/NotificationsScreen';
 import PublishScreen from './src/screens/PublishScreen';
 import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
-import PreferencesScreen from './src/screens/PreferencesScreen';
+import PreferencesScreen from './src/screens/profile_screens/PreferencesScreen';
 
 
 

@@ -45,10 +45,9 @@ export default function PreferencesScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Modo Africano */}
         <View style={styles.row}>
           <Text style={styles.label}>
-            Modo Africano
+            Modo Oscuro
           </Text>
 
           <Switch
@@ -123,7 +122,12 @@ const styles = StyleSheet.create({
   },
 
   languageRow: {
-    marginBottom: 35,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
 
   languageButton: {

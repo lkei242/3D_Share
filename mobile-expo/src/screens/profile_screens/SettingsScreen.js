@@ -55,7 +55,10 @@ return (
         <Ionicons name="chevron-forward-circle" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity
+        style={styles.logoutButton}
+        onPress={() => navigation.navigate('Welcome')}
+        >
         <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
     </ScrollView>
