@@ -139,30 +139,41 @@ function PostCard({ item, onPress }) {
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets(); // Obtiene insets nativos de Android 15 / Pixel 8
 
-    const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const fetchPosts = async () => {
+  
+  const fetchPosts = async (reset = false) => {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
       // Reemplazá TU_IP con la IP local de tu PC cuando conectes el backend
+      const pageToFetch = reset ? 1 : page;
       const res = await fetch(`${API_URL}/api/posts/feed?page=${page}&limit=10`);
       const data = await res.json();
-      setPosts(prev => [...prev, ...data.posts]); // Añade los nuevos posts al final
-      setHasMore(data.hasMore);                   // El backend nos dice si hay más
-      setPage(prev => prev + 1);                  // Avanzamos de página
-    } catch (error) {
-      console.log("Error cargando posts:", error);
-    } finally {
-      setLoading(false);
-    }
+      
+      if (reset) {
+          setPosts(data.posts);
+          setPage(2); // La siguiente página a pedir será la 2
+        } else {
+          setPosts(prev => [...prev, ...data.posts]);
+          setPage(prev => prev + 1);
+        }
+        setHasMore(data.hasMore);
+      } catch (error) {
+        console.log("Error cargando posts:", error);
+      } finally {
+        setLoading(false);
+      }
   };
   // Cargar primera página al abrir la app
   useEffect(() => {
-    fetchPosts();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchPosts(true);
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const renderItem = ({ item }) => (
     <PostCard
@@ -184,7 +195,9 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         
         {/* Botón de publicar con Icono y texto alineados */}
-        <TouchableOpacity style={styles.headerButton}>
+        <TouchableOpacity style={styles.headerButton}
+              onPress={() => navigation.navigate('Publish')}
+            >
           <View style={styles.publishButtonContainer}>
             <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
             <Text style={styles.headerButtonText}>Publicar</Text>

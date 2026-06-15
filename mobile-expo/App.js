@@ -27,9 +27,7 @@ import SocialNetworksScreen from './src/screens/SocialNetworksScreen';
 import AccountScreen from './src/screens/AccountScreen';
 import SecurityScreen from './src/screens/SecurityScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
-
-
-
+import PublishScreen from './src/screens/PublishScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -106,6 +104,11 @@ export default function App() {
           <Stack.Screen
             name="Notifications"
             component={NotificationsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Publish"
+            component={PublishScreen}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>

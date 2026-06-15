@@ -3,16 +3,18 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
-// const Post = require('../models/Post'); // Descomentar cuando crees el modelo Post
-// const User = require('../models/User'); // Descomentar cuando crees el modelo User
+const checkAuth = require('../middleware/auth'); // Verifica el JWT de Firebase
+const Post = require('../models/Post');         // Modelo de MongoDB
 
-// 1. POST /api/posts - Crear un post y subir imagen a Cloudinary
-router.post('/', upload.single('imagen'), async (req, res) => {
+// 1. POST /api/posts - Crear un post y guardar en base de datos
+// Requiere cabecera: Authorization: Bearer <token_jwt>
+router.post('/', checkAuth, upload.single('imagen'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No se subió ninguna imagen' });
     }
-    // Subir el buffer directo a Cloudinary v2
+
+    // A. Subir el buffer directo a Cloudinary v2
     const resultado = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         { folder: '3d_share/posts', transformation: [{ width: 800, quality: 'auto' }] },
@@ -22,53 +24,66 @@ router.post('/', upload.single('imagen'), async (req, res) => {
         }
       ).end(req.file.buffer);
     });
-    res.json({ success: true, url: resultado.secure_url });
+
+    // B. Crear el documento en MongoDB
+    const nuevoPost = new Post({
+      titulo: req.body.titulo || 'Sin título',
+      descripcion: req.body.descripcion || '',
+      imagenes: [resultado.secure_url],
+      precio: req.body.precio ? parseFloat(req.body.precio) : null,
+      autor: req.user.uid, // UID de Firebase inyectado por el middleware checkAuth
+      vistas: 0
+    });
+
+    await nuevoPost.save();
+
+    res.status(201).json({ success: true, post: nuevoPost });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-module.exports = router;
 
-// 2. GET /api/posts/feed - Obtener posts paginados de usuarios seguidos
+// 2. GET /api/posts/feed - Obtener posts paginados y formateados para el frontend
 router.get('/feed', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skipIndex = (page - 1) * limit;
 
-    /* 
-      TODO: Cuando implementes JWT y Base de Datos, el flujo será:
-      1. Obtener el usuario autenticado: const userLogueado = await User.findById(req.user.id);
-      2. Filtrar posts de usuarios seguidos: 
-         const posts = await Post.find({ author: { $in: userLogueado.following } })
-      
-      POR AHORA, para probar el scroll infinito, podés devolver todos los posts de la BD:
-    */
-    
-    // const posts = await Post.find()
-    //   .sort({ createdAt: -1 })
-    //   .limit(limit)
-    //   .skip(skipIndex);
-    //
-    // const total = await Post.countDocuments();
-    //
-    // res.json({
-    //   posts,
-    //   hasMore: (page * limit) < total
-    // });
+    // A. Consultar posts en la BD
+    const postsDb = await Post.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skipIndex);
 
-    // Mock temporal para que no falle antes de tener base de datos
-      res.json({
-    posts: [
-      { id: '1', title: 'Soporte auriculares', image: 'https://picsum.photos/seed/a1/400/300', price: '5000$', views: '1.2k', totalImages: 1 },
-      { id: '2', title: 'Figura de dragón', image: 'https://picsum.photos/seed/a2/400/300', price: null, views: '890', totalImages: 3 },
-      { id: '3', title: 'Cancha de Boca', image: 'https://picsum.photos/seed/a3/400/300', price: null, views: '45k', totalImages: 1 },
-      { id: '4', title: 'Engranaje industrial', image: 'https://picsum.photos/seed/a4/400/300', price: '12000$', views: '200', totalImages: 2 },
-      { id: '5', title: 'Maceta minimalista', image: 'https://picsum.photos/seed/a5/400/300', price: '3500$', views: '5k', totalImages: 1 },
-      { id: '6', title: 'Robot articulado', image: 'https://picsum.photos/seed/a6/400/300', price: null, views: '18k', totalImages: 4 },
-    ],
-    hasMore: false
-  });
+    const total = await Post.countDocuments();
+
+    // B. Si está vacía la BD (primera carga), enviamos mocks temporales para ver el diseño
+    if (postsDb.length === 0 && page === 1) {
+      return res.json({
+        posts: [
+          { id: 'm1', title: 'Soporte auriculares (Mock)', image: 'https://picsum.photos/seed/a1/400/300', price: '5000$', views: '1.2k', totalImages: 1 },
+          { id: 'm2', title: 'Figura de dragón (Mock)', image: 'https://picsum.photos/seed/a2/400/300', price: null, views: '890', totalImages: 3 },
+          { id: 'm3', title: 'Cancha de Boca (Mock)', image: 'https://picsum.photos/seed/a3/400/300', price: null, views: '45k', totalImages: 1 },
+        ],
+        hasMore: false
+      });
+    }
+
+    // C. Mapear los campos de MongoDB al formato de la app
+    const postsFormateados = postsDb.map(post => ({
+      id: post._id.toString(),
+      title: post.titulo,
+      image: post.imagenes && post.imagenes.length > 0 ? post.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+      price: post.precio ? `${post.precio}$` : null,
+      views: post.vistas >= 1000 ? `${(post.vistas / 1000).toFixed(1)}k` : post.vistas.toString(),
+      totalImages: post.imagenes ? post.imagenes.length : 1
+    }));
+
+    res.json({
+      posts: postsFormateados,
+      hasMore: (page * limit) < total
+    });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
