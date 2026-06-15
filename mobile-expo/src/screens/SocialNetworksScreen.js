@@ -49,6 +49,7 @@ export default function SocialNetworksScreen() {
     enableOnAndroid
     keyboardShouldPersistTaps="handled"
     contentContainerStyle={styles.ScrollContainer}
+    style={{ backgroundColor: '#121212' }}
     >
         <View style={styles.container}>
         <Text style={styles.title}>
@@ -92,7 +93,6 @@ export default function SocialNetworksScreen() {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
         backgroundColor: '#121212',
         paddingTop: 60,
         paddingHorizontal: 20,
