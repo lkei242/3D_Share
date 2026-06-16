@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '@react-navigation/native';
 import { auth } from './config/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import {
@@ -15,6 +16,7 @@ import {
 } from 'react-native';
 
 export default function LoginScreen({ navigation }) {
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [behavior, setBehavior] = useState(undefined);
@@ -51,23 +53,26 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#121212' }}
-      behavior={behavior} // <-- behavior dinámico
+      style={{ flex: 1, backgroundColor: colors.background }} // <-- Fondo dinámico
+      behavior={behavior}
     >
       <ScrollView
-        contentContainerStyle={styles.container}
+        style={{ flex: 1, width: '100%' }}
+        contentContainerStyle={[styles.container, { backgroundColor: colors.background }]} // <-- Fondo dinámico
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>
+        <Text style={[styles.title, { color: colors.text }]}> {/* <-- Texto dinámico */}
           Iniciar Sesión
         </Text>
+        
         <View style={styles.logoContainer}>
           <Image
             source={require('../../assets/logo.png')}
             style={styles.logo}
           />
         </View>
+
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -77,6 +82,7 @@ export default function LoginScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
         />
+
         <TextInput
           style={styles.input2}
           placeholder="Contraseña"
@@ -85,6 +91,7 @@ export default function LoginScreen({ navigation }) {
           value={password}
           onChangeText={setPassword}
         />
+
         <TouchableOpacity
           onPress={() => navigation.navigate('ForgotPassword')}
         >
@@ -92,6 +99,7 @@ export default function LoginScreen({ navigation }) {
             ¿Olvidaste tu contraseña?
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.button}
           onPress={handleLogin}
@@ -100,8 +108,9 @@ export default function LoginScreen({ navigation }) {
             Ingresar
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.link}>
+          <Text style={[styles.link, { color: colors.text }]}> {/* <-- Texto dinámico */}
             Volver
           </Text>
         </TouchableOpacity>
@@ -122,23 +131,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 30,
     textAlign: 'center',
-    marginBottom: 180,
-    marginTop: -170, // lo mueve hacia arriba
-    transform: [{ translateY: -25 }],
+    marginBottom: 30, // Margen normal hacia abajo
     fontFamily: 'Nunito-Bold',
   },
-
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 50,
-    marginTop: -140,
+    marginBottom: 20, // Margen normal hacia abajo
   },
-
   logo: {
     width: 220,
     height: 220,
-    transform: [{ translateY: -20 }],
-    resizeMode: 'contain',
+    resizeMode: 'contain', // Se mantiene escalado de forma limpia
   },
 
   input: {

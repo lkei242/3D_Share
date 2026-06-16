@@ -5,17 +5,18 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#121212",
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "backgroundColor": "#121212",
-      "navigationBarColor": "#121212",
-      "androidNavigationBar": {
+      "backgroundColor": "#121212"
+      },
+      "androidStatusBar": {
         "barStyle": "light-content",
-        "backgroundColor": "#121212"
+        "translucent": true,
+        "backgroundColor": "#00000000"
       },
       "adaptiveIcon": {
         "backgroundColor": "#121212",
@@ -27,5 +28,4 @@
     "web": {
       "favicon": "./assets/favicon.png"
     }
-  }
 }

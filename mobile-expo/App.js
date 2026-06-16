@@ -1,8 +1,11 @@
 // App.js
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+// Color fondo
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { useColorScheme } from 'react-native';
+import { StatusBar } from 'react-native';
 // Expo-navigation-bar
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -32,6 +35,25 @@ import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
 import PreferencesScreen from './src/screens/profile_screens/PreferencesScreen';
 import LikesScreen from './src/screens/profile_screens/Tu_actividad/LikesScreen';
 
+const MiTemaClaro = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#FFFFFF', // Fondo blanco para modo claro
+    card: '#F5F5F5',
+    text: '#000000',
+  },
+};
+// 2. Defines tus colores para el Modo Oscuro
+const MiTemaOscuro = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#121212', // Fondo oscuro
+    card: '#1C1C1C',
+    text: '#FFFFFF',
+  },
+};
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,21 +73,35 @@ function MainTabs() {
 }
 
 export default function App() {
-
+  const scheme = useColorScheme(); // Retorna 'light' o 'dark' según el sistema operativo
   useEffect(() => {
-    if (Platform.OS === 'android' && NavigationBar) {
-      if (typeof NavigationBar.setBackgroundColorAsync === 'function') {
-        NavigationBar.setBackgroundColorAsync('#0B0B0B').catch(err => console.log(err));
-      }
-      if (typeof NavigationBar.setButtonStyleAsync === 'function') {
-        NavigationBar.setButtonStyleAsync('light').catch(err => console.log(err));
+    const isDark = scheme === 'dark';
+    if (Platform.OS === 'android') {
+      // Barra de estado superior: transparente
+      StatusBar.setTranslucent(true);
+      StatusBar.setBackgroundColor('transparent');
+      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
+      // Barra de navegación inferior
+      if (NavigationBar) {
+        const bgColor = isDark ? '#0B0B0B' : '#FFFFFF';
+        const buttonStyle = isDark ? 'light' : 'dark';
+        if (typeof NavigationBar.setBackgroundColorAsync === 'function') {
+          NavigationBar.setBackgroundColorAsync(bgColor).catch(err => console.log(err));
+        }
+        if (typeof NavigationBar.setButtonStyleAsync === 'function') {
+          NavigationBar.setButtonStyleAsync(buttonStyle).catch(err => console.log(err));
+        }
       }
     }
-  }, []);
-
+  }, [scheme]);
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer theme={scheme === 'dark' ? MiTemaOscuro : MiTemaClaro}>
+        <StatusBar 
+          translucent={true} 
+          backgroundColor="transparent" 
+          style={scheme === 'dark' ? 'light' : 'dark'} 
+        />
         <Stack.Navigator
           initialRouteName="Welcome"
           screenOptions={{
@@ -77,58 +113,17 @@ export default function App() {
           <Stack.Screen name="Register" component={RegisterScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-          />
-          <Stack.Screen
-            name="AccountSwitcher"
-            component={AccountSwitcherScreen}
-          />
-          <Stack.Screen
-            name="Contacts"
-            component={ContactsScreen}
-          />
-          <Stack.Screen
-            name="SocialNetworks"
-            component={SocialNetworksScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Account"
-            component={AccountScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Security"
-            component={SecurityScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Notifications"
-            component={NotificationsScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Publish"
-            component={PublishScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Activity"
-            component={ActivityScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Preferences"
-            component={PreferencesScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="LikesScreen"
-            component={LikesScreen}
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="AccountSwitcher" component={AccountSwitcherScreen} />
+          <Stack.Screen name="Contacts" component={ContactsScreen} />
+          <Stack.Screen name="SocialNetworks" component={SocialNetworksScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Account" component={AccountScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Security" component={SecurityScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Publish" component={PublishScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="LikesScreen" component={LikesScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
