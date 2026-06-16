@@ -1,5 +1,4 @@
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth } from './config/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import {
@@ -12,12 +11,27 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Keyboard,
 } from 'react-native';
 
 export default function RegisterScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const [behavior, setBehavior] = useState(undefined);
+  useEffect(() => {
+    const showListener = Keyboard.addListener('keyboardDidShow', () => {
+      setBehavior(Platform.OS === 'ios' ? 'padding' : 'height');
+    });
+    const hideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setBehavior(undefined); // Al cerrarse, se reinicia el layout
+    });
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, []);
 
   const handleRegister = async () => {
     if (!email || !password) {
@@ -37,61 +51,60 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAwareScrollView
-      enableOnAndroid
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={styles.container}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#121212' }}
+      behavior={behavior}
     >
-          
-      <Text style={styles.title}>
-        Registrarse
-      </Text>
-
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={styles.logo}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>
+          Registrarse
+        </Text>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logo}
+          />
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Usuario"
+          placeholderTextColor="#707070"
+          value={username}
+          onChangeText={setUsername}
         />
-      </View>
-
-
-      <TextInput
-        style={styles.input}
-        placeholder="Usuario"
-        placeholderTextColor="#707070"
-        value={username}
-        onChangeText={setUsername}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#707070"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        placeholderTextColor="#707070"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>
-          Crear Cuenta
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.link}>
-          Volver
-        </Text>
-      </TouchableOpacity>
-    </KeyboardAwareScrollView>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#707070"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Contraseña"
+          placeholderTextColor="#707070"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity style={styles.button} onPress={handleRegister}>
+          <Text style={styles.buttonText}>
+            Crear Cuenta
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.link}>
+            Volver
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
