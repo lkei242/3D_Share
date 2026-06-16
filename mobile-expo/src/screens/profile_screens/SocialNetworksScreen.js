@@ -1,156 +1,109 @@
+// src/screens/profile_screens/SocialNetworksScreen.js
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import React from 'react';
 import { FontAwesome } from '@expo/vector-icons';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { useTheme } from '@react-navigation/native';
 
 const socialApps = [
-  {
-    id: '1',
-    name: 'WhatsApp',
-    icon: 'whatsapp',
-    color: '#25D366',
-  },
-  {
-    id: '2',
-    name: 'X',
-    icon: 'twitter',
-    color: '#FFF',
-  },
-  {
-    id: '3',
-    name: 'Facebook',
-    icon: 'facebook',
-    color: '#1877F2',
-  },
-  {
-    id: '4',
-    name: 'Instagram',
-    icon: 'instagram',
-    color: '#E1306C',
-  },
-  {
-    id: '5',
-    name: 'TikTok',
-    icon: 'music',
-    color: '#FFF',
-  },
+  { id: '1', name: 'WhatsApp', icon: 'whatsapp', color: '#25D366' },
+  { id: '2', name: 'X', icon: 'twitter', color: 'DYNAMIC' }, // Se ajustará dinámicamente según el tema
+  { id: '3', name: 'Facebook', icon: 'facebook', color: '#1877F2' },
+  { id: '4', name: 'Instagram', icon: 'instagram', color: '#E1306C' },
+  { id: '5', name: 'TikTok', icon: 'music', color: 'DYNAMIC' }, // Se ajustará dinámicamente según el tema
 ];
 
 export default function SocialNetworksScreen() {
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+
   return (
     <KeyboardAwareScrollView
-    enableOnAndroid
-    keyboardShouldPersistTaps="handled"
-    contentContainerStyle={styles.ScrollContainer}
-    style={{ backgroundColor: '#121212' }}
+      enableOnAndroid
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.ScrollContainer}
+      style={{ backgroundColor: colors.background }}
     >
-        <View style={styles.container}>
-        <Text style={styles.title}>
-            Redes Sociales
-        </Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Redes Sociales</Text>
 
-        <View style={styles.card}>
-            <TextInput
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <TextInput
             placeholder="Buscar"
             placeholderTextColor="#888"
-            style={styles.search}
-            />
+            style={[
+              styles.search, 
+              { 
+                backgroundColor: isDark ? '#2A2A2A' : '#EAEAEA',
+                color: colors.text 
+              }
+            ]}
+          />
 
-            <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: isDark ? '#AAA' : '#666' }]}>
             Tus Formas de Contacto
-            </Text>
+          </Text>
 
-            {socialApps.map((item) => (
-                <TouchableOpacity
-                    key={item.id}
-                    style={styles.item}
-                >
-                    <View style={styles.iconContainer}>
-                    <FontAwesome
-                        name={item.icon}
-                        size={32}
-                        color={item.color}
-                    />
-                    </View>
+          {socialApps.map((item) => {
+            // Ajustar el color de X y TikTok en base al modo actual
+            let appIconColor = item.color;
+            if (item.color === 'DYNAMIC') {
+              appIconColor = colors.text;
+            }
 
-                    <Text style={styles.itemText}>
-                    {item.name}
-                    </Text>
-                </TouchableOpacity>
-            ))}
+            return (
+              <TouchableOpacity key={item.id} style={styles.item}>
+                <View style={styles.iconContainer}>
+                  <FontAwesome name={item.icon} size={32} color={appIconColor} />
+                </View>
+                <Text style={[styles.itemText, { color: colors.text }]}>{item.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        </View>
+      </View>
     </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: '#121212',
-        paddingTop: 60,
-        paddingHorizontal: 20,
-    },
-
-    title: {
-        color: '#FFF',
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-
-    card: {
-        backgroundColor: '#1E1E1E',
-        borderRadius: 15,
-        padding: 20,
-    },
-
-    search: {
-        backgroundColor: '#2A2A2A',
-        borderRadius: 10,
-        padding: 12,
-        color: '#FFF',
-        marginBottom: 15,
-    },
-
-    subtitle: {
-        color: '#AAA',
-        marginBottom: 20,
-    },
-
-    item: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-    },
-
-    circle: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: '#FFF',
-        marginRight: 15,
-    },
-
-    itemText: {
-        marginLeft: 15, // o 15 si lo querés más separado
-        color: '#FFF',
-        fontSize: 16,
-    },
-    iconContainer: {
-        width: 40, // mismo espacio para todos los íconos
-        alignItems: 'center',
-    },
-    ScrollContainer: {
-        flexGrow: 1,
-        paddingBottom: 20,
-    },
-
+  container: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  card: {
+    borderRadius: 15,
+    padding: 20,
+  },
+  search: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15,
+  },
+  subtitle: {
+    marginBottom: 20,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  itemText: {
+    marginLeft: 15,
+    fontSize: 16,
+  },
+  iconContainer: {
+    width: 40,
+    alignItems: 'center',
+  },
+  ScrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
 });

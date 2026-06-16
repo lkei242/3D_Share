@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTheme } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,11 +10,12 @@ import {
 } from 'react-native';
 
 export default function WelcomeScreen({ navigation }) {
+  const { colors } = useTheme();
   const [title, setTitle] = useState('Iniciar Sesión en 3D Share');
   const [about, setAbout] = useState('Acerca de nosotros');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
       {/* LOGO + TITLE EDITABLE */}
       <View style={styles.logoContainer}>
@@ -24,7 +26,7 @@ export default function WelcomeScreen({ navigation }) {
         <TextInput
           value={title}
           onChangeText={setTitle}
-          style={styles.titleInput}
+          style={[styles.titleInput, { color: colors.text }]}
         />
       </View>
 
@@ -45,95 +47,77 @@ export default function WelcomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* FALTA HACER un link que lleve a la pantalla AcercaDeNosotros despues */}
+      {/* ENLACE ACERCA DE */}
       <View style={styles.bottomContainer}>
-        <View style={styles.bottomContainer}>
-          <Text style={styles.aboutInput}>
-            Acerca de nosotros
-          </Text>
-        </View>
+        <Text style={[styles.aboutInput, { color: colors.text, opacity: 0.6 }]}>
+          Acerca de nosotros
+        </Text>
       </View>
 
     </View>
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
     alignItems: 'center',
-    paddingTop: 120,        // ← menos espacio arriba (era 90)
-    paddingBottom: 5,     // ← menos espacio abajo (era 90)
-    justifyContent: 'space-between',  // ← distribuye logo / botones / about
+    paddingTop: 120,
+    paddingBottom: 5,
   },
-
   logoContainer: {
     alignItems: 'center',
-    marginTop: 20,         // ← baja un poco el logo desde el top
+    marginTop: 20,
   },
-
   logo: {
     width: 220,
     height: 220,
     resizeMode: 'contain',
     marginBottom: 20,
   },
-
   titleInput: {
-    color: 'white',
     fontSize: 24,
     fontFamily: 'Nunito-Bold',
     textAlign: 'center',
+    paddingBottom: 60,
     minWidth: 250,
   },
-
   buttonsContainer: {
     flexDirection: 'row',
-    marginBottom: 220,       // sin margen extra; space-between lo ubica más arriba
-    gap: 20,              // ← espacio entre los botones
+    marginBottom: 220,
+    gap: 20,
   },
-
   loginButton: {
-    backgroundColor: '#010101',
+    backgroundColor: '#94BA46',
     paddingHorizontal: 20,
     paddingVertical: 25,
     borderRadius: 20,
     marginRight: 20,
   },
-
   registerButton: {
     backgroundColor: '#546F1C',
     paddingHorizontal: 20,
     paddingVertical: 25,
     borderRadius: 20,
-    paddingBottom: 20, 
   },
-
   loginText: {
     color: 'white',
     fontSize: 22,
     fontFamily: 'Nunito-Light',
   },
-
   registerText: {
     color: 'white',
     fontSize: 22,
     fontFamily: 'Nunito-Light',
   },
-
   bottomContainer: {
     width: '100%',
     alignItems: 'center',
-    paddingBottom: 20,     // ← empuja el "Acerca de nosotros" más abajo
+    paddingBottom: 20,
   },
-
   aboutInput: {
-    color: '#bbb',
     fontSize: 17,
     fontFamily: 'Nunito-Light',
     textAlign: 'center',
   },
-
 });

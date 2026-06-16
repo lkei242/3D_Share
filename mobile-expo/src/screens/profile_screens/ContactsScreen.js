@@ -1,13 +1,7 @@
+// src/screens/profile_screens/ContactsScreen.js
 import React from 'react';
-import { Dimensions, ScrollView } from 'react-native';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  FlatList,
-} from 'react-native';
+import { Dimensions, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, FlatList } from 'react-native';
+import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -25,89 +19,77 @@ const following = [
 ];
 
 export default function ContactsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Usuario</Text>
+      </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={28} color="#fff" />
-            </TouchableOpacity>
+      {/* Estadísticas */}
+      <View style={styles.stats}>
+        <Text style={[styles.statText, { color: colors.text }]}>0 seguidores</Text>
+        <Text style={[styles.statText, { color: colors.text }]}>6 seguidos</Text>
+      </View>
 
-            <Text style={styles.title}>Usuario</Text>
+      {/* Swipe lists */}
+      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+        {/* Seguidores */}
+        <View style={{ width: width - 40 }}>
+          <TextInput
+            placeholder="Buscar"
+            placeholderTextColor="#999"
+            style={[
+              styles.search, 
+              { 
+                backgroundColor: isDark ? '#1f1f1f' : '#EEEEEE',
+                color: colors.text 
+              }
+            ]}
+          />
+          <FlatList
+            data={followers}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={[styles.userRow, { backgroundColor: isDark ? '#1f1f1f' : '#F5F5F5' }]}>
+                <Ionicons name="person-circle" size={40} color={colors.text} />
+                <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
         </View>
 
-        {/* Estadísticas */}
-        <View style={styles.stats}>
-            <Text style={styles.statText}>0 seguidores</Text>
-            <Text style={styles.statText}>6 seguidos</Text>
+        {/* Seguidos */}
+        <View style={{ width: width - 40 }}>
+          <TextInput
+            placeholder="Buscar"
+            placeholderTextColor="#999"
+            style={[
+              styles.search, 
+              { 
+                backgroundColor: isDark ? '#1f1f1f' : '#EEEEEE',
+                color: colors.text 
+              }
+            ]}
+          />
+          <FlatList
+            data={following}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={[styles.userRow, { backgroundColor: isDark ? '#1f1f1f' : '#F5F5F5' }]}>
+                <Ionicons name="person-circle" size={40} color={colors.text} />
+                <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
         </View>
-
-
-
-        {/* AQUÍ VA EL SWIPE */}
-        <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-        >
-
-            {/* Seguidores */}
-            <View style={{ width: width - 40 }}>
-
-            <TextInput
-                placeholder="Buscar"
-                placeholderTextColor="#999"
-                style={styles.search}
-            />
-            <FlatList
-                data={followers}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                <TouchableOpacity style={styles.userRow}>
-                    <Ionicons
-                    name="person-circle"
-                    size={40}
-                    color="#fff"
-                    />
-
-                    <Text style={styles.userName}>
-                    {item.name}
-                    </Text>
-                </TouchableOpacity>
-                )}
-            />
-            </View>
-
-            {/* Seguidos */}
-            <View style={{ width: width - 40 }}>
-
-            <TextInput
-                placeholder="Buscar"
-                placeholderTextColor="#999"
-                style={styles.search}
-            />
-            <FlatList
-                data={following}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                <TouchableOpacity style={styles.userRow}>
-                    <Ionicons
-                    name="person-circle"
-                    size={40}
-                    color="#fff"
-                    />
-
-                    <Text style={styles.userName}>
-                    {item.name}
-                    </Text>
-                </TouchableOpacity>
-                )}
-            />
-            </View>
-
-        </ScrollView>
-
+      </ScrollView>
     </View>
   );
 }
@@ -115,63 +97,42 @@ export default function ContactsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
     paddingTop: 50,
     paddingHorizontal: 20,
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 25,
   },
-
   title: {
-    color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
     marginLeft: 15,
   },
-
   stats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 25,
   },
-
   statText: {
-    color: '#fff',
     fontSize: 16,
   },
-
   search: {
-    backgroundColor: '#1f1f1f',
-    color: '#fff',
     borderRadius: 10,
     padding: 12,
     marginBottom: 20,
   },
-
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f1f1f',
     padding: 15,
     borderRadius: 10,
     marginBottom: 12,
   },
-
   userName: {
     flex: 1,
-    color: '#fff',
     fontSize: 16,
     marginLeft: 10,
-  },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
   },
 });

@@ -46,8 +46,13 @@ const MiTemaClaro = {
   colors: {
     ...DefaultTheme.colors,
     background: '#FFFFFF', // Fondo blanco para modo claro
+    inputBackground: '#E8E8E8',
+    letraschicas: '#546F1C',
+    avatarborder: '#cfcece',
     card: '#F5F5F5',
     text: '#000000',
+    textnegrita: '#1C1C1C',
+    botonrojo: '#a70d0d',
   },
 };
 // 2. Defines tus colores para el Modo Oscuro
@@ -56,8 +61,13 @@ const MiTemaOscuro = {
   colors: {
     ...DarkTheme.colors,
     background: '#121212', // Fondo oscuro
+    inputBackground: '#ffffff',
+    letraschicas: '#9DBD3F',
+    avatarborder: '#2C2C2C',
     card: '#1C1C1C',
     text: '#FFFFFF',
+    textnegrita: '#FFFFFF',
+    botonrojo: '#a70d0d',
   },
 };
 

@@ -1,5 +1,6 @@
 // src/screens/PublishScreen.js
 import React, { useState } from 'react';
+import { useTheme } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,7 +10,6 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
-  StatusBar
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,13 +19,15 @@ import { API_URL } from './config/api';
 
 export default function PublishScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Seleccionar imagen desde la galería del celular
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -45,7 +47,6 @@ export default function PublishScreen({ navigation }) {
     }
   };
 
-  // Enviar los datos y la imagen al Backend
   const handlePublish = async () => {
     if (!titulo.trim()) {
       alert('Por favor ingresa un título.');
@@ -65,10 +66,7 @@ export default function PublishScreen({ navigation }) {
         return;
       }
 
-      // Obtener el JWT de Firebase actual
       const token = await user.getIdToken();
-
-      // Construir FormData (necesario para multipart/form-data)
       const formData = new FormData();
       formData.append('titulo', titulo.trim());
       formData.append('descripcion', descripcion.trim());
@@ -76,31 +74,29 @@ export default function PublishScreen({ navigation }) {
         formData.append('precio', precio.trim());
       }
 
-      // Ajustar la estructura de la imagen para React Native FormData
-        const blob = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.onload = function () {
-            resolve(xhr.response); // Retorna el Blob nativo directo de Android/iOS
-            };
-            xhr.onerror = function (e) {
-            console.log("XHR Error:", e);
-            reject(new TypeError('Error al leer el archivo de la imagen.'));
-            };
-            xhr.responseType = 'blob';
-            xhr.open('GET', image, true);
-            xhr.send(null);
-        });
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          resolve(xhr.response);
+        };
+        xhr.onerror = function (e) {
+          console.log("XHR Error:", e);
+          reject(new TypeError('Error al leer el archivo de la imagen.'));
+        };
+        xhr.responseType = 'blob';
+        xhr.open('GET', image, true);
+        xhr.send(null);
+      });
         
-        const filename = image.split('/').pop();
-        formData.append('imagen', blob, filename);
-        const res = await fetch(`${API_URL}/api/posts`, {
-            method: 'POST',
-            headers: {
-            'Authorization': `Bearer ${token}`,
-            // NOTA: Quitamos 'Content-Type' para que fetch configure el boundary automáticamente
-            },
-            body: formData,
-        });
+      const filename = image.split('/').pop();
+      formData.append('imagen', blob, filename);
+      const res = await fetch(`${API_URL}/api/posts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       const data = await res.json();
 
@@ -118,20 +114,30 @@ export default function PublishScreen({ navigation }) {
     }
   };
 
-    return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0B0B0B" translucent />
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       
-      <View style={styles.header}>
+      {/* Header adaptable */}
+      <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Crear Publicación</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Crear Publicación</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={styles.imageSelector} onPress={pickImage} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={[
+            styles.imageSelector, 
+            { 
+              backgroundColor: colors.card,
+              borderColor: isDark ? '#2D2D2D' : '#CCCCCC'
+            }
+          ]} 
+          onPress={pickImage} 
+          activeOpacity={0.8}
+        >
           {image ? (
             <View style={{ width: '100%', height: '100%' }}>
               <Image source={{ uri: image }} style={styles.previewImage} resizeMode="cover" />
@@ -143,23 +149,40 @@ export default function PublishScreen({ navigation }) {
           ) : (
             <View style={styles.placeholderContainer}>
               <MaterialCommunityIcons name="cloud-upload-outline" size={48} color="#9DBD3F" />
-              <Text style={styles.placeholderText}>Presiona para subir una imagen</Text>
+              <Text style={[styles.placeholderText, { color: isDark ? '#888' : '#666' }]}>
+                Presiona para subir una imagen
+              </Text>
             </View>
           )}
         </TouchableOpacity>
 
-        <Text style={styles.label}>Título *</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Título *</Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input, 
+            { 
+              backgroundColor: colors.card, 
+              color: colors.text,
+              borderColor: isDark ? '#2C2C2C' : '#E0E0E0'
+            }
+          ]}
           placeholder="Ej: Soporte articulado para tableta"
           placeholderTextColor="#707070"
           value={titulo}
           onChangeText={setTitulo}
         />
 
-        <Text style={styles.label}>Descripción</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Descripción</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[
+            styles.input, 
+            styles.textArea,
+            { 
+              backgroundColor: colors.card, 
+              color: colors.text,
+              borderColor: isDark ? '#2C2C2C' : '#E0E0E0'
+            }
+          ]}
           placeholder="Describe los detalles de tu pieza 3D, material, tiempo, etc..."
           placeholderTextColor="#707070"
           value={descripcion}
@@ -168,9 +191,16 @@ export default function PublishScreen({ navigation }) {
           numberOfLines={4}
         />
 
-        <Text style={styles.label}>Precio (Opcional, en $)</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Precio (Opcional, en $)</Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input, 
+            { 
+              backgroundColor: colors.card, 
+              color: colors.text,
+              borderColor: isDark ? '#2C2C2C' : '#E0E0E0'
+            }
+          ]}
           placeholder="Ej: 5000 (Dejar vacío si no está a la venta)"
           placeholderTextColor="#707070"
           value={precio}
@@ -197,7 +227,6 @@ export default function PublishScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
   header: {
     flexDirection: 'row',
@@ -205,13 +234,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#0B0B0B',
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    color: '#fff',
     fontSize: 20,
     fontFamily: 'Nunito-Bold',
   },
@@ -221,10 +248,8 @@ const styles = StyleSheet.create({
   imageSelector: {
     width: '100%',
     height: 200,
-    backgroundColor: '#1C1C1C',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#2D2D2D',
     borderStyle: 'dashed',
     overflow: 'hidden',
     justifyContent: 'center',
@@ -236,7 +261,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   placeholderText: {
-    color: '#888',
     fontSize: 14,
     fontFamily: 'Nunito-Regular',
   },
@@ -262,21 +286,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Bold',
   },
   label: {
-    color: '#fff',
     fontSize: 14,
     fontFamily: 'Nunito-Bold',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#1C1C1C',
-    color: '#fff',
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     fontFamily: 'Nunito-Regular',
     borderWidth: 1,
-    borderColor: '#2C2C2C',
     marginBottom: 20,
   },
   textArea: {
@@ -289,10 +309,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#546F1C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
     elevation: 3,
   },
   publishButtonDisabled: {

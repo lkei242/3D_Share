@@ -1,9 +1,8 @@
-// src/screens/HomeScreen.js
 import { API_URL } from './config/api';
 import React, { useState, useEffect } from 'react';
-import { MaterialCommunityIcons, Feather, Ionicons, Octicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { useTheme } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,122 +11,50 @@ import {
   FlatList,
   Image,
   Dimensions,
-  StatusBar,
   ActivityIndicator
 } from 'react-native';
 
 const GREEN = '#9DBD3F';
 const { width } = Dimensions.get('window');
-
-// Ancho de cada tarjeta (2 columnas con su respectivo espaciado)
 const CARD_WIDTH = (width - 36) / 2;
 
-// ─── Datos de ejemplo ────────────────────────────────────────────────────────
-const POSTS = [
-  {
-    id: '1',
-    title: 'Pirañas mult...',
-    image: 'https://picsum.photos/seed/pirana1/400/300',
-    price: null,
-    views: '100 mill.',
-    totalImages: 1,
-  },
-  {
-    id: '2',
-    title: 'Cangrejos imp...',
-    image: 'https://picsum.photos/seed/crab1/400/300',
-    price: '5000$',
-    views: '100 mill.',
-    totalImages: 3,
-  },
-  {
-    id: '3',
-    title: 'Cancha de Boca',
-    image: 'https://picsum.photos/seed/pirana2/400/300',
-    price: null,
-    views: '100 mill.',
-    totalImages: 1,
-  },
-  {
-    id: '4',
-    title: 'Pato Lucas i...',
-    image: 'https://picsum.photos/seed/crab2/400/300',
-    price: '10000$',
-    views: '100 mill.',
-    totalImages: 3,
-  },
-  {
-    id: '5',
-    title: 'Camión par...',
-    image: 'https://picsum.photos/seed/truck1/400/300',
-    price: '250000$',
-    views: '100 mill.',
-    totalImages: 1,
-  },
-  {
-    id: '6',
-    title: 'Sonic Homelan...',
-    image: 'https://picsum.photos/seed/crab3/400/300',
-    price: null,
-    views: '100 mill.',
-    totalImages: 3,
-  },
-  {
-    id: '7',
-    title: 'Tren de vapor...',
-    image: 'https://picsum.photos/seed/train1/400/300',
-    price: null,
-    views: '100 mill.',
-    totalImages: 1,
-  },
-  {
-    id: '8',
-    title: 'Pikachu imp...',
-    image: 'https://picsum.photos/seed/crab4/400/300',
-    price: null,
-    views: '100 mill.',
-    totalImages: 3,
-  },
-];
-
-// ─── Componente de cada tarjeta de publicación ───────────────────────────────
 function PostCard({ item, onPress }) {
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      {/* Imagen principal */}
+    <TouchableOpacity 
+      style={[styles.card, { backgroundColor: colors.card }]} 
+      onPress={onPress} 
+      activeOpacity={0.85}
+    >
       <Image
         source={{ uri: item.image }}
         style={styles.cardImage}
         resizeMode="cover"
       />
 
-      {/* Indicador de imágenes múltiples (ej: "1/3") */}
       {item.totalImages > 1 && (
         <View style={styles.imageCounter}>
           <Text style={styles.imageCounterText}>1/{item.totalImages}</Text>
         </View>
       )}
 
-      {/* Precio sobre la imagen (si tiene precio asignado) */}
       {item.price && (
         <View style={styles.priceOverlay}>
           <Text style={styles.priceText}>{item.price}</Text>
         </View>
       )}
 
-      {/* Footer de la tarjeta */}
-      <View style={styles.cardFooter}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
+      <View style={[styles.cardFooter, { backgroundColor: isDark ? '#2C2C2C' : '#F9F9F9' }]}>
+        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
           {item.title}
         </Text>
         <View style={styles.cardStats}>
-          {/* Icono de barras vectoriales de estadísticas */}
-          <MaterialCommunityIcons name="chart-bar" size={14} color="#aaa" />
-          <Text style={styles.statsText}>{item.views}</Text>
-          
-          {/* Botón e Icono de guardar */}
+          <MaterialCommunityIcons name="chart-bar" size={14} color={isDark ? "#aaa" : "#666"} />
+          <Text style={[styles.statsText, { color: isDark ? "#888" : "#555" }]}>{item.views}</Text>
           <TouchableOpacity style={styles.saveButton}>
-            <MaterialCommunityIcons name="bookmark-outline" size={16} color="#fff" />
+            <MaterialCommunityIcons name="bookmark-outline" size={16} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -135,9 +62,10 @@ function PostCard({ item, onPress }) {
   );
 }
 
-// ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
-  const insets = useSafeAreaInsets(); // Obtiene insets nativos de Android 15 / Pixel 8
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
@@ -148,26 +76,25 @@ export default function HomeScreen({ navigation }) {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      // Reemplazá TU_IP con la IP local de tu PC cuando conectes el backend
       const pageToFetch = reset ? 1 : page;
-      const res = await fetch(`${API_URL}/api/posts/feed?page=${page}&limit=10`);
+      const res = await fetch(`${API_URL}/api/posts/feed?page=${pageToFetch}&limit=10`);
       const data = await res.json();
       
       if (reset) {
-          setPosts(data.posts);
-          setPage(2); // La siguiente página a pedir será la 2
-        } else {
-          setPosts(prev => [...prev, ...data.posts]);
-          setPage(prev => prev + 1);
-        }
-        setHasMore(data.hasMore);
-      } catch (error) {
-        console.log("Error cargando posts:", error);
-      } finally {
-        setLoading(false);
+        setPosts(data.posts);
+        setPage(2);
+      } else {
+        setPosts(prev => [...prev, ...data.posts]);
+        setPage(prev => prev + 1);
       }
+      setHasMore(data.hasMore);
+    } catch (error) {
+      console.log("Error cargando posts:", error);
+    } finally {
+      setLoading(false);
+    }
   };
-  // Cargar primera página al abrir la app
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchPosts(true);
@@ -176,48 +103,31 @@ export default function HomeScreen({ navigation }) {
   }, [navigation]);
 
   const renderItem = ({ item }) => (
-    <PostCard
-      item={item}
-      onPress={() => {
-        // Enlace al detalle en el futuro:
-        // navigation.navigate('PostDetail', { postId: item.id });
-      }}
-    />
+    <PostCard item={item} onPress={() => {}} />
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: '#121212' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       
-      {/* Forzar que la barra de notificaciones sea completamente Edge-to-Edge */}
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-      {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        
-        {/* Botón de publicar con Icono y texto alineados */}
-        <TouchableOpacity style={styles.headerButton}
-              onPress={() => navigation.navigate('Publish')}
-            >
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Publish')}>
           <View style={styles.publishButtonContainer}>
-            <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
-            <Text style={styles.headerButtonText}>Publicar</Text>
+            <MaterialCommunityIcons name="plus-circle-outline" size={22} color={colors.text} />
+            <Text style={[styles.headerButtonText, { color: colors.text }]}>Publicar</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Logo central */}
         <Image
           source={require('../../assets/logo.png')}
           style={styles.headerLogo}
-          resizeMode="contain"
         />
 
-        {/* Botón de guardado */}
         <TouchableOpacity style={styles.headerButton}>
-          <Text style={styles.headerButtonText}>Guardado</Text>
+          <Text style={[styles.headerButtonText, { color: colors.text }]}>Guardado</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Grid de publicaciones ── */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -226,30 +136,24 @@ export default function HomeScreen({ navigation }) {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-
         onEndReached={fetchPosts}
         onEndReachedThreshold={0.3}
         ListFooterComponent={loading ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />
-
     </View>
   );
 }
 
-// Estilos 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: '#0B0B0B', // Color de header de Figma
   },
   headerButton: {
     paddingVertical: 6,
@@ -260,16 +164,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerButtonText: {
-    color: '#fff',
     fontSize: 18,
     fontFamily: 'Nunito-Bold',
   },
   headerLogo: {
     width: 46,
     height: 46,
+    transform: [{ translateX: -7 }],
   },
-
-  // ── Grid / Lista
   listContent: {
     paddingHorizontal: 12,
     paddingBottom: 20,
@@ -278,11 +180,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-
-  // ── Tarjetas
   card: {
     width: CARD_WIDTH,
-    backgroundColor: '#1C1C1C', // Gris oscuro minimalista
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -321,10 +220,8 @@ const styles = StyleSheet.create({
   cardFooter: {
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#2C2C2C',
   },
   cardTitle: {
-    color: '#fff',
     fontSize: 14,
     fontFamily: 'Nunito-Bold',
     marginBottom: 4,
@@ -335,7 +232,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statsText: {
-    color: '#888',
     fontSize: 11,
     fontFamily: 'Nunito-Regular',
     flex: 1,
@@ -343,5 +239,4 @@ const styles = StyleSheet.create({
   saveButton: {
     padding: 2,
   },
-
 });

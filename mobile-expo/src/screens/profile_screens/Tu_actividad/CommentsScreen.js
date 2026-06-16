@@ -1,4 +1,6 @@
+// src/screens/profile_screens/Tu_actividad/CommentsScreen.js
 import React, { useState } from 'react';
+import { useTheme } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,6 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 export default function CommentsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+  
   const [selectedComments, setSelectedComments] = useState([]);
 
   const posts = [
@@ -40,22 +45,16 @@ export default function CommentsScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons
-            name="arrow-back"
-            size={28}
-            color="#FFF"
-          />
+          <Ionicons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
-
-        <Text style={styles.title}>Comentarios</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Comentarios</Text>
       </View>
 
       <ScrollView>
-
         {posts.map((post) => (
           <TouchableOpacity
             key={post.id}
@@ -67,16 +66,15 @@ export default function CommentsScreen({ navigation }) {
             }
           >
             <View style={styles.postRow}>
-
-              <View style={styles.thumbnail}>
-                <Text style={styles.thumbnailText}>
+              {/* Tarjeta de previsualización adaptable */}
+              <View style={[styles.thumbnail, { backgroundColor: colors.card }]}>
+                <Text style={[styles.thumbnailText, { color: colors.text }]}>
                   Publicación {post.id}
                 </Text>
               </View>
 
               <View style={styles.info}>
-
-                <Text style={styles.caption}>
+                <Text style={[styles.caption, { color: colors.text }]}>
                   {post.caption}
                 </Text>
 
@@ -89,47 +87,38 @@ export default function CommentsScreen({ navigation }) {
                       style={styles.commentRow}
                       onPress={() => toggleComment(key)}
                     >
-                      <Text style={styles.commentText}>
+                      <Text style={[styles.commentText, { color: isDark ? '#DDD' : '#555' }]}>
                         {comment}
                       </Text>
 
                       {selectedComments.includes(key) && (
                         <Ionicons
                           name="checkbox"
-                          size={20}
-                          color="#00FF88"
+                          size={24}
+                          color="#94BA46"
                         />
                       )}
                     </TouchableOpacity>
                   );
                 })}
-
               </View>
-
             </View>
           </TouchableOpacity>
         ))}
-
       </ScrollView>
 
       {selectedComments.length > 0 && (
-        <TouchableOpacity style={styles.deleteButton}>
-            <Text style={styles.deleteText}>
+        <TouchableOpacity style={[styles.deleteButton, { backgroundColor: colors.botonrojo }]}>
+          <Text style={styles.deleteText}>
             Eliminar ({selectedComments.length})
-            </Text>
+          </Text>
         </TouchableOpacity>
-        )}
-
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -137,67 +126,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 20,
   },
-
   title: {
-    color: '#FFF',
     fontSize: 24,
     fontWeight: 'bold',
     marginLeft: 15,
   },
-
   postContainer: {
     marginHorizontal: 15,
     marginBottom: 20,
   },
-
   postRow: {
     flexDirection: 'row',
   },
-
   thumbnail: {
     width: 90,
     height: 90,
-    backgroundColor: '#2A2A2A',
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   thumbnailText: {
-    color: '#FFF',
     textAlign: 'center',
     fontSize: 12,
   },
-
   info: {
     flex: 1,
     marginLeft: 15,
   },
-
   caption: {
-    color: '#FFF',
     fontWeight: 'bold',
     marginBottom: 8,
   },
-
   commentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
   },
-
   commentText: {
-    color: '#DDD',
+    fontSize: 14,
   },
-
   deleteButton: {
-    margin: 15,
-    backgroundColor: '#fc3535',
+    transform: [{ translateY: 410 }],
+    margin: 20,
     padding: 16,
     borderRadius: 10,
     alignItems: 'center',
   },
-
   deleteText: {
     color: '#FFF',
     fontSize: 16,

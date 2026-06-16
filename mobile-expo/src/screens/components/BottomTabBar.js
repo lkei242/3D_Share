@@ -2,28 +2,26 @@ import React, { useEffect, useRef } from 'react';
 import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Feather, Ionicons, Octicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 
 const GREEN = '#546F1C', BLACK = '#0B0F03';
 
 function TabButton({ active, onPress, children }) {
-  // 1. Valor animado: 1 = normal, 1.25 = activo
   const scale = useRef(new Animated.Value(active ? 1.25 : 1)).current;
-  // 2. Opacidad del gradiente de fondo
   const bgOpacity = useRef(new Animated.Value(active ? 1 : 0)).current;
 
-  // 3. Cuando cambia "active", disparar ambas animaciones en paralelo
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scale, {
         toValue: active ? 1.25 : 1,
-        friction: 5,      // Qué tan "rebotante" es (menor = más rebote)
-        tension: 80,      // Velocidad de la animación
+        friction: 5,
+        tension: 80,
         useNativeDriver: true,
       }),
       Animated.timing(bgOpacity, {
         toValue: active ? 1 : 0,
-        duration: 200,    // 200ms para que el fondo aparezca suavemente
+        duration: 200,
         useNativeDriver: true,
       }),
     ]).start();
@@ -35,7 +33,6 @@ function TabButton({ active, onPress, children }) {
       activeOpacity={0.7}
       onPress={onPress}
     >
-      {/* Fondo con gradiente animado */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20 }]}>
         <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
           <Defs>
@@ -49,7 +46,6 @@ function TabButton({ active, onPress, children }) {
         </Svg>
       </Animated.View>
 
-      {/* Ícono animado con escala */}
       <Animated.View style={[styles.iconContainer, { transform: [{ scale }] }]}>
         {children}
       </Animated.View>
@@ -57,12 +53,19 @@ function TabButton({ active, onPress, children }) {
   );
 }
 
-const TAB_ICONS = ['Home', 'Chat', 'Search', 'Profile'];
-
 export default function BottomTabBar({ state, navigation }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 8 }]}>
+    <View style={[
+      styles.tabBar, 
+      { 
+        backgroundColor: colors.card, 
+        borderTopColor: colors.border,
+        paddingBottom: insets.bottom + 8 
+      }
+    ]}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const onPress = () => {
@@ -75,15 +78,23 @@ export default function BottomTabBar({ state, navigation }) {
             navigation.navigate(route.name);
           }
         };
+
+        // Si está seleccionado, el icono es blanco (sobre el gradiente verde).
+        // Si no está seleccionado, usa el color de texto del tema con opacidad.
+        const iconColor = isFocused 
+          ? "#FFF" 
+          : (colors.text === '#FFFFFF' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)');
+
         const icon = () => {
           switch (route.name) {
-            case 'Home':    return <Feather name="home"          size={24} color="#FFF" />;
-            case 'Chat':    return <Ionicons name="chatbox-outline" size={24} color="#FFF" />;
-            case 'Search':  return <Feather name="search"         size={24} color="#FFF" />;
-            case 'Profile': return <Octicons name="person"        size={24} color="#FFF" />;
+            case 'Home':    return <Feather name="home"          size={24} color={iconColor} />;
+            case 'Chat':    return <Ionicons name="chatbox-outline" size={24} color={iconColor} />;
+            case 'Search':  return <Feather name="search"         size={24} color={iconColor} />;
+            case 'Profile': return <Octicons name="person"        size={24} color={iconColor} />;
             default:        return null;
           }
         };
+
         return (
           <TabButton key={route.key} active={isFocused} onPress={onPress}>
             {icon()}
@@ -97,9 +108,7 @@ export default function BottomTabBar({ state, navigation }) {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#121212',
     borderTopWidth: 1,
-    borderTopColor: '#000000',
     paddingTop: 10,
     paddingHorizontal: 24,
   },

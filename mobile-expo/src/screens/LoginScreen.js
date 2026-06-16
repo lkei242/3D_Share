@@ -74,7 +74,7 @@ export default function LoginScreen({ navigation }) {
         </View>
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           placeholder="Email"
           placeholderTextColor="#707070"
           value={email}
@@ -84,7 +84,7 @@ export default function LoginScreen({ navigation }) {
         />
 
         <TextInput
-          style={styles.input2}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           placeholder="Contraseña"
           placeholderTextColor="#707070"
           secureTextEntry
@@ -95,7 +95,7 @@ export default function LoginScreen({ navigation }) {
         <TouchableOpacity
           onPress={() => navigation.navigate('ForgotPassword')}
         >
-          <Text style={styles.forgotPassword}>
+          <Text style={[styles.forgotPassword, { color: colors.letraschicas }]}>
             ¿Olvidaste tu contraseña?
           </Text>
         </TouchableOpacity>
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     backgroundColor: '#121212',
-    justifyContent: 'center',
+    paddingTop:'168',
     paddingHorizontal: 30,
   },
 
@@ -187,7 +187,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4, // 👈 esto separa las letras
   },
   forgotPassword: {
-    color: '#9DBD3F',
     textAlign: 'right',
     fontSize: 12,
     marginTop: 15,

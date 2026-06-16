@@ -1,5 +1,6 @@
 // src/screens/ChatScreen.js
 import React from 'react';
+import { useTheme } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -8,13 +9,11 @@ import {
   FlatList,
   TextInput,
   Image,
-  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 
-const GREEN_DARK = '#1F2611'; // Verde opaco para el buscador
-const GREEN_ACCENT = '#546F1C'; // Verde principal
+const GREEN_ACCENT = '#546F1C';
 
 const MOCK_CHATS = [
   { id: '1', name: 'Flexi JIMGA', message: 'Pasame precio', time: '17:41' },
@@ -30,23 +29,23 @@ const MOCK_CHATS = [
 
 export default function ChatScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   const renderChatItem = ({ item }) => (
     <TouchableOpacity style={styles.chatRow} activeOpacity={0.7}>
-      {/* Avatar personalizado que simula el diseño circular azul con J amarilla */}
       <View style={styles.avatarContainer}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>J</Text>
         </View>
       </View>
 
-      {/* Información del chat */}
       <View style={styles.chatDetails}>
         <View style={styles.chatHeaderRow}>
-          <Text style={styles.chatName}>{item.name}</Text>
+          <Text style={[styles.chatName, { color: colors.text }]}>{item.name}</Text>
           <Text style={styles.chatTime}>{item.time}</Text>
         </View>
-        <Text style={styles.chatMessage} numberOfLines={1}>
+        <Text style={[styles.chatMessage, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>
           {item.message}
         </Text>
       </View>
@@ -54,11 +53,16 @@ export default function ChatScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-      {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      {/* Header */}
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', 
+          paddingTop: insets.top + 8 
+        }
+      ]}>
         <View style={styles.headerLeft}>
           <Image
             source={require('../../assets/logo.png')}
@@ -66,40 +70,42 @@ export default function ChatScreen({ navigation }) {
             resizeMode="contain"
           />
           <View style={styles.titleContainer}>
-            <Text style={styles.headerTitle}>Chats</Text>
-            {/* Pequeño triángulo verde indicador bajo Chats */}
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Chats</Text>
             <Ionicons name="caret-down" size={14} color={GREEN_ACCENT} style={styles.caretIcon} />
           </View>
         </View>
         <TouchableOpacity style={styles.solicitudesButton}>
-          <Text style={styles.solicitudesText}>Solicitudes</Text>
+          <Text style={[styles.solicitudesText, { color: colors.text }]}>Solicitudes</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Filtros (Mensajes, Grupos, Difusión) ── */}
+      {/* Filtros */}
       <View style={styles.filterContainer}>
         <TouchableOpacity style={styles.filterTabActive}>
           <Text style={styles.filterTextActive}>Mensajes</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.filterTab}>
-          <Text style={styles.filterText}>Grupos</Text>
+          <Text style={[styles.filterText, { color: colors.text }]}>Grupos</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.filterTab}>
-          <Text style={styles.filterText}>Difusión</Text>
+          <Text style={[styles.filterText, { color: colors.text }]}>Difusión</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Buscador ── */}
-      <View style={styles.searchContainer}>
+      {/* Buscador */}
+      <View style={[
+        styles.searchContainer, 
+        { backgroundColor: isDark ? '#1F2611' : '#F0F4E8' }
+      ]}>
         <Feather name="search" size={20} color={GREEN_ACCENT} style={styles.searchIcon} />
         <TextInput
           placeholder="Buscar chats"
           placeholderTextColor={GREEN_ACCENT}
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
         />
       </View>
 
-      {/* ── Lista de Chats ── */}
+      {/* Lista de Chats */}
       <FlatList
         data={MOCK_CHATS}
         keyExtractor={(item) => item.id}
@@ -115,7 +121,6 @@ export default function ChatScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
   header: {
     flexDirection: 'row',
@@ -123,7 +128,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: '#0B0B0B',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -139,7 +143,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerTitle: {
-    color: '#fff',
     fontSize: 24,
     fontFamily: 'Nunito-Bold',
   },
@@ -151,7 +154,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   solicitudesText: {
-    color: '#fff',
     fontSize: 16,
     fontFamily: 'Nunito-Bold',
   },
@@ -168,20 +170,18 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   filterTextActive: {
-    color: '#9DBD3F', // Color de texto verde de la solapa activa
+    color: '#9DBD3F',
     fontSize: 18,
     fontFamily: 'Nunito-Bold',
   },
   filterText: {
-    color: '#fff',
     fontSize: 18,
     fontFamily: 'Nunito-Regular',
-    opacity: 0.8,
+    opacity: 0.6,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: GREEN_DARK,
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 8,
@@ -194,7 +194,6 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#fff',
     fontFamily: 'Nunito-Regular',
     fontSize: 16,
     paddingVertical: 0,
@@ -238,7 +237,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   chatName: {
-    color: '#fff',
     fontSize: 16,
     fontFamily: 'Nunito-Bold',
   },
@@ -248,7 +246,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Regular',
   },
   chatMessage: {
-    color: '#aaa',
     fontSize: 14,
     fontFamily: 'Nunito-Regular',
   },
