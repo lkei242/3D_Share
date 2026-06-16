@@ -6,15 +6,15 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function ActivityScreen({ navigation }) {
   const { colors } = useTheme();
-  const isDark = colors.text === '#FFFFFF';
-  
-  const options = [
-    'Me gusta',
-    'Comentarios',
-    'Repost',
-    'Guardados',
-    'Historial',
-    'Papelera',
+
+  // Mapeamos las opciones con sus respectivos nombres de pantalla en la navegación
+  const activityOptions = [
+    { label: 'Me gusta', screen: 'LikesScreen' },
+    { label: 'Comentarios', screen: 'CommentsScreen' },
+    { label: 'Repost', screen: 'RepostScreen' },
+    { label: 'Guardados', screen: 'SavedScreen' },
+    { label: 'Historial', screen: 'HistoryScreen' },
+    { label: 'Papelera', screen: 'TrashScreen' },
   ];
 
   return (
@@ -27,34 +27,17 @@ export default function ActivityScreen({ navigation }) {
         <Text style={[styles.title, { color: colors.text }]}>Tu Actividad</Text>
       </View>
 
-      <ScrollView>
-        {options.map((item, index) => (
+      <ScrollView contentContainerStyle={styles.content}>
+        {activityOptions.map((item, index) => (
           <TouchableOpacity
             key={index}
-            style={[styles.option, { borderTopColor: isDark ? '#333' : '#E0E0E0' }]}
-            onPress={() => {
-              if (item === 'Me gusta') {
-                navigation.navigate('LikesScreen');
-              }
-              if (item === 'Comentarios') {
-                navigation.navigate('CommentsScreen');
-              }
-              if (item === 'Repost') {
-                navigation.navigate('RepostScreen');
-              }
-              if (item === 'Guardados') {
-                navigation.navigate('SavedScreen');
-              }
-              if (item === 'Historial') {
-                navigation.navigate('HistoryScreen');
-              }
-              if (item === 'Papelera') {
-                navigation.navigate('TrashScreen');
-              }
-            }}
+            style={[styles.option, { borderBottomColor: colors.border }]}
+            onPress={() => navigation.navigate(item.screen)}
           >
-            <Text style={[styles.optionText, { color: colors.text }]}>{item}</Text>
-            <Ionicons name="chevron-forward" size={24} color={colors.text} />
+            <Text style={[styles.optionText, { color: colors.text }]}>
+              {item.label}
+            </Text>
+            <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -71,20 +54,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 25,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginLeft: 15,
   },
+  content: {
+    paddingHorizontal: 20,
+  },
   option: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 22,
-    borderTopWidth: 1,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
   },
   optionText: {
     fontSize: 18,
