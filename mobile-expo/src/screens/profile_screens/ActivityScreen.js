@@ -44,6 +44,21 @@ export default function ActivityScreen({ navigation }) {
                 if (item === 'Me gusta') {
                   navigation.navigate('LikesScreen');
                 }
+                if (item === 'Comentarios') {
+                  navigation.navigate('CommentsScreen');
+                }
+                if (item === 'Repost') {
+                  navigation.navigate('RepostScreen');
+                }
+                if (item === 'Guardados') {
+                  navigation.navigate('SavedScreen');
+                }
+                if (item === 'Historial') {
+                  navigation.navigate('HistoryScreen');
+                }
+                if (item === 'Papelera') {
+                  navigation.navigate('TrashScreen');
+                }
               }}
             >
               <Text style={styles.optionText}>
