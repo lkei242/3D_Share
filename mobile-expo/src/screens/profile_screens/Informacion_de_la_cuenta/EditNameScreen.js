@@ -7,56 +7,128 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function EditNameScreen({ navigation }) {
   const [profileName, setProfileName] = useState('');
   const [username, setUsername] = useState('');
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   return (
-    <View style={styles.container}>
-
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDark ? '#121212' : '#FFFFFF',
+            borderBottomColor: isDark ? '#222' : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={25} color="#FFF" />
+          <Ionicons
+            name="arrow-back"
+            size={25}
+            color={colors.text}
+          />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: colors.text }
+          ]}
+        >
           Cambiar nombre de usuario
         </Text>
       </View>
 
       <View style={styles.content}>
 
-        <Text style={styles.label}>
+        <Text
+          style={[
+            styles.label,
+            { color: colors.text }
+          ]}
+        >
           Nombre de Perfil
         </Text>
 
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+              color: colors.text,
+            },
+          ]}
           value={profileName}
           onChangeText={setProfileName}
           placeholder="Nombre de perfil"
-          placeholderTextColor="#777"
+          placeholderTextColor={
+            isDark ? '#777' : '#999'
+          }
         />
 
-        <Text style={[styles.label,{marginTop:30}]}>
+        <Text
+          style={[
+            styles.label,
+            {
+              marginTop: 30,
+              color: colors.text,
+            },
+          ]}
+        >
           Nombre de Usuario
         </Text>
 
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+              color: colors.text,
+            },
+          ]}
           value={username}
           onChangeText={setUsername}
           placeholder="Nombre de usuario"
-          placeholderTextColor="#777"
+          placeholderTextColor={
+            isDark ? '#777' : '#999'
+          }
         />
 
       </View>
-      <TouchableOpacity style={styles.saveButton}>
+
+      <TouchableOpacity
+        style={[
+          styles.saveButton,
+          {
+            backgroundColor: '#546F1C',
+          },
+        ]}
+      >
         <Text style={styles.saveText}>
           Guardar
         </Text>
       </TouchableOpacity>
+
     </View>
   );
 }

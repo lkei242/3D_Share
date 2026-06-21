@@ -7,45 +7,80 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function DeactivateAccountScreen({ navigation }) {
     const handleDeactivate = () => {
         navigation.navigate('DeactivateAccountPasswordScreen');
     };
-
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: isDark
+              ? '#222'
+              : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
             name="arrow-back"
             size={28}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Desactiva tu cuenta
         </Text>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.question}>
+        <Text
+          style={[
+            styles.question,
+            { color: colors.text }
+          ]}
+        >
           ¿Quieres desactivar tu cuenta?
         </Text>
 
-        <Text style={styles.description}>
+        <Text
+          style={[
+            styles.description,
+            {
+              color: isDark
+                ? '#AAA'
+                : '#666',
+            },
+          ]}
+        >
           Esta acción es permanente y perderás el acceso a ella.
         </Text>
 
         <TouchableOpacity
-            style={styles.button}
-            onPress={handleDeactivate}
-            >
-            <Text style={styles.buttonText}>
-                Desactivar
-            </Text>
+          style={styles.button}
+          onPress={handleDeactivate}
+        >
+          <Text style={styles.buttonText}>
+            Desactivar
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -75,7 +110,7 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-    justifyContent: 'center',
+    marginTop: 210,
     alignItems: 'center',
     paddingHorizontal: 30,
   },

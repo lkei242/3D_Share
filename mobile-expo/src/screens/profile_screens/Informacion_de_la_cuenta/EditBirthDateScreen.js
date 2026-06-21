@@ -8,11 +8,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { useTheme } from '@react-navigation/native';
 export default function EditBirthDateScreen({ navigation }) {
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
-
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
   const onChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowPicker(false);
@@ -30,46 +31,84 @@ export default function EditBirthDateScreen({ navigation }) {
   });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: isDark
+              ? '#222'
+              : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
         >
           <Ionicons
             name="arrow-back"
             size={26}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Fecha de Nacimiento
         </Text>
       </View>
 
       <View style={styles.content}>
         <TouchableOpacity
-          style={styles.dateButton}
+          style={[
+            styles.dateButton,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+            },
+          ]}
           onPress={() => setShowPicker(true)}
         >
-          <Text style={styles.dateText}>
+          <Text
+            style={[
+              styles.dateText,
+              { color: colors.text }
+            ]}
+          >
             {formattedDate}
           </Text>
 
           <Ionicons
             name="chevron-down"
             size={18}
-            color="#AAA"
+            color={isDark ? '#AAA' : '#666'}
           />
         </TouchableOpacity>
 
         {showPicker && (
-            <DateTimePicker
-                value={date}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onChange}
-            />
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={
+              Platform.OS === 'ios'
+                ? 'spinner'
+                : 'default'
+            }
+            onChange={onChange}
+          />
         )}
       </View>
 

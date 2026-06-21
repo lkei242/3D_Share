@@ -9,28 +9,49 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function AdvancedInfoScreen({ navigation }) {
   const [profileName, setProfileName] = useState('');
   const [presentation, setPresentation] = useState('');
   const [gender, setGender] = useState('');
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   const handleSave = () => {
     console.log('Información guardada');
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDark ? '#121212' : '#FFFFFF',
+            borderBottomColor: isDark ? '#222' : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
             name="arrow-back"
             size={26}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: colors.text }
+          ]}
+        >
           Información Avanzada
         </Text>
       </View>
@@ -40,57 +61,101 @@ export default function AdvancedInfoScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity style={styles.avatarContainer}>
-          <View style={styles.avatar}>
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+              },
+            ]}
+          >
             <Ionicons
               name="person"
               size={40}
-              color="#999"
+              color={isDark ? '#999' : '#666'}
             />
           </View>
 
-          <Text style={styles.avatarText}>
+          <Text
+            style={[
+              styles.avatarText,
+              { color: colors.text }
+            ]}
+          >
             Foto de perfil
           </Text>
         </TouchableOpacity>
 
-
         <TouchableOpacity
-            style={styles.buttonSpacing}
-            onPress={() =>
-                navigation.navigate('PresentationScreen')
-            }
+          style={styles.buttonSpacing}
+          onPress={() =>
+            navigation.navigate('PresentationScreen')
+          }
+        >
+          <View
+            style={[
+              styles.selectBox,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: isDark ? '#777' : '#555',
+              }}
             >
-            <View style={styles.selectBox}>
-                <Text style={{ color:'#777' }}>
-                Editar presentación
-                </Text>
+              Editar presentación
+            </Text>
 
-                <Ionicons
-                name="chevron-forward"
-                size={18}
-                color="#AAA"
-                />
-            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-            onPress={() =>
-                navigation.navigate('GenderScreen')
-            }
+          onPress={() =>
+            navigation.navigate('GenderScreen')
+          }
+        >
+          <View
+            style={[
+              styles.selectBox,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: isDark ? '#777' : '#555',
+              }}
             >
-            <View style={styles.selectBox}>
-                <Text style={{ color:'#777' }}>
-                Editar Sexo
-                </Text>
+              Editar Sexo
+            </Text>
 
-                <Ionicons
-                name="chevron-forward"
-                size={18}
-                color="#AAA"
-                />
-            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
+          </View>
         </TouchableOpacity>
-
       </ScrollView>
     </View>
   );
@@ -191,5 +256,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  buttonSpacing: {
+    marginBottom: 15,
   },
 });

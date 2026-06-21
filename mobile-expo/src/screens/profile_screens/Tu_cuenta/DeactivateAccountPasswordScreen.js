@@ -7,9 +7,12 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function DeactivateAccountPasswordScreen({ navigation }) {
   const [password, setPassword] = useState('');
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   const handleNext = () => {
     // Aquí validarás la contraseña más adelante
@@ -17,7 +20,12 @@ export default function DeactivateAccountPasswordScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
       <TouchableOpacity
         style={styles.backButton}
@@ -26,19 +34,38 @@ export default function DeactivateAccountPasswordScreen({ navigation }) {
         <Ionicons
           name="arrow-back"
           size={28}
-          color="#FFF"
+          color={colors.text}
         />
       </TouchableOpacity>
 
       <View style={styles.content}>
 
-        <Text style={styles.label}>
-            Ingrese su contraseña actual
+        <Text
+          style={[
+            styles.label,
+            { color: colors.text }
+          ]}
+        >
+          Ingrese su contraseña actual
         </Text>
+
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+              color: colors.text,
+            },
+          ]}
           placeholder="Ingrese su contraseña actual"
-          placeholderTextColor="#888"
+          placeholderTextColor={
+            isDark ? '#888' : '#999'
+          }
           secureTextEntry
           value={password}
           onChangeText={setPassword}

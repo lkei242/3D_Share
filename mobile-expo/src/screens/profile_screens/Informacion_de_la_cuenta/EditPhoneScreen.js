@@ -7,42 +7,80 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function EditPhoneScreen({ navigation }) {
   const [phone, setPhone] = useState('');
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: isDark
+              ? '#222'
+              : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
             name="arrow-back"
             size={25}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: colors.text }
+          ]}
+        >
           Cambiar Número de Teléfono
         </Text>
       </View>
 
       <View style={styles.content}>
 
-        <Text style={styles.countryText}>
+        <Text
+          style={[
+            styles.countryText,
+            { color: colors.text }
+          ]}
+        >
           +54 Argentina
         </Text>
 
-    
-
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+              color: colors.text,
+            },
+          ]}
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
           placeholder="Ingrese su número"
-          placeholderTextColor="#666"
+          placeholderTextColor={
+            isDark ? '#666' : '#999'
+          }
         />
 
       </View>

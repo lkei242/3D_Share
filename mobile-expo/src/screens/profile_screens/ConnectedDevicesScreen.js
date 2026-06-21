@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function ConnectedDevicesScreen({ navigation }) {
   const devices = [
@@ -14,48 +15,107 @@ export default function ConnectedDevicesScreen({ navigation }) {
     { id: 3, name: 'Celular 3', current: false },
     { id: 4, name: 'Celular 4', current: false },
   ];
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
+  const [selectedDevices, setSelectedDevices] = useState([]);
+  const toggleDevice = (id) => {
+    setSelectedDevices(prev =>
+      prev.includes(id)
+        ? prev.filter(deviceId => deviceId !== id)
+        : [...prev, id]
+    );
+  };
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: isDark
+              ? '#222'
+              : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
             name="arrow-back"
             size={28}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Sesiones
         </Text>
       </View>
 
       <View style={styles.listContainer}>
         {devices.map(device => (
-          <View
+          <TouchableOpacity
             key={device.id}
-            style={styles.deviceRow}
+            style={[
+              styles.deviceRow,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+              },
+            ]}
+            onPress={() => toggleDevice(device.id)}
           >
             <View style={styles.leftSide}>
               <Ionicons
-                name="square-outline"
+                name={
+                  selectedDevices.includes(device.id)
+                    ? 'checkbox'
+                    : 'square-outline'
+                }
                 size={22}
-                color="#FFF"
+                color={
+                  selectedDevices.includes(device.id)
+                    ? '#546F1C'
+                    : colors.text
+                }
               />
 
-              <Text style={styles.deviceText}>
+              <Text
+                style={[
+                  styles.deviceText,
+                  { color: colors.text }
+                ]}
+              >
                 {device.name}
               </Text>
             </View>
 
             {device.current && (
-              <Text style={styles.currentText}>
+              <Text
+                style={[
+                  styles.currentText,
+                  {
+                    color: isDark
+                      ? '#999'
+                      : '#666',
+                  },
+                ]}
+              >
                 actual
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -92,7 +152,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 18,
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 12,
   },
 
   leftSide: {

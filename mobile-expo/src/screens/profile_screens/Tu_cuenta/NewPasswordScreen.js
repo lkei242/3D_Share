@@ -7,11 +7,13 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function NewPasswordScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
   const handleConfirm = () => {
     if (password !== confirmPassword) {
       alert('Las contraseñas no coinciden');
@@ -22,8 +24,15 @@ export default function NewPasswordScreen({ navigation }) {
     navigation.goBack();
   };
 
+  
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
       <TouchableOpacity
         style={styles.backButton}
@@ -32,25 +41,39 @@ export default function NewPasswordScreen({ navigation }) {
         <Ionicons
           name="arrow-back"
           size={28}
-          color="#FFF"
+          color={colors.text}
         />
       </TouchableOpacity>
 
       <View style={styles.content}>
 
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              borderColor: isDark ? '#333' : '#DADADA',
+              color: colors.text,
+            },
+          ]}
           placeholder="Ingrese una nueva contraseña"
-          placeholderTextColor="#888"
+          placeholderTextColor={isDark ? '#888' : '#999'}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              borderColor: isDark ? '#333' : '#DADADA',
+              color: colors.text,
+            },
+          ]}
           placeholder="Repita la contraseña"
-          placeholderTextColor="#888"
+          placeholderTextColor={isDark ? '#888' : '#999'}
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
@@ -66,7 +89,14 @@ export default function NewPasswordScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity>
-          <Text style={styles.forgotText}>
+          <Text
+            style={[
+              styles.forgotText,
+              {
+                color: isDark ? '#AAA' : '#666',
+              },
+            ]}
+          >
             ¿Olvidaste tu contraseña?
           </Text>
         </TouchableOpacity>

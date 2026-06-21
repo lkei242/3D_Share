@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function EditProfileInfoScreen({ navigation }) {
   const [profileName, setProfileName] = useState('');
@@ -17,18 +18,39 @@ export default function EditProfileInfoScreen({ navigation }) {
   const [country, setCountry] = useState('');
   const [birthDate, setBirthDate] = useState('');
 
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDark ? '#121212' : '#FFFFFF',
+            borderBottomColor: isDark ? '#222' : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons
             name="arrow-back"
             size={26}
-            color="#FFF"
+            color={colors.text}
           />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Editar tu información
         </Text>
       </View>
@@ -38,98 +60,191 @@ export default function EditProfileInfoScreen({ navigation }) {
         contentContainerStyle={styles.content}
       >
 
-      <TouchableOpacity
-        style={styles.field}
-        onPress={() => navigation.navigate('EditNameScreen')}
-      >
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>
-            Nombre de perfil
-          </Text>
+        {/* Nombre de perfil */}
+        <TouchableOpacity
+          style={styles.field}
+          onPress={() => navigation.navigate('EditNameScreen')}
+        >
+          <View style={styles.labelRow}>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text }
+              ]}
+            >
+              Nombre de perfil
+            </Text>
 
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#AAA"
-          />
-        </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
+          </View>
 
-        <View style={styles.input}>
-          <Text style={styles.valueText}>
-            {profileName || 'Ingrese su nombre'}
-          </Text>
-        </View>
-      </TouchableOpacity>
+          <View
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.valueText,
+                { color: isDark ? '#666' : '#888' }
+              ]}
+            >
+              {profileName || 'Ingrese su nombre'}
+            </Text>
+          </View>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.field}
-        onPress={() => navigation.navigate('EditNameScreen')}
-      >
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>
-            Nombre de usuario
-          </Text>
+        {/* Nombre de usuario */}
+        <TouchableOpacity
+          style={styles.field}
+          onPress={() => navigation.navigate('EditNameScreen')}
+        >
+          <View style={styles.labelRow}>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text }
+              ]}
+            >
+              Nombre de usuario
+            </Text>
 
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#AAA"
-          />
-        </View>
-        <View style={styles.input}>
-            <Text style={styles.valueText}>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
+          </View>
+
+          <View
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.valueText,
+                { color: isDark ? '#666' : '#888' }
+              ]}
+            >
               {username || 'Ingrese su nombre de usuario'}
             </Text>
-        </View>
-      </TouchableOpacity>
-        
-      <TouchableOpacity
-        style={styles.field}
-        onPress={() => navigation.navigate('EditEmailScreen')}
-      >
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>
-            Correo electrónico
-          </Text>
+          </View>
+        </TouchableOpacity>
 
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#AAA"
-          />
-        </View>
+        {/* Email */}
+        <TouchableOpacity
+          style={styles.field}
+          onPress={() => navigation.navigate('EditEmailScreen')}
+        >
+          <View style={styles.labelRow}>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text }
+              ]}
+            >
+              Correo electrónico
+            </Text>
 
-        <View style={styles.input}>
-          <Text style={styles.valueText}>
-            {email || 'Ingrese su correo'}
-          </Text>
-        </View>
-      </TouchableOpacity>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
+          </View>
 
+          <View
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.valueText,
+                { color: isDark ? '#666' : '#888' }
+              ]}
+            >
+              {email || 'Ingrese su correo'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Teléfono */}
         <TouchableOpacity
           style={styles.field}
           onPress={() => navigation.navigate('EditPhoneScreen')}
         >
           <View style={styles.labelRow}>
-            <Text style={styles.label}>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text }
+              ]}
+            >
               Teléfono
             </Text>
 
             <Ionicons
               name="chevron-forward"
               size={18}
-              color="#AAA"
+              color={isDark ? '#AAA' : '#666'}
             />
           </View>
 
-          <View style={styles.input}>
-            <Text style={styles.valueText}>
+          <View
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.valueText,
+                { color: isDark ? '#666' : '#888' }
+              ]}
+            >
               {phone || 'Ingrese su teléfono'}
             </Text>
           </View>
         </TouchableOpacity>
 
-
+        {/* Fecha de nacimiento */}
         <TouchableOpacity
           style={styles.field}
           onPress={() =>
@@ -137,33 +252,65 @@ export default function EditProfileInfoScreen({ navigation }) {
           }
         >
           <View style={styles.labelRow}>
-            <Text style={styles.label}>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text }
+              ]}
+            >
               Fecha de nacimiento
             </Text>
 
             <Ionicons
               name="chevron-forward"
               size={18}
-              color="#AAA"
+              color={isDark ? '#AAA' : '#666'}
             />
           </View>
 
-          <View style={styles.input}>
-            <Text style={styles.valueText}>
+          <View
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark
+                  ? '#1E1E1E'
+                  : '#F5F5F5',
+                borderColor: isDark
+                  ? '#333'
+                  : '#DCDCDC',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.valueText,
+                { color: isDark ? '#666' : '#888' }
+              ]}
+            >
               {birthDate || 'Seleccionar fecha'}
             </Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.advancedButton} onPress={() =>navigation.navigate('AdvancedInfoScreen')}>
-          <Text style={styles.advancedText}>
+        <TouchableOpacity
+          style={styles.advancedButton}
+          onPress={() =>
+            navigation.navigate('AdvancedInfoScreen')
+          }
+        >
+          <Text
+            style={[
+              styles.advancedText,
+              { color: isDark ? '#AAA' : '#666' }
+            ]}
+          >
             Opciones avanzadas
           </Text>
 
           <Ionicons
             name="chevron-forward"
             size={18}
-            color="#AAA"
+            color={isDark ? '#AAA' : '#666'}
           />
         </TouchableOpacity>
 

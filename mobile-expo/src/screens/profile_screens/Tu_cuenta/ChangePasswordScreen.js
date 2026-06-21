@@ -7,9 +7,12 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function ChangePasswordScreen({ navigation }) {
   const [currentPassword, setCurrentPassword] = useState('');
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
     const handleNext = () => {
         console.log('Navegando a NewPasswordScreen');
@@ -17,7 +20,12 @@ export default function ChangePasswordScreen({ navigation }) {
     };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
       <TouchableOpacity
         style={styles.backButton}
@@ -26,27 +34,40 @@ export default function ChangePasswordScreen({ navigation }) {
         <Ionicons
           name="arrow-back"
           size={28}
-          color="#FFF"
+          color={colors.text}
         />
       </TouchableOpacity>
 
       <View style={styles.content}>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor: isDark
+                ? '#333'
+                : '#DCDCDC',
+              color: colors.text,
+            },
+          ]}
           placeholder="Ingrese su contraseña actual"
-          placeholderTextColor="#888"
+          placeholderTextColor={
+            isDark ? '#5f5a5a' : '#090909'
+          }
           secureTextEntry
           value={currentPassword}
           onChangeText={setCurrentPassword}
         />
 
         <TouchableOpacity
-            style={styles.button}
-            onPress={handleNext}
-            >
-            <Text style={styles.buttonText}>
-                Siguiente
-            </Text>
+          style={styles.button}
+          onPress={handleNext}
+        >
+          <Text style={styles.buttonText}>
+            Siguiente
+          </Text>
         </TouchableOpacity>
       </View>
 

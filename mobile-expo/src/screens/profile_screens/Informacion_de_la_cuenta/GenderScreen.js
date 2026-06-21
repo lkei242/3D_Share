@@ -6,19 +6,42 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
 
 export default function GenderScreen({ navigation }) {
   const [selected, setSelected] = useState('');
-
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
   return (
-    <View style={styles.container}>
-
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDark ? '#121212' : '#FFFFFF',
+            borderBottomColor: isDark ? '#222' : '#E5E5E5',
+          },
+        ]}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={26} color="#FFF" />
+          <Ionicons
+            name="arrow-back"
+            size={26}
+            color={colors.text}
+          />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Sexo
         </Text>
       </View>
@@ -26,10 +49,28 @@ export default function GenderScreen({ navigation }) {
       <View style={styles.content}>
 
         <TouchableOpacity
-          style={styles.option}
+          style={[
+            styles.option,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor:
+                selected === 'Masculino'
+                  ? '#94BA46'
+                  : isDark
+                  ? '#333'
+                  : '#DCDCDC',
+            },
+          ]}
           onPress={() => setSelected('Masculino')}
         >
-          <Text style={styles.optionText}>
+          <Text
+            style={[
+              styles.optionText,
+              { color: colors.text }
+            ]}
+          >
             Masculino
           </Text>
 
@@ -43,10 +84,28 @@ export default function GenderScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.option}
+          style={[
+            styles.option,
+            {
+              backgroundColor: isDark
+                ? '#1E1E1E'
+                : '#F5F5F5',
+              borderColor:
+                selected === 'Femenino'
+                  ? '#94BA46'
+                  : isDark
+                  ? '#333'
+                  : '#DCDCDC',
+            },
+          ]}
           onPress={() => setSelected('Femenino')}
         >
-          <Text style={styles.optionText}>
+          <Text
+            style={[
+              styles.optionText,
+              { color: colors.text }
+            ]}
+          >
             Femenino
           </Text>
 
@@ -60,7 +119,6 @@ export default function GenderScreen({ navigation }) {
         </TouchableOpacity>
 
       </View>
-
     </View>
   );
 }
