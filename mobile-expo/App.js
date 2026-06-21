@@ -1,18 +1,17 @@
 // App.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // Color fondo
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { useColorScheme } from 'react-native';
-import { StatusBar } from 'react-native';
+import { Platform, StatusBar } from 'react-native';
 // Expo-navigation-bar
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 // Bottom Bar
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import BottomTabBar from './src/screens/components/BottomTabBar';
+// Tema (controlado desde Preferencias)
+import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 // Pantallas de autenticación
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -88,8 +87,11 @@ function MainTabs() {
   );
 }
 
-export default function App() {
-  const scheme = useColorScheme(); // Retorna 'light' o 'dark' según el sistema operativo
+function AppContent() {
+  // scheme ahora viene del ThemeContext: respeta el sistema hasta que
+  // el usuario lo cambia a mano desde el switch en PreferencesScreen.
+  const { scheme } = useAppTheme();
+
   useEffect(() => {
     const isDark = scheme === 'dark';
     if (Platform.OS === 'android') {
@@ -110,13 +112,14 @@ export default function App() {
       }
     }
   }, [scheme]);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={scheme === 'dark' ? MiTemaOscuro : MiTemaClaro}>
-        <StatusBar 
-          translucent={true} 
-          backgroundColor="transparent" 
-          style={scheme === 'dark' ? 'light' : 'dark'} 
+        <StatusBar
+          translucent={true}
+          backgroundColor="transparent"
+          style={scheme === 'dark' ? 'light' : 'dark'}
         />
         <Stack.Navigator
           initialRouteName="Welcome"
@@ -168,5 +171,13 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }

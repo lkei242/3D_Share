@@ -3,12 +3,14 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../../context/ThemeContext';
 
 export default function PreferencesScreen({ navigation }) {
   const { colors } = useTheme();
-  const isDark = colors.text === '#FFFFFF';
+  // isDark y setDarkMode vienen del ThemeContext: este switch ahora
+  // cambia el tema real de toda la app (y se guarda).
+  const { isDark, setDarkMode } = useAppTheme();
 
-  const [africanMode, setAfricanMode] = useState(false);
   const [videoPreview, setVideoPreview] = useState(true);
   const [highQualityImages, setHighQualityImages] = useState(true);
   const [highQualityVideos, setHighQualityVideos] = useState(true);
@@ -41,7 +43,7 @@ export default function PreferencesScreen({ navigation }) {
         {/* Modo Oscuro */}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Modo Oscuro</Text>
-          <Switch value={africanMode} onValueChange={setAfricanMode} />
+          <Switch value={isDark} onValueChange={setDarkMode} />
         </View>
 
         {/* Vista previa */}
