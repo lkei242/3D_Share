@@ -89,5 +89,27 @@ router.get('/feed', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// 3. GET /api/posts/user/:uid - Obtener posts de un usuario específico
+router.get('/user/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const postsDb = await Post.find({ autor: uid }).sort({ createdAt: -1 });
+
+    const postsFormateados = postsDb.map(post => ({
+      id: post._id.toString(),
+      title: post.titulo,
+      image: post.imagenes && post.imagenes.length > 0 ? post.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+      price: post.precio ? `${post.precio}$` : null,
+      views: post.vistas >= 1000 ? `${(post.vistas / 1000).toFixed(1)}k` : post.vistas.toString(),
+      totalImages: post.imagenes ? post.imagenes.length : 1
+    }));
+
+    res.json({
+      posts: postsFormateados
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

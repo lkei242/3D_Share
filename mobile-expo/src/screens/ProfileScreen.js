@@ -1,27 +1,82 @@
 // src/screens/ProfileScreen.js
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  Dimensions
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { auth } from './config/firebase';
+import { API_URL } from './config/api';
+
+const { width: screenWidth } = Dimensions.get('window');
+const GRID_ITEM_SIZE = (screenWidth - 50) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
+
+  // Obtener info básica del usuario actual de Firebase
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      setUserEmail(user.email || '');
+      const namePart = user.displayName || user.email.split('@')[0];
+      setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
+    }
+  }, []);
+
+  // Función para obtener posts del usuario
+  const fetchUserPosts = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/posts/user/${user.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(data.posts || []);
+      }
+    } catch (error) {
+      console.log('Error al cargar publicaciones de usuario:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Recarga las publicaciones cada vez que el usuario navega a la pestaña de Perfil
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserPosts();
+    }, [fetchUserPosts])
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        
+
         {/* HEADER */}
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => navigation.navigate('AccountSwitcher')}>
             <Text style={[styles.username, { color: colors.text }]}>
-              NombreUsuario
+              {userName || 'Usuario'}
             </Text>
             <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
-              @usuario
+              @{userEmail ? userEmail.split('@')[0] : 'usuario'}
             </Text>
           </TouchableOpacity>
 
@@ -36,8 +91,8 @@ export default function ProfileScreen({ navigation }) {
 
         {/* PERFIL */}
         <View style={styles.profileSection}>
-          <View style={[styles.avatar, {borderColor:colors.avatarborder}]}>
-           <Image
+          <View style={[styles.avatar, { borderColor: colors.avatarborder }]}>
+            <Image
               source={require('../../assets/profile_picture.jpg')}
               style={styles.avatarImage}
             />
@@ -45,7 +100,9 @@ export default function ProfileScreen({ navigation }) {
 
           <View style={styles.statsContainer}>
             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts')}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>
+                {posts.length}
+              </Text>
               <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#555' }]}>Publicaciones</Text>
             </TouchableOpacity>
 
@@ -63,7 +120,7 @@ export default function ProfileScreen({ navigation }) {
 
         {/* BOTONES */}
         <View style={styles.buttonsRow}>
-          <TouchableOpacity style={styles.button} onPress={() =>navigation.navigate('EditProfileInfoScreen')}>
+          <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('EditProfileInfoScreen')}>
             <Text style={styles.buttonText}>
               Editar perfil
             </Text>
@@ -105,11 +162,35 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* CONTENIDO */}
+        {/* CONTENIDO (GRID DE PUBLICACIONES) */}
         <View style={styles.postsSection}>
-          <Text style={[styles.postsTitle, { color: colors.text, opacity:0.5 }]}>
-            Todavía no has publicado nada
-          </Text>
+          {loading ? (
+            <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 40 }} />
+          ) : posts.length === 0 ? (
+            <Text style={[styles.postsTitle, { color: colors.text, opacity: 0.5 }]}>
+              Todavía no has publicado nada
+            </Text>
+          ) : (
+            <View style={styles.gridContainer}>
+              {posts.map((post) => (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.gridItem}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    // Acción opcional: navegar al detalle de la publicación
+                  }}
+                >
+                  <Image source={{ uri: post.image }} style={styles.gridImage} />
+                  {post.price && (
+                    <View style={styles.gridPriceTag}>
+                      <Text style={styles.gridPriceText}>{post.price}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -224,6 +305,38 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     marginBottom: 20,
     transform: [{ translateY: 120 }],
+    fontFamily: 'Nunito-Bold',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginTop: 15,
+  },
+  gridItem: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#333',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gridPriceTag: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  gridPriceText: {
+    color: '#fff',
+    fontSize: 10,
     fontFamily: 'Nunito-Bold',
   },
 });
