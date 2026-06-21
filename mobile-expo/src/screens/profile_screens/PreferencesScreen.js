@@ -1,6 +1,6 @@
 // src/screens/profile_screens/PreferencesScreen.js
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, Modal } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -9,11 +9,12 @@ export default function PreferencesScreen({ navigation }) {
   const { colors } = useTheme();
   // isDark y setDarkMode vienen del ThemeContext: este switch ahora
   // cambia el tema real de toda la app (y se guarda).
-  const { isDark, setDarkMode } = useAppTheme();
+const { isDark, themeMode, setThemeMode } = useAppTheme();
 
   const [videoPreview, setVideoPreview] = useState(true);
   const [highQualityImages, setHighQualityImages] = useState(true);
   const [highQualityVideos, setHighQualityVideos] = useState(true);
+  const [showThemeModal, setShowThemeModal] = useState(false);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -43,7 +44,15 @@ export default function PreferencesScreen({ navigation }) {
         {/* Modo Oscuro */}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Modo Oscuro</Text>
-          <Switch value={isDark} onValueChange={setDarkMode} />
+          <TouchableOpacity
+            style={[styles.themePicker, { backgroundColor: colors.card, borderColor: isDark ? '#555' : '#CCC' }]}
+            onPress={() => setShowThemeModal(true)}
+          >
+            <Text style={[styles.themePickerText, { color: colors.text }]}>
+              {themeMode === 'auto' ? 'Automático' : themeMode === 'dark' ? 'Oscuro' : 'Claro'}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color={colors.text} />
+          </TouchableOpacity>
         </View>
 
         {/* Vista previa */}
@@ -64,6 +73,29 @@ export default function PreferencesScreen({ navigation }) {
           <Switch value={highQualityVideos} onValueChange={setHighQualityVideos} />
         </View>
       </View>
+
+      <Modal visible={showThemeModal} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowThemeModal(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Modo de pantalla</Text>
+            {[
+              { key: 'auto',  label: 'Automático', icon: 'phone-portrait-outline' },
+              { key: 'light', label: 'Claro',      icon: 'sunny-outline' },
+              { key: 'dark',  label: 'Oscuro',     icon: 'moon-outline' },
+            ].map(({ key, label, icon }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.modalOption, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}
+                onPress={() => { setThemeMode(key); setShowThemeModal(false); }}
+              >
+                <Ionicons name={icon} size={22} color={colors.text} />
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>{label}</Text>
+                {themeMode === key && <Ionicons name="checkmark" size={22} color="#4CAF50" />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -116,5 +148,47 @@ const styles = StyleSheet.create({
     fontSize: 17,
     flex: 1,
     marginRight: 15,
+  },
+  themePicker: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderWidth: 1,
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 10,
+  gap: 6,
+  },
+  themePickerText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    flex: 1,
   },
 });

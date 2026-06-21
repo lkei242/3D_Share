@@ -33,6 +33,7 @@ export function ThemeProvider({ children }) {
 
   const scheme = override ?? systemScheme ?? 'light';
   const isDark = scheme === 'dark';
+  const themeMode = override ?? 'auto';
 
   // Esto es lo que llama el Switch de "Modo Oscuro" en PreferencesScreen
   const setDarkMode = async (value) => {
@@ -55,8 +56,21 @@ export function ThemeProvider({ children }) {
     }
   };
 
+  const setThemeMode = async (mode) => {
+  if (mode === 'auto') {
+    await followSystem();
+  } else if (mode === 'light' || mode === 'dark') {
+    setOverride(mode);
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch (e) {
+      console.log('No se pudo guardar la preferencia de tema', e);
+    }
+  }
+  };
+
   return (
-    <ThemeContext.Provider value={{ scheme, isDark, setDarkMode, followSystem, isReady }}>
+    <ThemeContext.Provider value={{ scheme, isDark, themeMode, setDarkMode, setThemeMode, followSystem, isReady }}>
       {children}
     </ThemeContext.Provider>
   );
