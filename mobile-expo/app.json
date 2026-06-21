@@ -12,20 +12,23 @@
     },
     "android": {
       "backgroundColor": "#121212"
-      },
-      "androidStatusBar": {
-        "barStyle": "light-content",
-        "translucent": true,
-        "backgroundColor": "#00000000"
-      },
-      "adaptiveIcon": {
-        "backgroundColor": "#121212",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "translucent": true,
+      "backgroundColor": "#00000000"
+    },
+    "adaptiveIcon": {
+      "backgroundColor": "#121212",
+      "foregroundImage": "./assets/android-icon-foreground.png",
+      "backgroundImage": "./assets/android-icon-background.png",
+      "monochromeImage": "./assets/android-icon-monochrome.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
+  },
+  "web": {
+    "favicon": "./assets/favicon.png"
+  }
 }

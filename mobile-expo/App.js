@@ -38,6 +38,19 @@ import RepostScreen from './src/screens/profile_screens/Tu_actividad/RepostScree
 import SavedScreen from './src/screens/profile_screens/Tu_actividad/SavedScreen';
 import HistoryScreen from './src/screens/profile_screens/Tu_actividad/HistoryScreen';
 import TrashScreen from './src/screens/profile_screens/Tu_actividad/TrashScreen';
+import ConnectedDevicesScreen from './src/screens/profile_screens/ConnectedDevicesScreen';
+import ChangePasswordScreen from './src/screens/profile_screens/Tu_cuenta/ChangePasswordScreen';
+import NewPasswordScreen from './src/screens/profile_screens/Tu_cuenta/NewPasswordScreen';
+import DeactivateAccountScreen from './src/screens/profile_screens/Tu_cuenta/DeactivateAccountScreen';
+import DeactivateAccountPasswordScreen from './src/screens/profile_screens/Tu_cuenta/DeactivateAccountPasswordScreen';
+import EditProfileInfoScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditProfileInfoScreen';
+import AdvancedInfoScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/AdvancedInfoScreen';
+import PresentationScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/PresentationScreen';
+import GenderScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/GenderScreen';
+import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditNameScreen';
+import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
+import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
+import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
 
 
 const MiTemaClaro = {
@@ -167,6 +180,73 @@ function AppContent() {
             name="TrashScreen"
             component={TrashScreen}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ConnectedDevicesScreen"
+            component={ConnectedDevicesScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ChangePasswordScreen"
+            component={ChangePasswordScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="NewPasswordScreen"
+            component={NewPasswordScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="DeactivateAccountScreen"
+            component={DeactivateAccountScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="DeactivateAccountPasswordScreen"
+            component={DeactivateAccountPasswordScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="EditProfileInfoScreen"
+            component={EditProfileInfoScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="AdvancedInfoScreen"
+            component={AdvancedInfoScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="PresentationScreen"
+            component={PresentationScreen}
+            options={{ headerShown: false }}
+          />
+
+          <Stack.Screen
+            name="GenderScreen"
+            component={GenderScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="EditNameScreen"
+            component={EditNameScreen}
+            options={{ headerShown:false }}
+          />
+
+          <Stack.Screen
+            name="EditEmailScreen"
+            component={EditEmailScreen}
+            options={{ headerShown:false }}
+          />
+          <Stack.Screen
+            name="EditPhoneScreen"
+            component={EditPhoneScreen}
+            options={{ headerShown:false }}
+          />
+          <Stack.Screen
+            name="EditBirthDateScreen"
+            component={EditBirthDateScreen}
+            options={{ headerShown:false }}
           />
         </Stack.Navigator>
       </NavigationContainer>

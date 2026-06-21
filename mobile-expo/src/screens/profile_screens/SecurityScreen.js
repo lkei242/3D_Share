@@ -24,7 +24,7 @@ export default function SecurityScreen({ navigation }) {
           <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
+        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() =>navigation.navigate('ConnectedDevicesScreen')}>
           <Text style={[styles.optionText, { color: colors.text }]}>Dispositivos conectados</Text>
           <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
         </TouchableOpacity>

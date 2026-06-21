@@ -19,22 +19,17 @@ export default function AccountScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
-          <Text style={[styles.optionText, { color: colors.text }]}>Información de la cuenta</Text>
+        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() =>navigation.navigate('EditProfileInfoScreen')}>
+          <Text style={[styles.optionText, { color: colors.text }]}>Editar Tu Información</Text>
           <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
+        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() =>navigation.navigate('ChangePasswordScreen')}>
           <Text style={[styles.optionText, { color: colors.text }]}>Cambiar contraseña</Text>
           <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
-          <Text style={[styles.optionText, { color: colors.text }]}>Descargar tus datos</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
+        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() =>navigation.navigate('DeactivateAccountScreen')}>
           <Text style={[styles.optionText, { color: colors.text }]}>Desactivar cuenta</Text>
           <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
         </TouchableOpacity>

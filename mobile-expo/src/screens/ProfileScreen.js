@@ -63,7 +63,7 @@ export default function ProfileScreen({ navigation }) {
 
         {/* BOTONES */}
         <View style={styles.buttonsRow}>
-          <TouchableOpacity style={styles.button}>
+          <TouchableOpacity style={styles.button} onPress={() =>navigation.navigate('EditProfileInfoScreen')}>
             <Text style={styles.buttonText}>
               Editar perfil
             </Text>
