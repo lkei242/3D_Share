@@ -9,7 +9,7 @@ export default function PreferencesScreen({ navigation }) {
   const { colors } = useTheme();
   // isDark y setDarkMode vienen del ThemeContext: este switch ahora
   // cambia el tema real de toda la app (y se guarda).
-const { isDark, themeMode, setThemeMode } = useAppTheme();
+  const { isDark, themeMode, setThemeMode } = useAppTheme();
 
   const [videoPreview, setVideoPreview] = useState(true);
   const [highQualityImages, setHighQualityImages] = useState(true);
@@ -31,8 +31,8 @@ const { isDark, themeMode, setThemeMode } = useAppTheme();
         <View style={[styles.languageRow, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Idioma</Text>
           <TouchableOpacity style={[
-            styles.languageButton, 
-            { 
+            styles.languageButton,
+            {
               backgroundColor: colors.card,
               borderColor: isDark ? '#555' : '#CCC'
             }
@@ -79,18 +79,31 @@ const { isDark, themeMode, setThemeMode } = useAppTheme();
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Modo de pantalla</Text>
             {[
-              { key: 'auto',  label: 'Automático', icon: 'phone-portrait-outline' },
-              { key: 'light', label: 'Claro',      icon: 'sunny-outline' },
-              { key: 'dark',  label: 'Oscuro',     icon: 'moon-outline' },
-            ].map(({ key, label, icon }) => (
+              { key: 'auto', label: 'Automático', icon: 'phone-portrait-outline' },
+              { key: 'light', label: 'Claro', icon: 'sunny-outline' },
+              { key: 'dark', label: 'Oscuro', icon: 'moon-outline' },
+            ].map(({ key, label, icon }, index, arr) => (
               <TouchableOpacity
                 key={key}
-                style={[styles.modalOption, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}
-                onPress={() => { setThemeMode(key); setShowThemeModal(false); }}
+                style={[
+                  styles.modalOption,
+                  {
+                    borderBottomColor: isDark ? '#333' : '#E0E0E0',
+                    borderBottomWidth: index === arr.length - 1 ? 0 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  setThemeMode(key);
+                  setShowThemeModal(false);
+                }}
               >
                 <Ionicons name={icon} size={22} color={colors.text} />
-                <Text style={[styles.modalOptionText, { color: colors.text }]}>{label}</Text>
-                {themeMode === key && <Ionicons name="checkmark" size={22} color="#4CAF50" />}
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>
+                  {label}
+                </Text>
+                {themeMode === key && (
+                  <Ionicons name="checkmark" size={22} color="#4CAF50" />
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -150,13 +163,13 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   themePicker: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderWidth: 1,
-  paddingHorizontal: 16,
-  paddingVertical: 10,
-  borderRadius: 10,
-  gap: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
   },
   themePickerText: {
     fontWeight: '600',
