@@ -1,6 +1,8 @@
 import { API_URL } from './config/api';
 import PostDetailModal from './components/PostDetailModal';
 import React, { useState, useEffect } from 'react';
+import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
+import { db } from './config/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -17,7 +19,7 @@ import {
 
 const GREEN = '#9DBD3F';
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 36) / 2;
+const CARD_WIDTH = (width - 20) / 2;
 
 function PostCard({ item, onPress }) {
   const { colors } = useTheme();
@@ -52,10 +54,10 @@ function PostCard({ item, onPress }) {
           {item.title}
         </Text>
         <View style={styles.cardStats}>
-          <MaterialCommunityIcons name="chart-bar" size={14} color={isDark ? "#aaa" : "#666"} />
+          <MaterialCommunityIcons name="chart-bar" size={16} color={isDark ? "#aaa" : "#666"} />
           <Text style={[styles.statsText, { color: isDark ? "#888" : "#555" }]}>{item.views}</Text>
           <TouchableOpacity style={styles.saveButton}>
-            <MaterialCommunityIcons name="bookmark-outline" size={16} color={colors.text} />
+            <MaterialCommunityIcons name="bookmark-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -78,28 +80,48 @@ export default function HomeScreen({ navigation }) {
     setSelectedPost(post);
     setModalVisible(true);
   };
-  const fetchPosts = async (reset = false) => {
-    if (loading || !hasMore) return;
-    setLoading(true);
-    try {
-      const pageToFetch = reset ? 1 : page;
-      const res = await fetch(`${API_URL}/api/posts/feed?page=${pageToFetch}&limit=10`);
-      const data = await res.json();
-
-      if (reset) {
-        setPosts(data.posts);
-        setPage(2);
-      } else {
-        setPosts(prev => [...prev, ...data.posts]);
-        setPage(prev => prev + 1);
-      }
-      setHasMore(data.hasMore);
-    } catch (error) {
-      console.log("Error cargando posts:", error);
-    } finally {
+  
+const [lastVisible, setLastVisible] = useState(null);
+const fetchPosts = async (reset = false) => {
+  if (loading || (!hasMore && !reset)) return;
+  setLoading(true);
+  try {
+    const postsRef = collection(db, 'posts');
+    let q;
+    
+    if (reset) {
+      q = query(postsRef, orderBy('createdAt', 'desc'), limit(10));
+    } else if (lastVisible) {
+      q = query(postsRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(10));
+    } else {
       setLoading(false);
+      return;
     }
-  };
+    const documentSnapshots = await getDocs(q);
+    const newPosts = documentSnapshots.docs.map(doc => ({
+      id: doc.id,
+      title: doc.data().titulo || 'Sin título',
+      image: doc.data().imagenes && doc.data().imagenes.length > 0 ? doc.data().imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+      price: doc.data().precio ? `${doc.data().precio}$` : null,
+      views: doc.data().vistas >= 1000 ? `${(doc.data().vistas / 1000).toFixed(1)}k` : (doc.data().vistas || 0).toString(),
+      totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
+      description: doc.data().descripcion || '',
+      author: doc.data().autor
+    }));
+    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+    setLastVisible(lastVisibleDoc);
+    if (reset) {
+      setPosts(newPosts);
+    } else {
+      setPosts(prev => [...prev, ...newPosts]);
+    }
+    setHasMore(documentSnapshots.docs.length === 10);
+  } catch (error) {
+    console.log("Error cargando posts de Firestore:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -145,9 +167,9 @@ export default function HomeScreen({ navigation }) {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onEndReached={fetchPosts}
+        onEndReached={()=>fetchPosts(false)}
         onEndReachedThreshold={0.3}
-        ListFooterComponent={loading ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
+        ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />
       <PostDetailModal
         visible={modalVisible}
@@ -190,7 +212,8 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -7 }],
   },
   listContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 6,
+    paddingTop: 8,
     paddingBottom: 20,
   },
   row: {
@@ -204,7 +227,7 @@ const styles = StyleSheet.create({
   },
   cardImage: {
     width: '100%',
-    height: 145,
+    height: 175,
   },
   imageCounter: {
     position: 'absolute',
@@ -222,12 +245,11 @@ const styles = StyleSheet.create({
   },
   priceOverlay: {
     position: 'absolute',
-    bottom: 50,
-    left: 8,
+    bottom: 52,
+    left: 2,
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 4,
   },
   priceText: {
     color: '#fff',
@@ -236,12 +258,12 @@ const styles = StyleSheet.create({
   },
   cardFooter: {
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 1,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'Nunito-Bold',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   cardStats: {
     flexDirection: 'row',
@@ -249,7 +271,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statsText: {
-    fontSize: 11,
+    fontSize: 14,
     fontFamily: 'Nunito-Regular',
     flex: 1,
   },

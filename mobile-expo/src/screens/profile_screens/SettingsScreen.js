@@ -2,11 +2,25 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { auth } from '../config/firebase';
+import { signOut } from 'firebase/auth';
 
 export default function SettingsScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-
+  
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Borra la sesión local de Firebase
+      // Resetea el historial de pantallas y manda al usuario a Welcome
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
+    } catch (error) {
+      console.log("Error al cerrar sesión:", error);
+    }
+  };
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -69,7 +83,7 @@ export default function SettingsScreen({ navigation }) {
 
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: colors.botonrojo }]}
-          onPress={() => navigation.navigate('Welcome')}
+          onPress={handleLogout}
         >
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>

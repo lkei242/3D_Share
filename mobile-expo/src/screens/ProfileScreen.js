@@ -16,6 +16,8 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth } from './config/firebase';
 import { API_URL } from './config/api';
 import PostDetailModal from './components/PostDetailModal';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from './config/firebase';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
@@ -51,16 +53,34 @@ export default function ProfileScreen({ navigation }) {
   const fetchUserPosts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
-
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/posts/user/${user.uid}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(data.posts || []);
-      }
+      const postsRef = collection(db, 'posts');
+      // Consultamos por autor (filtrado simple sin requerir índices compuestos)
+      const q = query(postsRef, where('autor', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      
+      const userPosts = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.titulo || 'Sin título',
+          image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+          price: data.precio ? `${data.precio}$` : null,
+          views: data.vistas >= 1000 ? `${(data.vistas / 1000).toFixed(1)}k` : (data.vistas || 0).toString(),
+          totalImages: data.imagenes ? data.imagenes.length : 1,
+          description: data.descripcion || '',
+          author: data.autor,
+          // Guardamos fecha nativa para ordenar
+          createdAt: data.createdAt ? data.createdAt.toDate().getTime() : 0
+        };
+      });
+      // Ordenamos en memoria del más nuevo al más viejo
+      userPosts.sort((a, b) => b.createdAt - a.createdAt);
+      
+      setPosts(userPosts);
     } catch (error) {
-      console.log('Error al cargar publicaciones de usuario:', error);
+      console.log('Error al cargar publicaciones de usuario desde Firestore:', error);
     } finally {
       setLoading(false);
     }

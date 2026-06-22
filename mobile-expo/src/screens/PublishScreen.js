@@ -16,6 +16,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from './config/firebase';
 import { API_URL } from './config/api';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from './config/firebase';
 
 export default function PublishScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -56,7 +58,6 @@ export default function PublishScreen({ navigation }) {
       alert('Por favor selecciona una imagen.');
       return;
     }
-
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -65,15 +66,9 @@ export default function PublishScreen({ navigation }) {
         setLoading(false);
         return;
       }
-
       const token = await user.getIdToken();
       const formData = new FormData();
-      formData.append('titulo', titulo.trim());
-      formData.append('descripcion', descripcion.trim());
-      if (precio.trim()) {
-        formData.append('precio', precio.trim());
-      }
-
+      // Preparar el blob de la imagen para la subida
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.onload = function () {
@@ -90,22 +85,32 @@ export default function PublishScreen({ navigation }) {
         
       const filename = image.split('/').pop();
       formData.append('imagen', blob, filename);
-      const res = await fetch(`${API_URL}/api/posts`, {
+      // 1. Subir la imagen al backend (Cloudinary)
+      const res = await fetch(`${API_URL}/api/media/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert('¡Publicación creada con éxito!');
-        navigation.goBack();
-      } else {
-        alert(data.error || 'Error al subir la publicación');
+      const uploadData = await res.json();
+      if (!res.ok) {
+        alert(uploadData.error || 'Error al subir la imagen.');
+        setLoading(false);
+        return;
       }
+      // 2. Guardar el Post directamente en Firestore
+      await addDoc(collection(db, 'posts'), {
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        precio: precio.trim() ? parseFloat(precio.trim()) : null,
+        imagenes: [uploadData.url], // URL de Cloudinary
+        autor: user.uid,
+        vistas: 0,
+        createdAt: serverTimestamp() // Timestamp del servidor
+      });
+      alert('¡Publicación creada con éxito!');
+      navigation.goBack();
     } catch (error) {
       console.log('Error publicando post:', error);
       alert('Error al conectar con el servidor.');

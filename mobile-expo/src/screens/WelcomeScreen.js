@@ -7,30 +7,54 @@ import {
   TouchableOpacity,
   Image,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
+import { useEffect } from 'react';
+import { auth } from './config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function WelcomeScreen({ navigation }) {
   const { colors } = useTheme();
-  const [title, setTitle] = useState('Iniciar Sesión en 3D Share');
-  const [about, setAbout] = useState('Acerca de nosotros');
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Si hay sesión, redirige directo y mantiene el "loading" activo para evitar parpadeos
+        navigation.replace('MainTabs');
+      } else {
+        // Si NO hay sesión, deja de cargar y muestra el formulario de bienvenida
+        setLoading(false);
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', paddingTop: 0 }]}>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+        />
+        <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 20 }} />
+      </View>
+    );
+  }
+
+  // De aquí en adelante queda tu return normal (lo que se muestra cuando el usuario no está logueado)
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-
-      {/* LOGO + TITLE EDITABLE */}
+      {/* ... todo tu código JSX original ... */}
       <View style={styles.logoContainer}>
         <Image
           source={require('../../assets/logo.png')}
           style={styles.logo}
         />
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          style={[styles.titleInput, { color: colors.text }]}
-        />
+        <Text style={[styles.titleInput, { color: colors.text }]}>
+          Iniciar Sesión en 3D Share
+        </Text>
       </View>
-
-      {/* BOTONES */}
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
           style={styles.loginButton}
@@ -38,7 +62,6 @@ export default function WelcomeScreen({ navigation }) {
         >
           <Text style={styles.loginText}>Iniciar Sesión</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.registerButton}
           onPress={() => navigation.navigate('Register')}
@@ -46,14 +69,11 @@ export default function WelcomeScreen({ navigation }) {
           <Text style={styles.registerText}>Registrarse</Text>
         </TouchableOpacity>
       </View>
-
-      {/* ENLACE ACERCA DE */}
       <View style={styles.bottomContainer}>
         <Text style={[styles.aboutInput, { color: colors.text, opacity: 0.6 }]}>
           Acerca de nosotros
         </Text>
       </View>
-
     </View>
   );
 }
