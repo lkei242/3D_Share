@@ -52,7 +52,7 @@ import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cue
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
-
+import PostDetailScreen from './src/screens/components/PostDetailScreen';
 
 const MiTemaClaro = {
   ...DefaultTheme,
@@ -146,6 +146,7 @@ function AppContent() {
           <Stack.Screen name="Register" component={RegisterScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
+          <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="AccountSwitcher" component={AccountSwitcherScreen} />
           <Stack.Screen name="Contacts" component={ContactsScreen} />
@@ -171,10 +172,10 @@ function AppContent() {
           <Stack.Screen name="AdvancedInfoScreen" component={AdvancedInfoScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PresentationScreen" component={PresentationScreen} options={{ headerShown: false }} />
           <Stack.Screen name="GenderScreen" component={GenderScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown:false }} />
-          <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown:false }} />
-          <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown:false }} />
-          <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown:false }} />
+          <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>

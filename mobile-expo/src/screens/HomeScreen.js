@@ -1,4 +1,5 @@
 import { API_URL } from './config/api';
+import PostDetailModal from './components/PostDetailModal';
 import React, { useState, useEffect } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,9 +24,9 @@ function PostCard({ item, onPress }) {
   const isDark = colors.text === '#FFFFFF';
 
   return (
-    <TouchableOpacity 
-      style={[styles.card, { backgroundColor: colors.card }]} 
-      onPress={onPress} 
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: colors.card }]}
+      onPress={onPress}
       activeOpacity={0.85}
     >
       <Image
@@ -71,7 +72,12 @@ export default function HomeScreen({ navigation }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const handlePostPress = (post) => {
+    setSelectedPost(post);
+    setModalVisible(true);
+  };
   const fetchPosts = async (reset = false) => {
     if (loading || !hasMore) return;
     setLoading(true);
@@ -79,7 +85,7 @@ export default function HomeScreen({ navigation }) {
       const pageToFetch = reset ? 1 : page;
       const res = await fetch(`${API_URL}/api/posts/feed?page=${pageToFetch}&limit=10`);
       const data = await res.json();
-      
+
       if (reset) {
         setPosts(data.posts);
         setPage(2);
@@ -103,12 +109,15 @@ export default function HomeScreen({ navigation }) {
   }, [navigation]);
 
   const renderItem = ({ item }) => (
-    <PostCard item={item} onPress={() => {}} />
+    <PostCard
+      item={item}
+      onPress={() => navigation.navigate('PostDetail', { post: item })}
+    />
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Publish')}>
@@ -139,6 +148,14 @@ export default function HomeScreen({ navigation }) {
         onEndReached={fetchPosts}
         onEndReachedThreshold={0.3}
         ListFooterComponent={loading ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
+      />
+      <PostDetailModal
+        visible={modalVisible}
+        post={selectedPost}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedPost(null);
+        }}
       />
     </View>
   );

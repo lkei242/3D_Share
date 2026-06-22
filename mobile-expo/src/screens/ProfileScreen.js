@@ -15,6 +15,7 @@ import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth } from './config/firebase';
 import { API_URL } from './config/api';
+import PostDetailModal from './components/PostDetailModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
@@ -28,6 +29,13 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const handlePostPress = (post) => {
+    setSelectedPost(post);
+    setModalVisible(true);
+  };
 
   // Obtener info básica del usuario actual de Firebase
   useEffect(() => {
@@ -177,9 +185,7 @@ export default function ProfileScreen({ navigation }) {
                   key={post.id}
                   style={styles.gridItem}
                   activeOpacity={0.8}
-                  onPress={() => {
-                    // Acción opcional: navegar al detalle de la publicación
-                  }}
+                  onPress={() => navigation.navigate('PostDetail', { post: post })}
                 >
                   <Image source={{ uri: post.image }} style={styles.gridImage} />
                   {post.price && (
@@ -193,6 +199,14 @@ export default function ProfileScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+      <PostDetailModal
+        visible={modalVisible}
+        post={selectedPost}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedPost(null);
+        }}
+      />
     </View>
   );
 }

@@ -1,0 +1,324 @@
+// src/screens/components/PostDetailModal.js
+import React, { useState, useEffect } from 'react';
+import {
+    Modal,
+    View,
+    Text,
+    StyleSheet,
+    Image,
+    TouchableOpacity,
+    ScrollView,
+    Dimensions,
+    TouchableWithoutFeedback
+} from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { useTheme } from '@react-navigation/native';
+import { auth } from '../config/firebase';
+
+const { width: screenWidth } = Dimensions.get('window');
+
+export default function PostDetailModal({ visible, post, onClose }) {
+    const { colors } = useTheme();
+    const isDark = colors.text === '#FFFFFF';
+    const [liked, setLiked] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        // Resetear estados al cambiar de post
+        setLiked(false);
+        setSaved(false);
+    }, [post]);
+
+    if (!post) return null;
+
+    const currentUser = auth.currentUser;
+    const isOwnPost = currentUser && post.author === currentUser.uid;
+
+    // Nombre del autor
+    const displayName = isOwnPost
+        ? (currentUser.displayName || currentUser.email.split('@')[0])
+        : 'Creador3D';
+
+    const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={onClose}
+        >
+            <TouchableWithoutFeedback onPress={onClose}>
+                <View style={styles.modalOverlay}>
+                    <TouchableWithoutFeedback>
+                        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+
+                            {/* HEADER */}
+                            <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+                                <TouchableOpacity onPress={onClose} style={styles.backButton}>
+                                    <Ionicons name="arrow-back" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                                <Text style={[styles.headerTitle, { color: colors.text }]}>PUBLICACIONES</Text>
+                                <TouchableOpacity style={styles.moreButton}>
+                                    <Feather name="more-vertical" size={20} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+                                {/* USER INFO */}
+                                <View style={styles.userInfoRow}>
+                                    <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
+                                        <Image
+                                            source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
+                                            style={styles.avatarImage}
+                                        />
+                                    </View>
+                                    <View style={styles.userNameContainer}>
+                                        <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
+                                        <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
+                                    </View>
+                                </View>
+
+                                {/* POST IMAGE */}
+                                <View style={styles.imageWrapper}>
+                                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+
+                                    {/* PRICE OVERLAY */}
+                                    {post.price && (
+                                        <View style={styles.priceOverlay}>
+                                            <Text style={styles.priceText}>Precio: {post.price}</Text>
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* INTERACTION BAR */}
+                                <View style={styles.interactionBar}>
+                                    <View style={styles.leftIcons}>
+                                        <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.iconButton}>
+                                            <Feather
+                                                name="thumbs-up"
+                                                size={22}
+                                                color={liked ? '#9DBD3F' : colors.text}
+                                            />
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity style={styles.iconButton}>
+                                            <Feather name="message-circle" size={22} color={colors.text} />
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity style={styles.iconButton}>
+                                            <Feather name="send" size={20} color={colors.text} />
+                                        </TouchableOpacity>
+
+                                        <View style={styles.viewsContainer}>
+                                            <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
+                                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity onPress={() => setSaved(!saved)} style={styles.iconButton}>
+                                        <Feather
+                                            name="bookmark"
+                                            size={22}
+                                            color={saved ? '#9DBD3F' : colors.text}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* DESCRIPTION (PIE DE FOTO) */}
+                                <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
+                                    <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
+                                    <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
+                                        {post.description || 'Sin descripción adicional.'}
+                                    </Text>
+                                </View>
+
+                                {/* COMMENTS */}
+                                <View style={[styles.commentsCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
+                                    <Text style={[styles.commentsHeader, { color: colors.text }]}>Comentarios</Text>
+
+                                    <View style={styles.commentItem}>
+                                        <Text style={[styles.commentUser, { color: colors.text }]}>@impresor_pro</Text>
+                                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
+                                            ¡Increíble pieza! ¿Qué tipo de filamento y parámetros usaste para la impresión?
+                                        </Text>
+                                    </View>
+
+                                    <View style={styles.commentItem}>
+                                        <Text style={[styles.commentUser, { color: colors.text }]}>@expo_fan</Text>
+                                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
+                                            Se ve genial, muy buen nivel de detalle en las terminaciones. 👏👏
+                                        </Text>
+                                    </View>
+                                </View>
+
+                            </ScrollView>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
+}
+
+const styles = StyleSheet.create({
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        height: '92%',
+        width: '100%',
+        overflow: 'hidden',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+    },
+    backButton: {
+        padding: 4,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontFamily: 'Nunito-Bold',
+        letterSpacing: 1,
+    },
+    moreButton: {
+        padding: 4,
+    },
+    scrollContent: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 40,
+    },
+    userInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    avatarContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        overflow: 'hidden',
+        borderWidth: 1,
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    userNameContainer: {
+        flex: 1,
+        marginLeft: 10,
+    },
+    userNameText: {
+        fontSize: 15,
+        fontFamily: 'Nunito-Bold',
+    },
+    userHandleText: {
+        fontSize: 12,
+        fontFamily: 'Nunito-Regular',
+        marginTop: 1,
+    },
+    imageWrapper: {
+        width: '100%',
+        height: screenWidth - 32,
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+        backgroundColor: '#000',
+    },
+    postImage: {
+        width: '100%',
+        height: '100%',
+    },
+    priceOverlay: {
+        position: 'absolute',
+        bottom: 12,
+        left: 12,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        borderRadius: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    priceText: {
+        color: '#fff',
+        fontSize: 14,
+        fontFamily: 'Nunito-Bold',
+    },
+    interactionBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#333',
+        marginBottom: 14,
+    },
+    leftIcons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 15,
+    },
+    iconButton: {
+        padding: 4,
+    },
+    viewsContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginLeft: 5,
+    },
+    viewsText: {
+        fontSize: 12,
+        fontFamily: 'Nunito-Regular',
+    },
+    descriptionCard: {
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+    },
+    descriptionTitle: {
+        fontSize: 15,
+        fontFamily: 'Nunito-Bold',
+        marginBottom: 6,
+    },
+    descriptionText: {
+        fontSize: 13,
+        fontFamily: 'Nunito-Regular',
+        lineHeight: 18,
+    },
+    commentsCard: {
+        borderRadius: 10,
+        padding: 12,
+    },
+    commentsHeader: {
+        fontSize: 14,
+        fontFamily: 'Nunito-Bold',
+        marginBottom: 10,
+    },
+    commentItem: {
+        marginBottom: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: 'rgba(255,255,255,0.05)',
+        paddingBottom: 8,
+    },
+    commentUser: {
+        fontSize: 12,
+        fontFamily: 'Nunito-Bold',
+        marginBottom: 2,
+    },
+    commentText: {
+        fontSize: 12,
+        fontFamily: 'Nunito-Regular',
+        lineHeight: 16,
+    },
+});
