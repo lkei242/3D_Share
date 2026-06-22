@@ -51,6 +51,7 @@ import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuen
 import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
+import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 
 
 const MiTemaClaro = {
@@ -156,98 +157,25 @@ function AppContent() {
           <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="LikesScreen" component={LikesScreen} options={{ headerShown: false }} />
-          <Stack.Screen
-            name="CommentsScreen"
-            component={CommentsScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="RepostScreen"
-            component={RepostScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="SavedScreen"
-            component={SavedScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="HistoryScreen"
-            component={HistoryScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="TrashScreen"
-            component={TrashScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="ConnectedDevicesScreen"
-            component={ConnectedDevicesScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="ChangePasswordScreen"
-            component={ChangePasswordScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="NewPasswordScreen"
-            component={NewPasswordScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="DeactivateAccountScreen"
-            component={DeactivateAccountScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="DeactivateAccountPasswordScreen"
-            component={DeactivateAccountPasswordScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="EditProfileInfoScreen"
-            component={EditProfileInfoScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="AdvancedInfoScreen"
-            component={AdvancedInfoScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="PresentationScreen"
-            component={PresentationScreen}
-            options={{ headerShown: false }}
-          />
-
-          <Stack.Screen
-            name="GenderScreen"
-            component={GenderScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="EditNameScreen"
-            component={EditNameScreen}
-            options={{ headerShown:false }}
-          />
-
-          <Stack.Screen
-            name="EditEmailScreen"
-            component={EditEmailScreen}
-            options={{ headerShown:false }}
-          />
-          <Stack.Screen
-            name="EditPhoneScreen"
-            component={EditPhoneScreen}
-            options={{ headerShown:false }}
-          />
-          <Stack.Screen
-            name="EditBirthDateScreen"
-            component={EditBirthDateScreen}
-            options={{ headerShown:false }}
-          />
+          <Stack.Screen name="CommentsScreen" component={CommentsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="RepostScreen" component={RepostScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SavedScreen" component={SavedScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="HistoryScreen" component={HistoryScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="TrashScreen" component={TrashScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ConnectedDevicesScreen" component={ConnectedDevicesScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="NewPasswordScreen" component={NewPasswordScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="DeactivateAccountScreen" component={DeactivateAccountScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="DeactivateAccountPasswordScreen" component={DeactivateAccountPasswordScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditProfileInfoScreen" component={EditProfileInfoScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="AdvancedInfoScreen" component={AdvancedInfoScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="PresentationScreen" component={PresentationScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="GenderScreen" component={GenderScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown:false }} />
+          <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown:false }} />
+          <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown:false }} />
+          <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown:false }} />
+          <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

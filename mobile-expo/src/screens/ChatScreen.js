@@ -33,7 +33,7 @@ export default function ChatScreen({ navigation }) {
   const isDark = colors.text === '#FFFFFF';
 
   const renderChatItem = ({ item }) => (
-    <TouchableOpacity style={styles.chatRow} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.chatRow} activeOpacity={0.7} onPress={() => navigation.navigate('ChatDetail', { name: item.name })}>
       <View style={styles.avatarContainer}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>J</Text>
