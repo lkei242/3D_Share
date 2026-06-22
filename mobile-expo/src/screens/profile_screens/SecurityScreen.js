@@ -21,12 +21,12 @@ export default function SecurityScreen({ navigation }) {
       <View style={styles.content}>
         <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.optionText, { color: colors.text }]}>Autenticación de dos pasos</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() =>navigation.navigate('ConnectedDevicesScreen')}>
+        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() => navigation.navigate('ConnectedDevicesScreen')}>
           <Text style={[styles.optionText, { color: colors.text }]}>Dispositivos conectados</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
         </TouchableOpacity>
       </View>
     </View>

@@ -17,7 +17,7 @@ import { auth } from './config/firebase';
 import { API_URL } from './config/api';
 
 const { width: screenWidth } = Dimensions.get('window');
-const GRID_ITEM_SIZE = (screenWidth - 50) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
+const GRID_ITEM_SIZE = (screenWidth - 20) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -295,10 +295,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
+
   postsSection: {
-    marginTop: 25,
-    paddingHorizontal: 20,
+    paddingHorizontal: 5.69,
   },
+
   postsTitle: {
     textAlign: 'center',
     fontSize: 18,
@@ -307,12 +308,14 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 120 }],
     fontFamily: 'Nunito-Bold',
   },
+
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 5,
-    marginTop: 15,
+    gap: 4,
+    marginTop: 7,
   },
+
   gridItem: {
     width: GRID_ITEM_SIZE,
     height: GRID_ITEM_SIZE,

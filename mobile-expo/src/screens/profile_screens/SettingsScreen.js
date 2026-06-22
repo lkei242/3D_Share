@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen({ navigation }) {
   const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -26,48 +27,48 @@ export default function SettingsScreen({ navigation }) {
         </View>
 
         {/* Las opciones ahora usan colors.border de React Navigation de manera limpia */}
-        <TouchableOpacity 
-          style={[styles.option, { borderBottomColor: colors.border }]} 
+        <TouchableOpacity
+          style={[styles.option, { borderBottomColor: colors.border }]}
           onPress={() => navigation.navigate('Account')}
         >
           <Text style={[styles.optionText, { color: colors.text }]}>Cuenta</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.option, { borderBottomColor: colors.border }]} 
-          onPress={() => navigation.navigate('Security')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Seguridad</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.option, { borderBottomColor: colors.border }]} 
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Notificaciones</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.option, { borderBottomColor: colors.border }]} 
-          onPress={() => navigation.navigate('Preferences')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Preferencias</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.option, { borderBottomColor: colors.border }]} 
-          onPress={() => navigation.navigate('Activity')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Tu Actividad</Text>
-          <Ionicons name="chevron-forward-circle" size={24} color={colors.text} />
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.logoutButton, {backgroundColor: colors.botonrojo}]}
+          style={[styles.option, { borderBottomColor: colors.border }]}
+          onPress={() => navigation.navigate('Security')}
+        >
+          <Text style={[styles.optionText, { color: colors.text }]}>Seguridad</Text>
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.option, { borderBottomColor: colors.border }]}
+          onPress={() => navigation.navigate('Notifications')}
+        >
+          <Text style={[styles.optionText, { color: colors.text }]}>Notificaciones</Text>
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.option, { borderBottomColor: colors.border }]}
+          onPress={() => navigation.navigate('Preferences')}
+        >
+          <Text style={[styles.optionText, { color: colors.text }]}>Preferencias</Text>
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.option, { borderBottomColor: colors.border }]}
+          onPress={() => navigation.navigate('Activity')}
+        >
+          <Text style={[styles.optionText, { color: colors.text }]}>Tu Actividad</Text>
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: colors.botonrojo }]}
           onPress={() => navigation.navigate('Welcome')}
         >
           <Text style={styles.logoutText}>Cerrar sesión</Text>
