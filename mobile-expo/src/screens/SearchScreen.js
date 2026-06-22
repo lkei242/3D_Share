@@ -1,30 +1,126 @@
-// src/screens/SearchScreen.js
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { API_URL } from './config/api';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@react-navigation/native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const isDark = colors.text === '#FFFFFF';
+
+  const [posts, setPosts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchPosts = async (reset = false) => {
+    if (loading) return;
+
+    if (!reset && !hasMore) return;
+
+    setLoading(true);
+
+    try {
+      const pageToFetch = reset ? 1 : page;
+
+      const res = await fetch(
+        `${API_URL}/api/posts/feed?page=${pageToFetch}&limit=30`
+      );
+
+      const data = await res.json();
+
+      if (reset) {
+        setPosts(data.posts);
+        setPage(2);
+      } else {
+        setPosts(prev => [...prev, ...data.posts]);
+        setPage(prev => prev + 1);
+      }
+
+      setHasMore(data.hasMore);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchPosts(true);
+    });
+
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() =>
+        navigation.navigate('PostDetail', { post: item })
+      }
+    >
+      <Image
+        source={{ uri: item.image }}
+        style={styles.image}
+      />
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[
-        styles.header, 
-        { 
-          backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', 
-          paddingTop: insets.top + 8 
+    <View style={styles.container}>
+
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 8 }
+        ]}
+      >
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+        />
+
+        <View style={styles.searchBar}>
+          <Ionicons
+            name="search"
+            size={20}
+            color="#FFF"
+          />
+
+          <TextInput
+            placeholder="Buscar"
+            placeholderTextColor="#AAA"
+            style={styles.input}
+          />
+        </View>
+      </View>
+
+      <FlatList
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        numColumns={3}
+        showsVerticalScrollIndicator={false}
+        onEndReached={() => fetchPosts(false)}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          loading ? (
+            <ActivityIndicator
+              size="small"
+              color="#9DBD3F"
+            />
+          ) : null
         }
-      ]}>
-        <Text style={[styles.title, { color: colors.text }]}>Búsqueda</Text>
-      </View>
-      <View style={styles.content}>
-        <Text style={[styles.text, { color: isDark ? '#aaa' : '#666' }]}>
-          Pantalla de Búsqueda (En desarrollo)
-        </Text>
-      </View>
+      />
     </View>
   );
 }
@@ -32,23 +128,47 @@ export default function SearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#111',
   },
+
   header: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: '#1A1A1A',
   },
-  title: {
-    fontSize: 20,
-    fontFamily: 'Nunito-Bold',
+
+  logo: {
+    width: 35,
+    height: 35,
+    marginRight: 10,
   },
-  content: {
+
+  searchBar: {
     flex: 1,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#273500',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    height: 40,
   },
-  text: {
-    fontSize: 16,
-    fontFamily: 'Nunito-Regular',
+
+  input: {
+    flex: 1,
+    color: '#FFF',
+    marginLeft: 8,
+  },
+
+  card: {
+    width: '33.333%',
+    aspectRatio: 1,
+    padding: 1,
+  },
+
+  image: {
+    width: '100%',
+    height: '100%',
   },
 });
