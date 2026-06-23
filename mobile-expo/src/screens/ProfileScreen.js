@@ -13,14 +13,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { auth } from './config/firebase';
+import { auth, db } from './config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { API_URL } from './config/api';
 import PostDetailModal from './components/PostDetailModal';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from './config/firebase';
 
 const { width: screenWidth } = Dimensions.get('window');
-const GRID_ITEM_SIZE = (screenWidth - 20) / 3; // 40px márgenes laterales + 10px espacios acumulados entre 3 columnas
+const GRID_ITEM_SIZE = (screenWidth - 50) / 3;
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -31,66 +30,66 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+  const [profilePicture, setProfilePicture] = useState('');
+  const [presentation, setPresentation] = useState('');
 
   const [selectedPost, setSelectedPost] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+
   const handlePostPress = (post) => {
     setSelectedPost(post);
     setModalVisible(true);
   };
 
-  // Obtener info básica del usuario actual de Firebase
-  useEffect(() => {
+  // Cargar perfil dinámico desde Firestore
+  const fetchUserProfile = useCallback(async () => {
     const user = auth.currentUser;
-    if (user) {
-      setUserEmail(user.email || '');
-      const namePart = user.displayName || user.email.split('@')[0];
-      setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
+    if (!user) return;
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUserName(data.profileName || data.username || user.email.split('@')[0]);
+        setUserEmail(data.email || user.email);
+        setProfilePicture(data.profilePicture || '');
+        setPresentation(data.presentation || '');
+      } else {
+        // Fallback
+        setUserEmail(user.email || '');
+        const namePart = user.displayName || user.email.split('@')[0];
+        setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
+      }
+    } catch (error) {
+      console.log('Error fetching user profile:', error);
     }
   }, []);
 
-  // Función para obtener posts del usuario
+  // Obtener posts del usuario
   const fetchUserPosts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
+
     setLoading(true);
     try {
-      const postsRef = collection(db, 'posts');
-      // Consultamos por autor (filtrado simple sin requerir índices compuestos)
-      const q = query(postsRef, where('autor', '==', user.uid));
-      const querySnapshot = await getDocs(q);
-      
-      const userPosts = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.titulo || 'Sin título',
-          image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
-          price: data.precio ? `${data.precio}$` : null,
-          views: data.vistas >= 1000 ? `${(data.vistas / 1000).toFixed(1)}k` : (data.vistas || 0).toString(),
-          totalImages: data.imagenes ? data.imagenes.length : 1,
-          description: data.descripcion || '',
-          author: data.autor,
-          // Guardamos fecha nativa para ordenar
-          createdAt: data.createdAt ? data.createdAt.toDate().getTime() : 0
-        };
-      });
-      // Ordenamos en memoria del más nuevo al más viejo
-      userPosts.sort((a, b) => b.createdAt - a.createdAt);
-      
-      setPosts(userPosts);
+      const res = await fetch(`${API_URL}/api/posts/user/${user.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(data.posts || []);
+      }
     } catch (error) {
-      console.log('Error al cargar publicaciones de usuario desde Firestore:', error);
+      console.log('Error al cargar publicaciones de usuario:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Recarga las publicaciones cada vez que el usuario navega a la pestaña de Perfil
+  // Carga/Recarga completa en cada focus de pestaña
   useFocusEffect(
     useCallback(() => {
+      fetchUserProfile();
       fetchUserPosts();
-    }, [fetchUserPosts])
+    }, [fetchUserProfile, fetchUserPosts])
   );
 
   return (
@@ -101,7 +100,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => navigation.navigate('AccountSwitcher')}>
             <Text style={[styles.username, { color: colors.text }]}>
-              {userName || 'Usuario'}
+              {userName}
             </Text>
             <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
               @{userEmail ? userEmail.split('@')[0] : 'usuario'}
@@ -121,7 +120,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.profileSection}>
           <View style={[styles.avatar, { borderColor: colors.avatarborder }]}>
             <Image
-              source={require('../../assets/profile_picture.jpg')}
+              source={profilePicture ? { uri: profilePicture } : require('../../assets/profile_picture.jpg')}
               style={styles.avatarImage}
             />
           </View>
@@ -145,6 +144,13 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* BIO / PRESENTACIÓN */}
+        {presentation ? (
+          <View style={styles.bioContainer}>
+            <Text style={[styles.bioText, { color: colors.text }]}>{presentation}</Text>
+          </View>
+        ) : null}
 
         {/* BOTONES */}
         <View style={styles.buttonsRow}>
@@ -190,7 +196,7 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* CONTENIDO (GRID DE PUBLICACIONES) */}
+        {/* CONTENIDO */}
         <View style={styles.postsSection}>
           {loading ? (
             <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 40 }} />
@@ -205,7 +211,7 @@ export default function ProfileScreen({ navigation }) {
                   key={post.id}
                   style={styles.gridItem}
                   activeOpacity={0.8}
-                  onPress={() => navigation.navigate('PostDetail', { post: post })}
+                  onPress={() => handlePostPress(post)}
                 >
                   <Image source={{ uri: post.image }} style={styles.gridImage} />
                   {post.price && (
@@ -219,6 +225,7 @@ export default function ProfileScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+
       <PostDetailModal
         visible={modalVisible}
         post={selectedPost}
@@ -237,7 +244,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingBottom: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -287,11 +294,20 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontFamily: 'Nunito-Regular',
   },
+  bioContainer: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+  },
+  bioText: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    lineHeight: 18,
+  },
   buttonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginHorizontal: 20,
-    marginTop: 25,
+    marginTop: 20,
     gap: 10,
   },
   button: {
@@ -329,11 +345,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-
   postsSection: {
-    paddingHorizontal: 5.69,
+    marginTop: 25,
+    paddingHorizontal: 20,
   },
-
   postsTitle: {
     textAlign: 'center',
     fontSize: 18,
@@ -342,14 +357,12 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 120 }],
     fontFamily: 'Nunito-Bold',
   },
-
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 7,
+    gap: 5,
+    marginTop: 15,
   },
-
   gridItem: {
     width: GRID_ITEM_SIZE,
     height: GRID_ITEM_SIZE,
