@@ -1,7 +1,11 @@
 // App.js
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { auth } from './src/screens/config/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { View, ActivityIndicator } from 'react-native';
+
 // Color fondo
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { Platform, StatusBar } from 'react-native';
@@ -102,18 +106,28 @@ function MainTabs() {
 }
 
 function AppContent() {
-  // scheme ahora viene del ThemeContext: respeta el sistema hasta que
-  // el usuario lo cambia a mano desde el switch en PreferencesScreen.
   const { scheme } = useAppTheme();
+  const [authReady, setAuthReady] = useState(false);
+  const [initialRoute, setInitialRoute] = useState('Welcome');
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!authReady) {
+        // Solo en el primer disparo decidimos la ruta inicial
+        setInitialRoute(user ? 'MainTabs' : 'Welcome');
+        setAuthReady(true);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    // ... tu código de NavigationBar/StatusBar igual que antes
     const isDark = scheme === 'dark';
     if (Platform.OS === 'android') {
-      // Barra de estado superior: transparente
       StatusBar.setTranslucent(true);
       StatusBar.setBackgroundColor('transparent');
       StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
-      // Barra de navegación inferior
       if (NavigationBar) {
         const bgColor = isDark ? '#0B0B0B' : '#FFFFFF';
         const buttonStyle = isDark ? 'light' : 'dark';
@@ -127,6 +141,14 @@ function AppContent() {
     }
   }, [scheme]);
 
+  if (!authReady) {
+    // Pantalla de carga mientras Firebase determina si hay sesión
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: scheme === 'dark' ? '#121212' : '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#546F1C" />
+      </View>
+    );
+  }
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={scheme === 'dark' ? MiTemaOscuro : MiTemaClaro}>
@@ -136,7 +158,7 @@ function AppContent() {
           style={scheme === 'dark' ? 'light' : 'dark'}
         />
         <Stack.Navigator
-          initialRouteName="Welcome"
+          initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
           }}

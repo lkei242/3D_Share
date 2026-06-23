@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTheme } from '@react-navigation/native';
 import {
   View,
@@ -6,41 +6,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  TextInput,
-  ActivityIndicator,
 } from 'react-native';
-import { useEffect } from 'react';
-import { auth } from './config/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 
 export default function WelcomeScreen({ navigation }) {
   const { colors } = useTheme();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Si hay sesión, redirige directo y mantiene el "loading" activo para evitar parpadeos
-        navigation.replace('MainTabs');
-      } else {
-        // Si NO hay sesión, deja de cargar y muestra el formulario de bienvenida
-        setLoading(false);
-      }
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', paddingTop: 0 }]}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={styles.logo}
-        />
-        <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 20 }} />
-      </View>
-    );
-  }
 
   // De aquí en adelante queda tu return normal (lo que se muestra cuando el usuario no está logueado)
   return (
