@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, cancelAnimation, Easing, withSequence } from 'react-native-reanimated';
 import { useTheme } from '@react-navigation/native';
 import {
   View,
@@ -8,17 +9,48 @@ import {
   Image,
 } from 'react-native';
 
+
 export default function WelcomeScreen({ navigation }) {
   const { colors } = useTheme();
 
-  // De aquí en adelante queda tu return normal (lo que se muestra cuando el usuario no está logueado)
+  const rotationValue = useSharedValue(0);
+
+  useEffect(() => {
+    const animate = () => {
+      rotationValue.value = withSequence(
+
+        withTiming(1080, {
+          duration: 2500,
+        }),
+
+        withTiming(0, {
+          duration: 0,
+        })
+      );
+    };
+
+    const loop = () => {
+      animate();
+      setTimeout(loop, 9600);
+    };
+
+    loop();
+
+    return () => {
+      cancelAnimation(rotationValue);
+    };
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotationValue.value}deg` }],
+  }));
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ... todo tu código JSX original ... */}
       <View style={styles.logoContainer}>
-        <Image
+        <Animated.Image
           source={require('../../assets/logo.png')}
-          style={styles.logo}
+          style={[styles.logo, animatedStyle]}
         />
         <Text style={[styles.titleInput, { color: colors.text }]}>
           Iniciar Sesión en 3D Share
