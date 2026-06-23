@@ -1,6 +1,6 @@
 # Dependencias
 node_modules/
-mobile/node_modules/
+
 
 # Variables de entorno
 #.env 
