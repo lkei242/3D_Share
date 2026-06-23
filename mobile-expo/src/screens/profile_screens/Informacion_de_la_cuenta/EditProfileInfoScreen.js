@@ -142,6 +142,17 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* Link a Información Avanzada */}
+        <TouchableOpacity
+          style={[styles.advancedLink, { borderTopColor: isDark ? '#2C2C2C' : '#E5E5E5' }]}
+          onPress={() => navigation.navigate('AdvancedInfoScreen')}
+        >
+          <Text style={[styles.advancedLinkText, { color: isDark ? '#9DBD3F' : '#546F1C' }]}>
+            Información avanzada
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#9DBD3F' : '#546F1C'} />
+        </TouchableOpacity>
+
       </ScrollView>
     </View>
   );
@@ -190,5 +201,17 @@ const styles = StyleSheet.create({
   valueText: {
     fontSize: 15,
     fontFamily: 'Nunito-Light',
+  },
+  advancedLink: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 25,
+    borderTopWidth: 1,
+  },
+  advancedLinkText: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
   },
 });

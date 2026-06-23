@@ -14,12 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { API_URL } from './config/api';
+import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import PostDetailModal from './components/PostDetailModal';
 
 const { width: screenWidth } = Dimensions.get('window');
-const GRID_ITEM_SIZE = (screenWidth - 50) / 3;
+const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
 
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -65,18 +64,34 @@ export default function ProfileScreen({ navigation }) {
     }
   }, []);
 
-  // Obtener posts del usuario
+  // Obtener posts del usuario desde Firestore
   const fetchUserPosts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/posts/user/${user.uid}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(data.posts || []);
-      }
+      const q = query(
+        collection(db, 'posts'),
+        where('autor', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const postsFormateados = snapshot.docs.map(doc => ({
+        id: doc.id,
+        title: doc.data().titulo || 'Sin título',
+        image: doc.data().imagenes && doc.data().imagenes.length > 0
+          ? doc.data().imagenes[0]
+          : 'https://picsum.photos/seed/placeholder/400/300',
+        price: doc.data().precio ? `${doc.data().precio}$` : null,
+        views: doc.data().vistas >= 1000
+          ? `${(doc.data().vistas / 1000).toFixed(1)}k`
+          : (doc.data().vistas || 0).toString(),
+        totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
+        description: doc.data().descripcion || '',
+        author: doc.data().autor,
+      }));
+      setPosts(postsFormateados);
     } catch (error) {
       console.log('Error al cargar publicaciones de usuario:', error);
     } finally {
@@ -346,8 +361,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   postsSection: {
-    marginTop: 25,
-    paddingHorizontal: 20,
+    paddingHorizontal: 5.69,
   },
   postsTitle: {
     textAlign: 'center',
@@ -360,8 +374,8 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 5,
-    marginTop: 15,
+    gap: 4,
+    marginTop: 7,
   },
   gridItem: {
     width: GRID_ITEM_SIZE,

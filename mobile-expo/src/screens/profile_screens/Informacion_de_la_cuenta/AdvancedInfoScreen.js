@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,36 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
+import { auth, db } from '../../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function AdvancedInfoScreen({ navigation }) {
-  const [profileName, setProfileName] = useState('');
   const [presentation, setPresentation] = useState('');
   const [gender, setGender] = useState('');
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  const handleSave = () => {
-    console.log('Información guardada');
-  };
+  // Cargar datos actuales desde Firestore cada vez que la pantalla recibe foco
+  useFocusEffect(
+    useCallback(() => {
+      const fetchData = async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setPresentation(data.presentation || '');
+            setGender(data.gender || '');
+          }
+        } catch (error) {
+          console.log('Error fetching advanced info:', error);
+        }
+      };
+      fetchData();
+    }, [])
+  );
 
   return (
     <View
@@ -91,7 +109,7 @@ export default function AdvancedInfoScreen({ navigation }) {
         <TouchableOpacity
           style={styles.buttonSpacing}
           onPress={() =>
-            navigation.navigate('PresentationScreen')
+            navigation.navigate('PresentationScreen', { currentPresentation: presentation })
           }
         >
           <View
