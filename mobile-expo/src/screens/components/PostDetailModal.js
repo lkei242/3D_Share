@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -23,22 +24,92 @@ export default function PostDetailModal({ visible, post, onClose }) {
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
 
+    const currentUser = auth.currentUser;
     useEffect(() => {
-        // Resetear estados al cambiar de post
-        setLiked(false);
-        setSaved(false);
-    }, [post]);
+        if (!post || !currentUser) {
+            setLiked(false);
+            setSaved(false);
+            return;
+        }
+
+        const checkStatus = async () => {
+            const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
+            const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+
+            try {
+                const likeSnap = await getDoc(likeRef);
+                setLiked(likeSnap.exists());
+            } catch (e) {
+                console.log('Error checking like:', e);
+                setLiked(false);
+            }
+
+            try {
+                const savedSnap = await getDoc(savedRef);
+                setSaved(savedSnap.exists());
+            } catch (e) {
+                console.log('Error checking saved:', e);
+                setSaved(false);
+            }
+        };
+
+        checkStatus();
+    }, [post, currentUser]);
+
+    const handleLike = async () => {
+        if (!currentUser || !post) return;
+
+        const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
+
+        try {
+            if (liked) {
+                await deleteDoc(likeRef);
+                setLiked(false);
+            } else {
+                await setDoc(likeRef, {
+                    userId: currentUser.uid,
+                    postId: post.id,
+                    postImage: post.image,
+                    postTitle: post.title,
+                    postAuthor: post.author,
+                    createdAt: new Date(),
+                });
+
+                setLiked(true);
+            }
+        } catch (e) {
+            console.log('Error toggling like:', e);
+        }
+    };
+    const handleSave = async () => {
+        if (!currentUser || !post) return;
+        const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+        try {
+            if (saved) {
+                await deleteDoc(savedRef);
+                setSaved(false);
+            } else {
+                await setDoc(savedRef, {
+                    userId: currentUser.uid,
+                    postId: post.id,
+                    postImage: post.image,
+                    postTitle: post.title,
+                    postAuthor: post.author,
+                    createdAt: new Date(),
+                });
+                setSaved(true);
+            }
+        } catch (e) {
+            console.log('Error toggling saved:', e);
+        }
+    };
 
     if (!post) return null;
 
-    const currentUser = auth.currentUser;
     const isOwnPost = currentUser && post.author === currentUser.uid;
-
-    // Nombre del autor
     const displayName = isOwnPost
         ? (currentUser.displayName || currentUser.email.split('@')[0])
         : 'Creador3D';
-
     const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
 
     return (
@@ -95,7 +166,7 @@ export default function PostDetailModal({ visible, post, onClose }) {
                                 {/* INTERACTION BAR */}
                                 <View style={styles.interactionBar}>
                                     <View style={styles.leftIcons}>
-                                        <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.iconButton}>
+                                        <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
                                             <Feather
                                                 name="thumbs-up"
                                                 size={22}
@@ -117,7 +188,7 @@ export default function PostDetailModal({ visible, post, onClose }) {
                                         </View>
                                     </View>
 
-                                    <TouchableOpacity onPress={() => setSaved(!saved)} style={styles.iconButton}>
+                                    <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
                                         <Feather
                                             name="bookmark"
                                             size={22}
