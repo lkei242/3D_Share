@@ -11,7 +11,8 @@ import {
     TextInput,
     KeyboardAvoidingView,
     Platform,
-    ActivityIndicator
+    ActivityIndicator,
+    Keyboard
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -44,7 +45,8 @@ export default function PostDetailScreen({ route, navigation }) {
     const [commentText, setCommentText] = useState('');
     const [loadingComments, setLoadingComments] = useState(false);
     const [sendingComment, setSendingComment] = useState(false);
-
+    const [showCommentInput, setShowCommentInput] = useState(false);
+    const [showComments, setShowComments] = useState(false);
     const inputRef = useRef(null);
 
     if (!post) return null;
@@ -94,6 +96,27 @@ export default function PostDetailScreen({ route, navigation }) {
         checkStatus();
         fetchComments();
     }, [post, currentUser]);
+    useEffect(() => {
+        const hideListener = Keyboard.addListener(
+            Platform.OS === 'ios'
+                ? 'keyboardWillHide'
+                : 'keyboardDidHide',
+            () => {
+                setShowCommentInput(false);
+            }
+        );
+
+        return () => hideListener.remove();
+    }, []);
+    useEffect(() => {
+        if (!showCommentInput) return;
+
+        const timer = setTimeout(() => {
+            inputRef.current?.focus();
+        }, 150);
+
+        return () => clearTimeout(timer);
+    }, [showCommentInput]);
 
     const fetchComments = async () => {
         if (!post) return;
@@ -272,7 +295,10 @@ export default function PostDetailScreen({ route, navigation }) {
 
                             <TouchableOpacity
                                 style={styles.iconButton}
-                                onPress={() => inputRef.current?.focus()}
+                                onPress={() => {
+                                    setShowComments(true);
+                                    setShowCommentInput(true);
+                                }}
                             >
                                 <Feather
                                     name="message-circle"
@@ -319,135 +345,155 @@ export default function PostDetailScreen({ route, navigation }) {
                             },
                         ]}
                     >
-                        <Text
-                            style={[
-                                styles.commentsHeader,
-                                { color: colors.text },
-                            ]}
+                        <TouchableOpacity
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                            onPress={() => setShowComments(prev => !prev)}
                         >
-                            Comentarios
-                            {comments.length > 0
-                                ? ` (${comments.length})`
-                                : ''}
-                        </Text>
-
-                        {loadingComments ? (
-                            <ActivityIndicator
-                                size="small"
-                                color="#546F1C"
-                                style={{ marginVertical: 12 }}
-                            />
-                        ) : comments.length === 0 ? (
                             <Text
                                 style={[
-                                    styles.noCommentsText,
-                                    {
-                                        color: isDark
-                                            ? '#555'
-                                            : '#BBB',
-                                    },
+                                    styles.commentsHeader,
+                                    { color: colors.text },
                                 ]}
                             >
-                                Sé el primero en comentar
+                                Comentarios
+                                {comments.length > 0
+                                    ? ` (${comments.length})`
+                                    : ''}
                             </Text>
-                        ) : (
-                            comments.map((c) => (
-                                <View
-                                    key={c.docId}
-                                    style={styles.commentItem}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.commentUser,
-                                            { color: colors.text },
-                                        ]}
-                                    >
-                                        @{c.userDisplayName || 'usuario'}
-                                    </Text>
 
+                            <Ionicons
+                                name={showComments ? 'chevron-up' : 'chevron-down'}
+                                size={20}
+                                color={colors.text}
+                            />
+                        </TouchableOpacity>
+                        {showComments && (
+                            <View style={{ marginTop: 8 }}>
+                                {loadingComments ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color="#546F1C"
+                                        style={{ marginVertical: 12 }}
+                                    />
+                                ) : comments.length === 0 ? (
                                     <Text
                                         style={[
-                                            styles.commentText,
+                                            styles.noCommentsText,
                                             {
                                                 color: isDark
-                                                    ? '#bbb'
-                                                    : '#555',
+                                                    ? '#555'
+                                                    : '#BBB',
                                             },
                                         ]}
                                     >
-                                        {c.text}
+                                        Sé el primero en comentar
                                     </Text>
-                                </View>
-                            ))
+                                ) : (
+                                    comments.map((c) => (
+                                        <View
+                                            key={c.docId}
+                                            style={styles.commentItem}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.commentUser,
+                                                    { color: colors.text },
+                                                ]}
+                                            >
+                                                @{c.userDisplayName || 'usuario'}
+                                            </Text>
+
+                                            <Text
+                                                style={[
+                                                    styles.commentText,
+                                                    {
+                                                        color: isDark
+                                                            ? '#bbb'
+                                                            : '#555',
+                                                    },
+                                                ]}
+                                            >
+                                                {c.text}
+                                            </Text>
+                                        </View>
+                                    ))
+                                )}
+                            </View>
                         )}
                     </View>
 
                 </ScrollView>
-                <View
-                    style={[
-                        styles.commentInputRow,
-                        {
-                            backgroundColor: colors.background,
-                            borderTopColor: isDark
-                                ? '#2C2C2C'
-                                : '#E0E0E0',
-                        },
-                    ]}
-                >
-                    <TextInput
-                        ref={inputRef}
+                {showCommentInput && (
+                    <View
                         style={[
-                            styles.commentInput,
+                            styles.commentInputRow,
                             {
-                                backgroundColor: isDark
-                                    ? '#1C1C1C'
-                                    : '#F0F0F0',
-                                color: colors.text,
+                                backgroundColor: colors.background,
+                                borderTopColor: isDark
+                                    ? '#2C2C2C'
+                                    : '#E0E0E0',
                             },
                         ]}
-                        placeholder="Agregar un comentario..."
-                        placeholderTextColor={
-                            isDark ? '#555' : '#AAA'
-                        }
-                        value={commentText}
-                        onChangeText={setCommentText}
-                        multiline
-                        maxLength={500}
-                        returnKeyType="send"
-                        onSubmitEditing={handleSendComment}
-                    />
-
-                    <TouchableOpacity
-                        style={[
-                            styles.sendButton,
-                            {
-                                opacity:
-                                    commentText.trim().length === 0 ||
-                                        sendingComment
-                                        ? 0.4
-                                        : 1,
-                            },
-                        ]}
-                        onPress={handleSendComment}
-                        disabled={
-                            commentText.trim().length === 0 ||
-                            sendingComment
-                        }
                     >
-                        {sendingComment ? (
-                            <ActivityIndicator
-                                size="small"
-                                color="#9DBD3F"
-                            />
-                        ) : (
-                            <Ionicons
-                                name="send"
-                                size={22}
-                                color="#9DBD3F"
-                            />
-                        )}
-                    </TouchableOpacity>
-                </View>
+                        <TextInput
+                            ref={inputRef}
+                            style={[
+                                styles.commentInput,
+                                {
+                                    backgroundColor: isDark
+                                        ? '#1C1C1C'
+                                        : '#F0F0F0',
+                                    color: colors.text,
+                                },
+                            ]}
+                            placeholder="Agregar un comentario..."
+                            placeholderTextColor={
+                                isDark ? '#555' : '#AAA'
+                            }
+                            value={commentText}
+                            onChangeText={setCommentText}
+                            multiline
+                            maxLength={500}
+                            returnKeyType="send"
+                            onSubmitEditing={handleSendComment}
+                        />
+
+                        <TouchableOpacity
+                            style={[
+                                styles.sendButton,
+                                {
+                                    opacity:
+                                        commentText.trim().length === 0 ||
+                                            sendingComment
+                                            ? 0.4
+                                            : 1,
+                                },
+                            ]}
+                            onPress={handleSendComment}
+                            disabled={
+                                commentText.trim().length === 0 ||
+                                sendingComment
+                            }
+                        >
+                            {sendingComment ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color="#9DBD3F"
+                                />
+                            ) : (
+                                <Ionicons
+                                    name="send"
+                                    size={22}
+                                    color="#9DBD3F"
+                                />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </KeyboardAvoidingView>
     );
