@@ -1,5 +1,5 @@
 // src/screens/PostDetailScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -7,13 +7,29 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    Dimensions
+    Dimensions,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import {
+    doc,
+    getDoc,
+    setDoc,
+    deleteDoc,
+    collection,
+    query,
+    where,
+    orderBy,
+    getDocs,
+    addDoc,
+    serverTimestamp,
+} from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -24,6 +40,12 @@ export default function PostDetailScreen({ route, navigation }) {
     const isDark = colors.text === '#FFFFFF';
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [commentText, setCommentText] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [sendingComment, setSendingComment] = useState(false);
+
+    const inputRef = useRef(null);
 
     if (!post) return null;
 
@@ -32,9 +54,12 @@ export default function PostDetailScreen({ route, navigation }) {
 
     // Nombre del autor
     const displayName = isOwnPost
-        ? (currentUser.displayName || currentUser.email.split('@')[0])
+        ? (
+            currentUser?.displayName ||
+            currentUser?.email?.split('@')[0] ||
+            'Usuario'
+        )
         : 'Creador3D';
-
     const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
 
     // Consultar Firestore al montar la pantalla
@@ -67,8 +92,35 @@ export default function PostDetailScreen({ route, navigation }) {
         };
 
         checkStatus();
+        fetchComments();
     }, [post, currentUser]);
 
+    const fetchComments = async () => {
+        if (!post) return;
+
+        setLoadingComments(true);
+
+        try {
+            const q = query(
+                collection(db, 'comments'),
+                where('postId', '==', post.id),
+                orderBy('createdAt', 'asc')
+            );
+
+            const snapshot = await getDocs(q);
+
+            setComments(
+                snapshot.docs.map((d) => ({
+                    docId: d.id,
+                    ...d.data(),
+                }))
+            );
+        } catch (e) {
+            console.log('Error fetching comments:', e);
+        } finally {
+            setLoadingComments(false);
+        }
+    };
     // Funciones para manejar like y guardado
     const handleLike = async () => {
         if (!currentUser || !post) return;
@@ -107,112 +159,297 @@ export default function PostDetailScreen({ route, navigation }) {
             setSaved(true);
         }
     };
+    const handleSendComment = async () => {
+        const text = commentText.trim();
+
+        if (!text || !currentUser || !post) return;
+
+        setSendingComment(true);
+
+        try {
+            const displayName =
+                currentUser.displayName ||
+                currentUser.email.split('@')[0];
+
+            const newComment = {
+                userId: currentUser.uid,
+                postId: post.id,
+                postImage: post.image,
+                postTitle: post.title,
+                text,
+                userDisplayName: displayName,
+                createdAt: serverTimestamp(),
+            };
+
+            const docRef = await addDoc(
+                collection(db, 'comments'),
+                newComment
+            );
+
+            setComments((prev) => [
+                ...prev,
+                {
+                    docId: docRef.id,
+                    ...newComment,
+                    createdAt: {
+                        toMillis: () => Date.now(),
+                    },
+                },
+            ]);
+
+            setCommentText('');
+        } catch (e) {
+            console.log('Error sending comment:', e);
+        } finally {
+            setSendingComment(false);
+        }
+    };
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+            <View
+                style={[
+                    styles.container,
+                    {
+                        backgroundColor: colors.background,
+                        paddingTop: insets.top,
+                    },
+                ]}
+            >
 
-            {/* HEADER */}
-            <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={26} color={colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.text }]}>PUBLICACIONES</Text>
-                <TouchableOpacity style={styles.moreButton}>
-                    <Feather name="more-vertical" size={20} color={colors.text} />
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                {/* USER INFO */}
-                <View style={styles.userInfoRow}>
-                    <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
-                        <Image
-                            source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
-                            style={styles.avatarImage}
-                        />
-                    </View>
-                    <View style={styles.userNameContainer}>
-                        <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
-                        <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
-                    </View>
-                </View>
-
-                {/* POST IMAGE */}
-                <View style={styles.imageWrapper}>
-                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
-
-                    {/* PRICE OVERLAY */}
-                    {post.price && (
-                        <View style={styles.priceOverlay}>
-                            <Text style={styles.priceText}>Precio: {post.price}</Text>
-                        </View>
-                    )}
-                </View>
-
-                {/* INTERACTION BAR */}
-                <View style={styles.interactionBar}>
-                    <View style={styles.leftIcons}>
-                        <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
-                            <Feather
-                                name="thumbs-up"
-                                size={22}
-                                color={liked ? '#9DBD3F' : colors.text}
-                            />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Feather name="message-circle" size={22} color={colors.text} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Feather name="send" size={20} color={colors.text} />
-                        </TouchableOpacity>
-
-                        <View style={styles.viewsContainer}>
-                            <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
-                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
-                        </View>
-                    </View>
-
-                    <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
-                        <Feather
-                            name="bookmark"
-                            size={22}
-                            color={saved ? '#9DBD3F' : colors.text}
-                        />
+                {/* HEADER */}
+                <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={26} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>PUBLICACIONES</Text>
+                    <TouchableOpacity style={styles.moreButton}>
+                        <Feather name="more-vertical" size={20} color={colors.text} />
                     </TouchableOpacity>
                 </View>
 
-                {/* DESCRIPTION */}
-                <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
-                    <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
-                    <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
-                        {post.description || 'Sin descripción adicional.'}
-                    </Text>
-                </View>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-                {/* COMMENTS */}
-                <View style={[styles.commentsCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
-                    <Text style={[styles.commentsHeader, { color: colors.text }]}>Comentarios</Text>
+                    {/* USER INFO */}
+                    <View style={styles.userInfoRow}>
+                        <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
+                            <Image
+                                source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
+                                style={styles.avatarImage}
+                            />
+                        </View>
+                        <View style={styles.userNameContainer}>
+                            <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
+                            <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
+                        </View>
+                    </View>
 
-                    <View style={styles.commentItem}>
-                        <Text style={[styles.commentUser, { color: colors.text }]}>@impresor_pro</Text>
-                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
-                            ¡Increíble pieza! ¿Qué tipo de filamento y parámetros usaste para la impresión?
+                    {/* POST IMAGE */}
+                    <View style={styles.imageWrapper}>
+                        <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+
+                        {/* PRICE OVERLAY */}
+                        {post.price && (
+                            <View style={styles.priceOverlay}>
+                                <Text style={styles.priceText}>Precio: {post.price}</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* INTERACTION BAR */}
+                    <View style={styles.interactionBar}>
+                        <View style={styles.leftIcons}>
+                            <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
+                                <Feather
+                                    name="thumbs-up"
+                                    size={22}
+                                    color={liked ? '#9DBD3F' : colors.text}
+                                />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.iconButton}
+                                onPress={() => inputRef.current?.focus()}
+                            >
+                                <Feather
+                                    name="message-circle"
+                                    size={22}
+                                    color={colors.text}
+                                />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.iconButton}>
+                                <Feather name="send" size={20} color={colors.text} />
+                            </TouchableOpacity>
+
+                            <View style={styles.viewsContainer}>
+                                <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
+                                <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
+                            <Feather
+                                name="bookmark"
+                                size={22}
+                                color={saved ? '#9DBD3F' : colors.text}
+                            />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* DESCRIPTION */}
+                    <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
+                        <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
+                        <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
+                            {post.description || 'Sin descripción adicional.'}
                         </Text>
                     </View>
 
-                    <View style={styles.commentItem}>
-                        <Text style={[styles.commentUser, { color: colors.text }]}>@expo_fan</Text>
-                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
-                            Se ve genial, muy buen nivel de detalle en las terminaciones. 👏👏
+                    {/* COMMENTS */}
+                    <View
+                        style={[
+                            styles.commentsCard,
+                            {
+                                backgroundColor: isDark
+                                    ? '#1C1C1C'
+                                    : '#F5F5F5',
+                            },
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                styles.commentsHeader,
+                                { color: colors.text },
+                            ]}
+                        >
+                            Comentarios
+                            {comments.length > 0
+                                ? ` (${comments.length})`
+                                : ''}
                         </Text>
-                    </View>
-                </View>
 
-            </ScrollView>
-        </View>
+                        {loadingComments ? (
+                            <ActivityIndicator
+                                size="small"
+                                color="#546F1C"
+                                style={{ marginVertical: 12 }}
+                            />
+                        ) : comments.length === 0 ? (
+                            <Text
+                                style={[
+                                    styles.noCommentsText,
+                                    {
+                                        color: isDark
+                                            ? '#555'
+                                            : '#BBB',
+                                    },
+                                ]}
+                            >
+                                Sé el primero en comentar
+                            </Text>
+                        ) : (
+                            comments.map((c) => (
+                                <View
+                                    key={c.docId}
+                                    style={styles.commentItem}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.commentUser,
+                                            { color: colors.text },
+                                        ]}
+                                    >
+                                        @{c.userDisplayName || 'usuario'}
+                                    </Text>
+
+                                    <Text
+                                        style={[
+                                            styles.commentText,
+                                            {
+                                                color: isDark
+                                                    ? '#bbb'
+                                                    : '#555',
+                                            },
+                                        ]}
+                                    >
+                                        {c.text}
+                                    </Text>
+                                </View>
+                            ))
+                        )}
+                    </View>
+
+                </ScrollView>
+                <View
+                    style={[
+                        styles.commentInputRow,
+                        {
+                            backgroundColor: colors.background,
+                            borderTopColor: isDark
+                                ? '#2C2C2C'
+                                : '#E0E0E0',
+                        },
+                    ]}
+                >
+                    <TextInput
+                        ref={inputRef}
+                        style={[
+                            styles.commentInput,
+                            {
+                                backgroundColor: isDark
+                                    ? '#1C1C1C'
+                                    : '#F0F0F0',
+                                color: colors.text,
+                            },
+                        ]}
+                        placeholder="Agregar un comentario..."
+                        placeholderTextColor={
+                            isDark ? '#555' : '#AAA'
+                        }
+                        value={commentText}
+                        onChangeText={setCommentText}
+                        multiline
+                        maxLength={500}
+                        returnKeyType="send"
+                        onSubmitEditing={handleSendComment}
+                    />
+
+                    <TouchableOpacity
+                        style={[
+                            styles.sendButton,
+                            {
+                                opacity:
+                                    commentText.trim().length === 0 ||
+                                        sendingComment
+                                        ? 0.4
+                                        : 1,
+                            },
+                        ]}
+                        onPress={handleSendComment}
+                        disabled={
+                            commentText.trim().length === 0 ||
+                            sendingComment
+                        }
+                    >
+                        {sendingComment ? (
+                            <ActivityIndicator
+                                size="small"
+                                color="#9DBD3F"
+                            />
+                        ) : (
+                            <Ionicons
+                                name="send"
+                                size={22}
+                                color="#9DBD3F"
+                            />
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
 
@@ -242,7 +479,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 16,
         paddingTop: 12,
-        paddingBottom: 40,
+        paddingBottom: 100,
     },
     userInfoRow: {
         flexDirection: 'row',
@@ -365,5 +602,34 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: 'Nunito-Regular',
         lineHeight: 16,
+    },
+    noCommentsText: {
+        fontSize: 13,
+        fontFamily: 'Nunito-Regular',
+        textAlign: 'center',
+        paddingVertical: 8,
+    },
+
+    commentInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        gap: 10,
+    },
+
+    commentInput: {
+        flex: 1,
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        fontSize: 14,
+        fontFamily: 'Nunito-Regular',
+        maxHeight: 100,
+    },
+
+    sendButton: {
+        padding: 6,
     },
 });

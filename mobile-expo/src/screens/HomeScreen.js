@@ -1,5 +1,4 @@
-
-import PostDetailModal from './components/PostDetailModal';
+// src/screens/HomeScreen.js
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
@@ -98,11 +97,8 @@ export default function HomeScreen({ navigation }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedPost, setSelectedPost] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const handlePostPress = (post) => {
-    setSelectedPost(post);
-    setModalVisible(true);
+    navigation.navigate('PostDetail', { post });
   };
 
   const [lastVisible, setLastVisible] = useState(null);
@@ -194,14 +190,6 @@ export default function HomeScreen({ navigation }) {
         onEndReached={() => fetchPosts(false)}
         onEndReachedThreshold={0.3}
         ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
-      />
-      <PostDetailModal
-        visible={modalVisible}
-        post={selectedPost}
-        onClose={() => {
-          setModalVisible(false);
-          setSelectedPost(null);
-        }}
       />
     </View>
   );

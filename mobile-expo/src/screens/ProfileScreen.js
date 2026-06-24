@@ -15,7 +15,6 @@ import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import PostDetailModal from './components/PostDetailModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
@@ -32,12 +31,8 @@ export default function ProfileScreen({ navigation }) {
   const [profilePicture, setProfilePicture] = useState('');
   const [presentation, setPresentation] = useState('');
 
-  const [selectedPost, setSelectedPost] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-
   const handlePostPress = (post) => {
-    setSelectedPost(post);
-    setModalVisible(true);
+    navigation.navigate('PostDetail', { post });
   };
 
   // Cargar perfil dinámico desde Firestore
@@ -240,15 +235,6 @@ export default function ProfileScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
-
-      <PostDetailModal
-        visible={modalVisible}
-        post={selectedPost}
-        onClose={() => {
-          setModalVisible(false);
-          setSelectedPost(null);
-        }}
-      />
     </View>
   );
 }
