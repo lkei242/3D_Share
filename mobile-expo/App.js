@@ -50,7 +50,6 @@ import DeactivateAccountPasswordScreen from './src/screens/profile_screens/Tu_cu
 import EditProfileInfoScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditProfileInfoScreen';
 import AdvancedInfoScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/AdvancedInfoScreen';
 import PresentationScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/PresentationScreen';
-import GenderScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/GenderScreen';
 import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditNameScreen';
 import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
@@ -193,7 +192,6 @@ function AppContent() {
           <Stack.Screen name="EditProfileInfoScreen" component={EditProfileInfoScreen} options={{ headerShown: false }} />
           <Stack.Screen name="AdvancedInfoScreen" component={AdvancedInfoScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PresentationScreen" component={PresentationScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="GenderScreen" component={GenderScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown: false }} />

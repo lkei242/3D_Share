@@ -2,11 +2,9 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
@@ -15,7 +13,6 @@ import { doc, getDoc } from 'firebase/firestore';
 
 export default function AdvancedInfoScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
-  const [gender, setGender] = useState('');
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
@@ -30,7 +27,6 @@ export default function AdvancedInfoScreen({ navigation }) {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setPresentation(data.presentation || '');
-            setGender(data.gender || '');
           }
         } catch (error) {
           console.log('Error fetching advanced info:', error);
@@ -140,40 +136,6 @@ export default function AdvancedInfoScreen({ navigation }) {
             />
           </View>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate('GenderScreen')
-          }
-        >
-          <View
-            style={[
-              styles.selectBox,
-              {
-                backgroundColor: isDark
-                  ? '#1E1E1E'
-                  : '#F5F5F5',
-                borderColor: isDark
-                  ? '#333'
-                  : '#DCDCDC',
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: isDark ? '#777' : '#555',
-              }}
-            >
-              Editar Sexo
-            </Text>
-
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={isDark ? '#AAA' : '#666'}
-            />
-          </View>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -226,30 +188,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  label: {
-    color: '#FFF',
-    fontSize: 15,
-    marginBottom: 8,
-    marginTop: 10,
-  },
-
-  input: {
-    height: 50,
-    backgroundColor: '#1E1E1E',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    color: '#FFF',
-    marginBottom: 15,
-  },
-
-  presentationInput: {
-    height: 90,
-    textAlignVertical: 'top',
-    paddingTop: 12,
-  },
-
   selectBox: {
     height: 50,
     backgroundColor: '#1E1E1E',
@@ -262,19 +200,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  saveButton: {
-    backgroundColor: '#546F1C',
-    marginTop: 40,
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-
-  saveText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   buttonSpacing: {
     marginBottom: 15,
   },
