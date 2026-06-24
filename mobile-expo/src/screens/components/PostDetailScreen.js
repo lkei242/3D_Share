@@ -372,6 +372,7 @@ export default function PostDetailScreen({ route, navigation }) {
                     </TouchableOpacity>
                 </View>
 
+
                 <FlatList
                     data={posts}
                     keyExtractor={(item) => item.id}
@@ -400,6 +401,8 @@ export default function PostDetailScreen({ route, navigation }) {
                     showsVerticalScrollIndicator={false}
                     removeClippedSubviews={true}
                     windowSize={5}
+                    initialScrollIndex={validIndex}   // 👈 Empieza en el post tocado
+                    getItemLayout={getItemLayout}     // 👈 Obligatorio para initialScrollIndex
                 />
             </View>
         </KeyboardAvoidingView>

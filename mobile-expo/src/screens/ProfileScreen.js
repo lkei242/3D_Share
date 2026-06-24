@@ -32,7 +32,7 @@ export default function ProfileScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
 
   const handlePostPress = (post) => {
-    navigation.navigate('PostDetail', { post });
+    navigation.navigate('PostDetail', { post, posts });
   };
 
   // Cargar perfil dinámico desde Firestore
