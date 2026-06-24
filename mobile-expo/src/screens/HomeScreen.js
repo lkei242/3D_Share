@@ -98,7 +98,10 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const handlePostPress = (post) => {
-    navigation.navigate('PostDetail', { post });
+    navigation.navigate('PostDetail', {
+      post,
+      posts,
+    });
   };
 
   const [lastVisible, setLastVisible] = useState(null);

@@ -6,13 +6,14 @@ import {
     StyleSheet,
     Image,
     TouchableOpacity,
-    ScrollView,
     Dimensions,
     TextInput,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    Keyboard
+    FlatList,
+    Keyboard,
+    ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -32,119 +33,80 @@ import {
     serverTimestamp,
 } from 'firebase/firestore';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-export default function PostDetailScreen({ route, navigation }) {
-    const { post } = route.params;
-    const insets = useSafeAreaInsets();
-    const { colors } = useTheme();
-    const isDark = colors.text === '#FFFFFF';
+// ============================================================
+// COMPONENTE: PostItem (un post individual, autónomo)
+// ============================================================
+function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark, pageHeight }) {
+    const currentUser = auth.currentUser;
+    const inputRef = useRef(null);
+
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
     const [comments, setComments] = useState([]);
-    const [commentText, setCommentText] = useState('');
     const [loadingComments, setLoadingComments] = useState(false);
-    const [sendingComment, setSendingComment] = useState(false);
-    const [showCommentInput, setShowCommentInput] = useState(false);
     const [showComments, setShowComments] = useState(false);
-    const inputRef = useRef(null);
+    const [showCommentInput, setShowCommentInput] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [sendingComment, setSendingComment] = useState(false);
 
-    if (!post) return null;
-
-    const currentUser = auth.currentUser;
-    const isOwnPost = currentUser && post.author === currentUser.uid;
-
-    // Nombre del autor
-    const displayName = isOwnPost
-        ? (
-            currentUser?.displayName ||
-            currentUser?.email?.split('@')[0] ||
-            'Usuario'
-        )
-        : 'Creador3D';
-    const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
-
-    // Consultar Firestore al montar la pantalla
+    // Cargar estado inicial (like, saved, comments)
     useEffect(() => {
-        if (!post || !currentUser) {
-            setLiked(false);
-            setSaved(false);
-            return;
-        }
+        if (!post || !currentUser) return;
 
         const checkStatus = async () => {
-            const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
-            const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
-
             try {
-                const likeSnap = await getDoc(likeRef);
+                const likeSnap = await getDoc(doc(db, 'likes', `${currentUser.uid}_${post.id}`));
                 setLiked(likeSnap.exists());
             } catch (e) {
                 console.log('Error checking like:', e);
-                setLiked(false);
             }
-
             try {
-                const savedSnap = await getDoc(savedRef);
+                const savedSnap = await getDoc(doc(db, 'saved', `${currentUser.uid}_${post.id}`));
                 setSaved(savedSnap.exists());
             } catch (e) {
                 console.log('Error checking saved:', e);
-                setSaved(false);
             }
         };
 
         checkStatus();
         fetchComments();
-    }, [post, currentUser]);
+    }, [post.id]);
+
+    // Cerrar input de comentario al ocultar teclado
     useEffect(() => {
         const hideListener = Keyboard.addListener(
-            Platform.OS === 'ios'
-                ? 'keyboardWillHide'
-                : 'keyboardDidHide',
-            () => {
-                setShowCommentInput(false);
-            }
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => setShowCommentInput(false)
         );
-
         return () => hideListener.remove();
     }, []);
+
+    // Auto-focus al abrir input
     useEffect(() => {
         if (!showCommentInput) return;
-
-        const timer = setTimeout(() => {
-            inputRef.current?.focus();
-        }, 150);
-
+        const timer = setTimeout(() => inputRef.current?.focus(), 150);
         return () => clearTimeout(timer);
     }, [showCommentInput]);
 
     const fetchComments = async () => {
-        if (!post) return;
-
         setLoadingComments(true);
-
         try {
             const q = query(
                 collection(db, 'comments'),
                 where('postId', '==', post.id),
                 orderBy('createdAt', 'asc')
             );
-
             const snapshot = await getDocs(q);
-
-            setComments(
-                snapshot.docs.map((d) => ({
-                    docId: d.id,
-                    ...d.data(),
-                }))
-            );
+            setComments(snapshot.docs.map((d) => ({ docId: d.id, ...d.data() })));
         } catch (e) {
             console.log('Error fetching comments:', e);
         } finally {
             setLoadingComments(false);
         }
     };
-    // Funciones para manejar like y guardado
+
     const handleLike = async () => {
         if (!currentUser || !post) return;
         const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
@@ -182,44 +144,27 @@ export default function PostDetailScreen({ route, navigation }) {
             setSaved(true);
         }
     };
+
     const handleSendComment = async () => {
         const text = commentText.trim();
-
         if (!text || !currentUser || !post) return;
-
         setSendingComment(true);
-
         try {
-            const displayName =
-                currentUser.displayName ||
-                currentUser.email.split('@')[0];
-
+            const name = currentUser.displayName || currentUser.email.split('@')[0];
             const newComment = {
                 userId: currentUser.uid,
                 postId: post.id,
                 postImage: post.image,
                 postTitle: post.title,
                 text,
-                userDisplayName: displayName,
+                userDisplayName: name,
                 createdAt: serverTimestamp(),
             };
-
-            const docRef = await addDoc(
-                collection(db, 'comments'),
-                newComment
-            );
-
+            const docRef = await addDoc(collection(db, 'comments'), newComment);
             setComments((prev) => [
                 ...prev,
-                {
-                    docId: docRef.id,
-                    ...newComment,
-                    createdAt: {
-                        toMillis: () => Date.now(),
-                    },
-                },
+                { docId: docRef.id, ...newComment, createdAt: { toMillis: () => Date.now() } },
             ]);
-
             setCommentText('');
         } catch (e) {
             console.log('Error sending comment:', e);
@@ -229,20 +174,193 @@ export default function PostDetailScreen({ route, navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <View
-                style={[
-                    styles.container,
-                    {
-                        backgroundColor: colors.background,
-                        paddingTop: insets.top,
-                    },
-                ]}
-            >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            {/* USER INFO - FUERA del scroll, siempre visible */}
+            <View style={styles.userInfoRow}>
+                <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
+                    <Image
+                        source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
+                        style={styles.avatarImage}
+                    />
+                </View>
+                <View style={styles.userNameContainer}>
+                    <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
+                    <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
+                </View>
+            </View>
 
+            {/* CONTENIDO SCROLLEABLE INTERNO */}
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                bounces={false}
+            >
+                {/* POST IMAGE */}
+                <View style={styles.imageWrapper}>
+                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+                    {post.price && (
+                        <View style={styles.priceOverlay}>
+                            <Text style={styles.priceText}>Precio: {post.price}</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* INTERACTION BAR */}
+                <View style={styles.interactionBar}>
+                    <View style={styles.leftIcons}>
+                        <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
+                            <Feather name="thumbs-up" size={22} color={liked ? '#9DBD3F' : colors.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => {
+                                setShowComments(true);
+                                setShowCommentInput(true);
+                            }}
+                        >
+                            <Feather name="message-circle" size={22} color={colors.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconButton}>
+                            <Feather name="send" size={20} color={colors.text} />
+                        </TouchableOpacity>
+                        <View style={styles.viewsContainer}>
+                            <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
+                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
+                        <Feather name="bookmark" size={22} color={saved ? '#9DBD3F' : colors.text} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* DESCRIPTION */}
+                <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
+                    <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
+                    <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
+                        {post.description || 'Sin descripción adicional.'}
+                    </Text>
+                </View>
+
+                {/* COMMENTS */}
+                <View style={[styles.commentsCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
+                    <TouchableOpacity
+                        style={styles.commentsHeaderRow}
+                        onPress={() => setShowComments((prev) => !prev)}
+                    >
+                        <Text style={[styles.commentsHeader, { color: colors.text }]}>
+                            Comentarios{comments.length > 0 ? ` (${comments.length})` : ''}
+                        </Text>
+                        <Ionicons name={showComments ? 'chevron-up' : 'chevron-down'} size={20} color={colors.text} />
+                    </TouchableOpacity>
+
+                    {showComments && (
+                        <View style={{ marginTop: 8, maxHeight: 200 }}>
+                            {loadingComments ? (
+                                <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 12 }} />
+                            ) : comments.length === 0 ? (
+                                <Text style={[styles.noCommentsText, { color: isDark ? '#555' : '#BBB' }]}>
+                                    Sé el primero en comentar
+                                </Text>
+                            ) : (
+                                <ScrollView
+                                    style={{ maxHeight: 200 }}
+                                    nestedScrollEnabled={true}
+                                    showsVerticalScrollIndicator={true}
+                                >
+                                    {comments.map((c) => (
+                                        <View key={c.docId} style={styles.commentItem}>
+                                            <Text style={[styles.commentUser, { color: colors.text }]}>
+                                                @{c.userDisplayName || 'usuario'}
+                                            </Text>
+                                            <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
+                                                {c.text}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </ScrollView>
+                            )}
+                        </View>
+                    )}
+                </View>
+            </ScrollView>
+            {/* COMMENT INPUT */}
+            {showCommentInput && (
+                <View
+                    style={[
+                        styles.commentInputRow,
+                        { borderTopColor: isDark ? '#333' : '#DDD' }
+                    ]}
+                >
+                    <TextInput
+                        ref={inputRef}
+                        style={[
+                            styles.commentInput,
+                            {
+                                backgroundColor: isDark ? '#2C2C2C' : '#FFF',
+                                color: colors.text,
+                                borderWidth: 1,
+                                borderColor: isDark ? '#444' : '#CCC'
+                            }
+                        ]}
+                        placeholder="Escribe un comentario..."
+                        placeholderTextColor={isDark ? '#888' : '#999'}
+                        value={commentText}
+                        onChangeText={setCommentText}
+                        multiline
+                    />
+                    <TouchableOpacity
+                        style={styles.sendButton}
+                        onPress={handleSendComment}
+                        disabled={sendingComment}
+                    >
+                        {sendingComment ? (
+                            <ActivityIndicator size="small" color="#9DBD3F" />
+                        ) : (
+                            <Ionicons name="send" size={22} color="#9DBD3F" />
+                        )}
+                    </TouchableOpacity>
+                </View>
+            )}
+
+        </View>
+    );
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL: PostDetailScreen
+// ============================================================
+export default function PostDetailScreen({ route, navigation }) {
+    const { post, posts = [] } = route.params;
+    const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const isDark = colors.text === '#FFFFFF';
+    const currentUser = auth.currentUser;
+    const HEADER_HEIGHT = 50; // aprox
+    const PAGE_HEIGHT = screenHeight - insets.top - HEADER_HEIGHT;
+
+    const initialIndex = posts.findIndex((p) => p.id === post.id);
+    const validIndex = initialIndex >= 0 ? initialIndex : 0;
+
+    const isOwnPost = currentUser && post.author === currentUser.uid;
+    const displayName = isOwnPost
+        ? currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario'
+        : 'Creador3D';
+    const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
+
+    if (!post) return null;
+
+    // getItemLayout es OBLIGATORIO para que initialScrollIndex funcione
+    const getItemLayout = (data, index) => ({
+        length: PAGE_HEIGHT,
+        offset: PAGE_HEIGHT * index,
+        index,
+    });
+
+    return (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
                 {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -254,251 +372,43 @@ export default function PostDetailScreen({ route, navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                    {/* USER INFO */}
-                    <View style={styles.userInfoRow}>
-                        <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
-                            <Image
-                                source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
-                                style={styles.avatarImage}
-                            />
-                        </View>
-                        <View style={styles.userNameContainer}>
-                            <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
-                            <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
-                        </View>
-                    </View>
-
-                    {/* POST IMAGE */}
-                    <View style={styles.imageWrapper}>
-                        <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
-
-                        {/* PRICE OVERLAY */}
-                        {post.price && (
-                            <View style={styles.priceOverlay}>
-                                <Text style={styles.priceText}>Precio: {post.price}</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* INTERACTION BAR */}
-                    <View style={styles.interactionBar}>
-                        <View style={styles.leftIcons}>
-                            <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
-                                <Feather
-                                    name="thumbs-up"
-                                    size={22}
-                                    color={liked ? '#9DBD3F' : colors.text}
-                                />
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.iconButton}
-                                onPress={() => {
-                                    setShowComments(true);
-                                    setShowCommentInput(true);
-                                }}
-                            >
-                                <Feather
-                                    name="message-circle"
-                                    size={22}
-                                    color={colors.text}
-                                />
-                            </TouchableOpacity>
-
-                            <TouchableOpacity style={styles.iconButton}>
-                                <Feather name="send" size={20} color={colors.text} />
-                            </TouchableOpacity>
-
-                            <View style={styles.viewsContainer}>
-                                <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
-                                <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
-                            <Feather
-                                name="bookmark"
-                                size={22}
-                                color={saved ? '#9DBD3F' : colors.text}
-                            />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* DESCRIPTION */}
-                    <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
-                        <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
-                        <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
-                            {post.description || 'Sin descripción adicional.'}
-                        </Text>
-                    </View>
-
-                    {/* COMMENTS */}
-                    <View
-                        style={[
-                            styles.commentsCard,
-                            {
-                                backgroundColor: isDark
-                                    ? '#1C1C1C'
-                                    : '#F5F5F5',
-                            },
-                        ]}
-                    >
-                        <TouchableOpacity
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                            }}
-                            onPress={() => setShowComments(prev => !prev)}
-                        >
-                            <Text
-                                style={[
-                                    styles.commentsHeader,
-                                    { color: colors.text },
-                                ]}
-                            >
-                                Comentarios
-                                {comments.length > 0
-                                    ? ` (${comments.length})`
-                                    : ''}
-                            </Text>
-
-                            <Ionicons
-                                name={showComments ? 'chevron-up' : 'chevron-down'}
-                                size={20}
-                                color={colors.text}
-                            />
-                        </TouchableOpacity>
-                        {showComments && (
-                            <View style={{ marginTop: 8 }}>
-                                {loadingComments ? (
-                                    <ActivityIndicator
-                                        size="small"
-                                        color="#546F1C"
-                                        style={{ marginVertical: 12 }}
-                                    />
-                                ) : comments.length === 0 ? (
-                                    <Text
-                                        style={[
-                                            styles.noCommentsText,
-                                            {
-                                                color: isDark
-                                                    ? '#555'
-                                                    : '#BBB',
-                                            },
-                                        ]}
-                                    >
-                                        Sé el primero en comentar
-                                    </Text>
-                                ) : (
-                                    comments.map((c) => (
-                                        <View
-                                            key={c.docId}
-                                            style={styles.commentItem}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.commentUser,
-                                                    { color: colors.text },
-                                                ]}
-                                            >
-                                                @{c.userDisplayName || 'usuario'}
-                                            </Text>
-
-                                            <Text
-                                                style={[
-                                                    styles.commentText,
-                                                    {
-                                                        color: isDark
-                                                            ? '#bbb'
-                                                            : '#555',
-                                                    },
-                                                ]}
-                                            >
-                                                {c.text}
-                                            </Text>
-                                        </View>
-                                    ))
-                                )}
-                            </View>
-                        )}
-                    </View>
-
-                </ScrollView>
-                {showCommentInput && (
-                    <View
-                        style={[
-                            styles.commentInputRow,
-                            {
-                                backgroundColor: colors.background,
-                                borderTopColor: isDark
-                                    ? '#2C2C2C'
-                                    : '#E0E0E0',
-                            },
-                        ]}
-                    >
-                        <TextInput
-                            ref={inputRef}
-                            style={[
-                                styles.commentInput,
-                                {
-                                    backgroundColor: isDark
-                                        ? '#1C1C1C'
-                                        : '#F0F0F0',
-                                    color: colors.text,
-                                },
-                            ]}
-                            placeholder="Agregar un comentario..."
-                            placeholderTextColor={
-                                isDark ? '#555' : '#AAA'
+                <FlatList
+                    data={posts}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                        <PostItem
+                            post={item}
+                            isOwnPost={currentUser && item.author === currentUser.uid}
+                            displayName={
+                                currentUser && item.author === currentUser.uid
+                                    ? currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario'
+                                    : 'Creador3D'
                             }
-                            value={commentText}
-                            onChangeText={setCommentText}
-                            multiline
-                            maxLength={500}
-                            returnKeyType="send"
-                            onSubmitEditing={handleSendComment}
+                            displayHandle={
+                                '@' + (
+                                    currentUser && item.author === currentUser.uid
+                                        ? (currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario')
+                                        : 'Creador3D'
+                                ).toLowerCase().replace(/\s+/g, '')
+                            }
+                            colors={colors}
+                            isDark={isDark}
+                            pageHeight={PAGE_HEIGHT}
                         />
-
-                        <TouchableOpacity
-                            style={[
-                                styles.sendButton,
-                                {
-                                    opacity:
-                                        commentText.trim().length === 0 ||
-                                            sendingComment
-                                            ? 0.4
-                                            : 1,
-                                },
-                            ]}
-                            onPress={handleSendComment}
-                            disabled={
-                                commentText.trim().length === 0 ||
-                                sendingComment
-                            }
-                        >
-                            {sendingComment ? (
-                                <ActivityIndicator
-                                    size="small"
-                                    color="#9DBD3F"
-                                />
-                            ) : (
-                                <Ionicons
-                                    name="send"
-                                    size={22}
-                                    color="#9DBD3F"
-                                />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                )}
+                    )}
+                    horizontal={false}
+                    showsVerticalScrollIndicator={false}
+                    removeClippedSubviews={true}
+                    windowSize={5}
+                />
             </View>
         </KeyboardAvoidingView>
     );
 }
 
+// ============================================================
+// ESTILOS
+// ============================================================
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -508,61 +418,51 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 15,
+        paddingVertical: 12,
         borderBottomWidth: 1,
     },
     backButton: {
         padding: 4,
     },
     headerTitle: {
-        fontSize: 18,
-        fontFamily: 'Nunito-Bold',
+        fontSize: 16,
+        fontWeight: '700',
         letterSpacing: 1,
     },
     moreButton: {
         padding: 4,
     },
-    scrollContent: {
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 100,
-    },
     userInfoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
     },
     avatarContainer: {
         width: 44,
         height: 44,
         borderRadius: 22,
+        borderWidth: 2,
         overflow: 'hidden',
-        borderWidth: 1,
     },
     avatarImage: {
         width: '100%',
         height: '100%',
     },
     userNameContainer: {
-        flex: 1,
         marginLeft: 10,
     },
     userNameText: {
         fontSize: 15,
-        fontFamily: 'Nunito-Bold',
+        fontWeight: '600',
     },
     userHandleText: {
-        fontSize: 12,
-        fontFamily: 'Nunito-Regular',
-        marginTop: 1,
+        fontSize: 13,
     },
     imageWrapper: {
-        width: '100%',
-        height: screenWidth - 32,
-        borderRadius: 12,
-        overflow: 'hidden',
+        width: screenWidth,
+        height: screenHeight * 0.45,
         position: 'relative',
-        backgroundColor: '#000',
     },
     postImage: {
         width: '100%',
@@ -570,112 +470,106 @@ const styles = StyleSheet.create({
     },
     priceOverlay: {
         position: 'absolute',
-        bottom: 12,
-        left: 12,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        borderRadius: 6,
+        bottom: 10,
+        right: 10,
+        backgroundColor: 'rgba(0,0,0,0.7)',
         paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingVertical: 4,
+        borderRadius: 6,
     },
     priceText: {
         color: '#fff',
-        fontSize: 14,
-        fontFamily: 'Nunito-Bold',
+        fontWeight: '600',
+        fontSize: 13,
     },
     interactionBar: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 14,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#333',
-        marginBottom: 14,
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
     },
     leftIcons: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 15,
     },
     iconButton: {
-        padding: 4,
+        marginRight: 16,
     },
     viewsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        marginLeft: 5,
     },
     viewsText: {
-        fontSize: 12,
-        fontFamily: 'Nunito-Regular',
+        fontSize: 13,
+        marginLeft: 4,
     },
     descriptionCard: {
-        borderRadius: 10,
+        marginHorizontal: 16,
+        marginBottom: 10,
         padding: 12,
-        marginBottom: 12,
+        borderRadius: 10,
     },
     descriptionTitle: {
-        fontSize: 15,
-        fontFamily: 'Nunito-Bold',
-        marginBottom: 6,
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 4,
     },
     descriptionText: {
-        fontSize: 13,
-        fontFamily: 'Nunito-Regular',
-        lineHeight: 18,
+        fontSize: 14,
+        lineHeight: 20,
     },
     commentsCard: {
-        borderRadius: 10,
+        marginHorizontal: 16,
+        marginBottom: 10,
         padding: 12,
+        borderRadius: 10,
+    },
+    commentsHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
     commentsHeader: {
-        fontSize: 14,
-        fontFamily: 'Nunito-Bold',
-        marginBottom: 10,
-    },
-    commentItem: {
-        marginBottom: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
-        paddingBottom: 8,
-    },
-    commentUser: {
-        fontSize: 12,
-        fontFamily: 'Nunito-Bold',
-        marginBottom: 2,
-    },
-    commentText: {
-        fontSize: 12,
-        fontFamily: 'Nunito-Regular',
-        lineHeight: 16,
+        fontSize: 15,
+        fontWeight: '600',
     },
     noCommentsText: {
         fontSize: 13,
-        fontFamily: 'Nunito-Regular',
         textAlign: 'center',
-        paddingVertical: 8,
+        marginVertical: 8,
     },
-
+    commentItem: {
+        marginVertical: 4,
+        width: '100%', // 👈 CAMBIO: Asegura que el contenedor tenga un ancho definido para que el texto haga wrap
+    },
+    commentUser: {
+        fontSize: 13,
+        fontWeight: '600',
+        // 👈 CAMBIO: Se eliminaron flexShrink y flexWrap que no aplican correctamente en Text
+    },
+    commentText: {
+        fontSize: 13,
+        marginTop: 2,
+        // 👈 CAMBIO: Se eliminaron flexShrink y flexWrap
+    },
     commentInputRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 12,
-        paddingVertical: 10,
+        paddingVertical: 8,
         borderTopWidth: 1,
-        gap: 10,
     },
-
     commentInput: {
         flex: 1,
         borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 8,
         fontSize: 14,
-        fontFamily: 'Nunito-Regular',
-        maxHeight: 100,
+        maxHeight: 80,
     },
-
     sendButton: {
+        marginLeft: 8,
         padding: 6,
     },
 });
