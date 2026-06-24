@@ -1,8 +1,8 @@
-import { API_URL } from './config/api';
+
 import PostDetailModal from './components/PostDetailModal';
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
-import { db } from './config/firebase';
+import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db } from './config/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -24,6 +24,35 @@ const CARD_WIDTH = (width - 20) / 2;
 function PostCard({ item, onPress }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
+  const [saved, setSaved] = useState(false);
+  const currentUser = auth.currentUser;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const savedRef = doc(db, 'saved', `${currentUser.uid}_${item.id}`);
+    getDoc(savedRef).then((snap) => {
+      setSaved(snap.exists());
+    });
+  }, [item, currentUser]);
+
+  const handleSave = async () => {
+    if (!currentUser) return;
+    const savedRef = doc(db, 'saved', `${currentUser.uid}_${item.id}`);
+    if (saved) {
+      await deleteDoc(savedRef);
+      setSaved(false);
+    } else {
+      await setDoc(savedRef, {
+        userId: currentUser.uid,
+        postId: item.id,
+        postImage: item.image,
+        postTitle: item.title,
+        postAuthor: item.author,
+        createdAt: new Date(),
+      });
+      setSaved(true);
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -31,24 +60,14 @@ function PostCard({ item, onPress }) {
       onPress={onPress}
       activeOpacity={0.85}
     >
+      {/* Imagen del post */}
       <Image
         source={{ uri: item.image }}
         style={styles.cardImage}
         resizeMode="cover"
       />
 
-      {item.totalImages > 1 && (
-        <View style={styles.imageCounter}>
-          <Text style={styles.imageCounterText}>1/{item.totalImages}</Text>
-        </View>
-      )}
-
-      {item.price && (
-        <View style={styles.priceOverlay}>
-          <Text style={styles.priceText}>{item.price}</Text>
-        </View>
-      )}
-
+      {/* Footer con título y botón de guardado */}
       <View style={[styles.cardFooter, { backgroundColor: isDark ? '#2C2C2C' : '#F9F9F9' }]}>
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
           {item.title}
@@ -56,14 +75,19 @@ function PostCard({ item, onPress }) {
         <View style={styles.cardStats}>
           <MaterialCommunityIcons name="chart-bar" size={16} color={isDark ? "#aaa" : "#666"} />
           <Text style={[styles.statsText, { color: isDark ? "#888" : "#555" }]}>{item.views}</Text>
-          <TouchableOpacity style={styles.saveButton}>
-            <MaterialCommunityIcons name="bookmark-outline" size={20} color={colors.text} />
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <MaterialCommunityIcons
+              name={saved ? "bookmark" : "bookmark-outline"}
+              size={20}
+              color={saved ? "#9DBD3F" : colors.text}
+            />
           </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
 }
+
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -80,48 +104,48 @@ export default function HomeScreen({ navigation }) {
     setSelectedPost(post);
     setModalVisible(true);
   };
-  
-const [lastVisible, setLastVisible] = useState(null);
-const fetchPosts = async (reset = false) => {
-  if (loading || (!hasMore && !reset)) return;
-  setLoading(true);
-  try {
-    const postsRef = collection(db, 'posts');
-    let q;
-    
-    if (reset) {
-      q = query(postsRef, orderBy('createdAt', 'desc'), limit(10));
-    } else if (lastVisible) {
-      q = query(postsRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(10));
-    } else {
+
+  const [lastVisible, setLastVisible] = useState(null);
+  const fetchPosts = async (reset = false) => {
+    if (loading || (!hasMore && !reset)) return;
+    setLoading(true);
+    try {
+      const postsRef = collection(db, 'posts');
+      let q;
+
+      if (reset) {
+        q = query(postsRef, orderBy('createdAt', 'desc'), limit(10));
+      } else if (lastVisible) {
+        q = query(postsRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(10));
+      } else {
+        setLoading(false);
+        return;
+      }
+      const documentSnapshots = await getDocs(q);
+      const newPosts = documentSnapshots.docs.map(doc => ({
+        id: doc.id,
+        title: doc.data().titulo || 'Sin título',
+        image: doc.data().imagenes && doc.data().imagenes.length > 0 ? doc.data().imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+        price: doc.data().precio ? `${doc.data().precio}$` : null,
+        views: doc.data().vistas >= 1000 ? `${(doc.data().vistas / 1000).toFixed(1)}k` : (doc.data().vistas || 0).toString(),
+        totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
+        description: doc.data().descripcion || '',
+        author: doc.data().autor
+      }));
+      const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
+      setLastVisible(lastVisibleDoc);
+      if (reset) {
+        setPosts(newPosts);
+      } else {
+        setPosts(prev => [...prev, ...newPosts]);
+      }
+      setHasMore(documentSnapshots.docs.length === 10);
+    } catch (error) {
+      console.log("Error cargando posts de Firestore:", error);
+    } finally {
       setLoading(false);
-      return;
     }
-    const documentSnapshots = await getDocs(q);
-    const newPosts = documentSnapshots.docs.map(doc => ({
-      id: doc.id,
-      title: doc.data().titulo || 'Sin título',
-      image: doc.data().imagenes && doc.data().imagenes.length > 0 ? doc.data().imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
-      price: doc.data().precio ? `${doc.data().precio}$` : null,
-      views: doc.data().vistas >= 1000 ? `${(doc.data().vistas / 1000).toFixed(1)}k` : (doc.data().vistas || 0).toString(),
-      totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
-      description: doc.data().descripcion || '',
-      author: doc.data().autor
-    }));
-    const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
-    setLastVisible(lastVisibleDoc);
-    if (reset) {
-      setPosts(newPosts);
-    } else {
-      setPosts(prev => [...prev, ...newPosts]);
-    }
-    setHasMore(documentSnapshots.docs.length === 10);
-  } catch (error) {
-    console.log("Error cargando posts de Firestore:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -167,7 +191,7 @@ const fetchPosts = async (reset = false) => {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onEndReached={()=>fetchPosts(false)}
+        onEndReached={() => fetchPosts(false)}
         onEndReachedThreshold={0.3}
         ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />

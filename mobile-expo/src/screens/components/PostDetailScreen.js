@@ -12,7 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -35,6 +36,77 @@ export default function PostDetailScreen({ route, navigation }) {
         : 'Creador3D';
 
     const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
+
+    // Consultar Firestore al montar la pantalla
+    useEffect(() => {
+        if (!post || !currentUser) {
+            setLiked(false);
+            setSaved(false);
+            return;
+        }
+
+        const checkStatus = async () => {
+            const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
+            const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+
+            try {
+                const likeSnap = await getDoc(likeRef);
+                setLiked(likeSnap.exists());
+            } catch (e) {
+                console.log('Error checking like:', e);
+                setLiked(false);
+            }
+
+            try {
+                const savedSnap = await getDoc(savedRef);
+                setSaved(savedSnap.exists());
+            } catch (e) {
+                console.log('Error checking saved:', e);
+                setSaved(false);
+            }
+        };
+
+        checkStatus();
+    }, [post, currentUser]);
+
+    // Funciones para manejar like y guardado
+    const handleLike = async () => {
+        if (!currentUser || !post) return;
+        const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
+        if (liked) {
+            await deleteDoc(likeRef);
+            setLiked(false);
+        } else {
+            await setDoc(likeRef, {
+                userId: currentUser.uid,
+                postId: post.id,
+                postImage: post.image,
+                postTitle: post.title,
+                postAuthor: post.author,
+                createdAt: new Date(),
+            });
+            setLiked(true);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!currentUser || !post) return;
+        const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+        if (saved) {
+            await deleteDoc(savedRef);
+            setSaved(false);
+        } else {
+            await setDoc(savedRef, {
+                userId: currentUser.uid,
+                postId: post.id,
+                postImage: post.image,
+                postTitle: post.title,
+                postAuthor: post.author,
+                createdAt: new Date(),
+            });
+            setSaved(true);
+        }
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -81,7 +153,7 @@ export default function PostDetailScreen({ route, navigation }) {
                 {/* INTERACTION BAR */}
                 <View style={styles.interactionBar}>
                     <View style={styles.leftIcons}>
-                        <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.iconButton}>
+                        <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
                             <Feather
                                 name="thumbs-up"
                                 size={22}
@@ -103,7 +175,7 @@ export default function PostDetailScreen({ route, navigation }) {
                         </View>
                     </View>
 
-                    <TouchableOpacity onPress={() => setSaved(!saved)} style={styles.iconButton}>
+                    <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
                         <Feather
                             name="bookmark"
                             size={22}
@@ -112,7 +184,7 @@ export default function PostDetailScreen({ route, navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* DESCRIPTION (PIE DE FOTO) */}
+                {/* DESCRIPTION */}
                 <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
                     <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
                     <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
