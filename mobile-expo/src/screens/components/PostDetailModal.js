@@ -1,5 +1,5 @@
 // src/screens/components/PostDetailModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Modal,
     View,
@@ -9,12 +9,29 @@ import {
     TouchableOpacity,
     ScrollView,
     Dimensions,
-    TouchableWithoutFeedback
+    TouchableWithoutFeedback,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    FlatList,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from '../config/firebase';
-import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import {
+    doc,
+    setDoc,
+    deleteDoc,
+    getDoc,
+    collection,
+    query,
+    where,
+    orderBy,
+    getDocs,
+    addDoc,
+    serverTimestamp,
+} from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -23,44 +40,64 @@ export default function PostDetailModal({ visible, post, onClose }) {
     const isDark = colors.text === '#FFFFFF';
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [comments, setComments] = useState([]);
+    const [commentText, setCommentText] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [sendingComment, setSendingComment] = useState(false);
+    const inputRef = useRef(null);
 
     const currentUser = auth.currentUser;
+
     useEffect(() => {
         if (!post || !currentUser) {
             setLiked(false);
             setSaved(false);
+            setComments([]);
             return;
         }
 
         const checkStatus = async () => {
             const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
             const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
-
             try {
                 const likeSnap = await getDoc(likeRef);
                 setLiked(likeSnap.exists());
             } catch (e) {
-                console.log('Error checking like:', e);
                 setLiked(false);
             }
-
             try {
                 const savedSnap = await getDoc(savedRef);
                 setSaved(savedSnap.exists());
             } catch (e) {
-                console.log('Error checking saved:', e);
                 setSaved(false);
             }
         };
 
         checkStatus();
+        fetchComments();
     }, [post, currentUser]);
+
+    const fetchComments = async () => {
+        if (!post) return;
+        setLoadingComments(true);
+        try {
+            const q = query(
+                collection(db, 'comments'),
+                where('postId', '==', post.id),
+                orderBy('createdAt', 'asc')
+            );
+            const snapshot = await getDocs(q);
+            setComments(snapshot.docs.map((d) => ({ docId: d.id, ...d.data() })));
+        } catch (e) {
+            console.log('Error fetching comments:', e);
+        } finally {
+            setLoadingComments(false);
+        }
+    };
 
     const handleLike = async () => {
         if (!currentUser || !post) return;
-
         const likeRef = doc(db, 'likes', `${currentUser.uid}_${post.id}`);
-
         try {
             if (liked) {
                 await deleteDoc(likeRef);
@@ -74,13 +111,13 @@ export default function PostDetailModal({ visible, post, onClose }) {
                     postAuthor: post.author,
                     createdAt: new Date(),
                 });
-
                 setLiked(true);
             }
         } catch (e) {
             console.log('Error toggling like:', e);
         }
     };
+
     const handleSave = async () => {
         if (!currentUser || !post) return;
         const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
@@ -104,11 +141,45 @@ export default function PostDetailModal({ visible, post, onClose }) {
         }
     };
 
+    const handleSendComment = async () => {
+        const text = commentText.trim();
+        if (!text || !currentUser || !post) return;
+        setSendingComment(true);
+        try {
+            const displayName =
+                currentUser.displayName || currentUser.email.split('@')[0];
+            const newComment = {
+                userId: currentUser.uid,
+                postId: post.id,
+                postImage: post.image,
+                postTitle: post.title,
+                text,
+                userDisplayName: displayName,
+                createdAt: serverTimestamp(),
+            };
+            const docRef = await addDoc(collection(db, 'comments'), newComment);
+            // Agregar optimistamente a la lista local
+            setComments((prev) => [
+                ...prev,
+                {
+                    docId: docRef.id,
+                    ...newComment,
+                    createdAt: { toMillis: () => Date.now() },
+                },
+            ]);
+            setCommentText('');
+        } catch (e) {
+            console.log('Error sending comment:', e);
+        } finally {
+            setSendingComment(false);
+        }
+    };
+
     if (!post) return null;
 
     const isOwnPost = currentUser && post.author === currentUser.uid;
     const displayName = isOwnPost
-        ? (currentUser.displayName || currentUser.email.split('@')[0])
+        ? currentUser.displayName || currentUser.email.split('@')[0]
         : 'Creador3D';
     const displayHandle = '@' + displayName.toLowerCase().replace(/\s+/g, '');
 
@@ -122,40 +193,72 @@ export default function PostDetailModal({ visible, post, onClose }) {
             <TouchableWithoutFeedback onPress={onClose}>
                 <View style={styles.modalOverlay}>
                     <TouchableWithoutFeedback>
-                        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={[styles.modalContent, { backgroundColor: colors.background }]}
+                        >
                             {/* HEADER */}
-                            <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+                            <View
+                                style={[
+                                    styles.header,
+                                    { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' },
+                                ]}
+                            >
                                 <TouchableOpacity onPress={onClose} style={styles.backButton}>
                                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                                 </TouchableOpacity>
-                                <Text style={[styles.headerTitle, { color: colors.text }]}>PUBLICACIONES</Text>
+                                <Text style={[styles.headerTitle, { color: colors.text }]}>
+                                    PUBLICACIONES
+                                </Text>
                                 <TouchableOpacity style={styles.moreButton}>
                                     <Feather name="more-vertical" size={20} color={colors.text} />
                                 </TouchableOpacity>
                             </View>
 
-                            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
+                            <ScrollView
+                                contentContainerStyle={styles.scrollContent}
+                                showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
+                            >
                                 {/* USER INFO */}
                                 <View style={styles.userInfoRow}>
-                                    <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
+                                    <View
+                                        style={[
+                                            styles.avatarContainer,
+                                            { borderColor: colors.avatarborder },
+                                        ]}
+                                    >
                                         <Image
-                                            source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
+                                            source={
+                                                isOwnPost
+                                                    ? require('../../../assets/profile_picture.jpg')
+                                                    : require('../../../assets/logo.png')
+                                            }
                                             style={styles.avatarImage}
                                         />
                                     </View>
                                     <View style={styles.userNameContainer}>
-                                        <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
-                                        <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
+                                        <Text style={[styles.userNameText, { color: colors.text }]}>
+                                            {displayName}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.userHandleText,
+                                                { color: isDark ? '#aaa' : '#666' },
+                                            ]}
+                                        >
+                                            {displayHandle}
+                                        </Text>
                                     </View>
                                 </View>
 
                                 {/* POST IMAGE */}
                                 <View style={styles.imageWrapper}>
-                                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
-
-                                    {/* PRICE OVERLAY */}
+                                    <Image
+                                        source={{ uri: post.image }}
+                                        style={styles.postImage}
+                                        resizeMode="cover"
+                                    />
                                     {post.price && (
                                         <View style={styles.priceOverlay}>
                                             <Text style={styles.priceText}>Precio: {post.price}</Text>
@@ -174,7 +277,10 @@ export default function PostDetailModal({ visible, post, onClose }) {
                                             />
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity style={styles.iconButton}>
+                                        <TouchableOpacity
+                                            style={styles.iconButton}
+                                            onPress={() => inputRef.current?.focus()}
+                                        >
                                             <Feather name="message-circle" size={22} color={colors.text} />
                                         </TouchableOpacity>
 
@@ -183,8 +289,19 @@ export default function PostDetailModal({ visible, post, onClose }) {
                                         </TouchableOpacity>
 
                                         <View style={styles.viewsContainer}>
-                                            <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
-                                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
+                                            <Feather
+                                                name="bar-chart-2"
+                                                size={16}
+                                                color={isDark ? '#888' : '#666'}
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.viewsText,
+                                                    { color: isDark ? '#888' : '#666' },
+                                                ]}
+                                            >
+                                                {post.views}
+                                            </Text>
                                         </View>
                                     </View>
 
@@ -197,35 +314,123 @@ export default function PostDetailModal({ visible, post, onClose }) {
                                     </TouchableOpacity>
                                 </View>
 
-                                {/* DESCRIPTION (PIE DE FOTO) */}
-                                <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
-                                    <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
-                                    <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
+                                {/* DESCRIPTION */}
+                                <View
+                                    style={[
+                                        styles.descriptionCard,
+                                        { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' },
+                                    ]}
+                                >
+                                    <Text style={[styles.descriptionTitle, { color: colors.text }]}>
+                                        {post.title}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.descriptionText,
+                                            { color: isDark ? '#ccc' : '#444' },
+                                        ]}
+                                    >
                                         {post.description || 'Sin descripción adicional.'}
                                     </Text>
                                 </View>
 
-                                {/* COMMENTS */}
-                                <View style={[styles.commentsCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
-                                    <Text style={[styles.commentsHeader, { color: colors.text }]}>Comentarios</Text>
+                                {/* COMMENTS SECTION */}
+                                <View
+                                    style={[
+                                        styles.commentsCard,
+                                        { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' },
+                                    ]}
+                                >
+                                    <Text style={[styles.commentsHeader, { color: colors.text }]}>
+                                        Comentarios{comments.length > 0 ? ` (${comments.length})` : ''}
+                                    </Text>
 
-                                    <View style={styles.commentItem}>
-                                        <Text style={[styles.commentUser, { color: colors.text }]}>@impresor_pro</Text>
-                                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
-                                            ¡Increíble pieza! ¿Qué tipo de filamento y parámetros usaste para la impresión?
+                                    {loadingComments ? (
+                                        <ActivityIndicator
+                                            size="small"
+                                            color="#546F1C"
+                                            style={{ marginVertical: 12 }}
+                                        />
+                                    ) : comments.length === 0 ? (
+                                        <Text
+                                            style={[
+                                                styles.noCommentsText,
+                                                { color: isDark ? '#555' : '#BBB' },
+                                            ]}
+                                        >
+                                            Sé el primero en comentar
                                         </Text>
-                                    </View>
-
-                                    <View style={styles.commentItem}>
-                                        <Text style={[styles.commentUser, { color: colors.text }]}>@expo_fan</Text>
-                                        <Text style={[styles.commentText, { color: isDark ? '#bbb' : '#555' }]}>
-                                            Se ve genial, muy buen nivel de detalle en las terminaciones. 👏👏
-                                        </Text>
-                                    </View>
+                                    ) : (
+                                        comments.map((c) => (
+                                            <View key={c.docId} style={styles.commentItem}>
+                                                <Text
+                                                    style={[styles.commentUser, { color: colors.text }]}
+                                                >
+                                                    @{c.userDisplayName || 'usuario'}
+                                                </Text>
+                                                <Text
+                                                    style={[
+                                                        styles.commentText,
+                                                        { color: isDark ? '#bbb' : '#555' },
+                                                    ]}
+                                                >
+                                                    {c.text}
+                                                </Text>
+                                            </View>
+                                        ))
+                                    )}
                                 </View>
-
                             </ScrollView>
-                        </View>
+
+                            {/* INPUT DE COMENTARIO */}
+                            <View
+                                style={[
+                                    styles.commentInputRow,
+                                    {
+                                        backgroundColor: colors.background,
+                                        borderTopColor: isDark ? '#2C2C2C' : '#E0E0E0',
+                                    },
+                                ]}
+                            >
+                                <TextInput
+                                    ref={inputRef}
+                                    style={[
+                                        styles.commentInput,
+                                        {
+                                            backgroundColor: isDark ? '#1C1C1C' : '#F0F0F0',
+                                            color: colors.text,
+                                        },
+                                    ]}
+                                    placeholder="Agregar un comentario..."
+                                    placeholderTextColor={isDark ? '#555' : '#AAA'}
+                                    value={commentText}
+                                    onChangeText={setCommentText}
+                                    multiline
+                                    maxLength={500}
+                                    returnKeyType="send"
+                                    onSubmitEditing={handleSendComment}
+                                />
+                                <TouchableOpacity
+                                    style={[
+                                        styles.sendButton,
+                                        {
+                                            opacity:
+                                                commentText.trim().length === 0 || sendingComment
+                                                    ? 0.4
+                                                    : 1,
+                                        },
+                                    ]}
+                                    onPress={handleSendComment}
+                                    disabled={commentText.trim().length === 0 || sendingComment}
+                                >
+                                    {sendingComment ? (
+                                        <ActivityIndicator size="small" color="#9DBD3F" />
+                                    ) : (
+                                        <Ionicons name="send" size={22} color="#9DBD3F" />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </KeyboardAvoidingView>
                     </TouchableWithoutFeedback>
                 </View>
             </TouchableWithoutFeedback>
@@ -254,21 +459,17 @@ const styles = StyleSheet.create({
         paddingVertical: 15,
         borderBottomWidth: 1,
     },
-    backButton: {
-        padding: 4,
-    },
+    backButton: { padding: 4 },
     headerTitle: {
         fontSize: 18,
         fontFamily: 'Nunito-Bold',
         letterSpacing: 1,
     },
-    moreButton: {
-        padding: 4,
-    },
+    moreButton: { padding: 4 },
     scrollContent: {
         paddingHorizontal: 16,
         paddingTop: 12,
-        paddingBottom: 40,
+        paddingBottom: 20,
     },
     userInfoRow: {
         flexDirection: 'row',
@@ -282,18 +483,9 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 1,
     },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-    },
-    userNameContainer: {
-        flex: 1,
-        marginLeft: 10,
-    },
-    userNameText: {
-        fontSize: 15,
-        fontFamily: 'Nunito-Bold',
-    },
+    avatarImage: { width: '100%', height: '100%' },
+    userNameContainer: { flex: 1, marginLeft: 10 },
+    userNameText: { fontSize: 15, fontFamily: 'Nunito-Bold' },
     userHandleText: {
         fontSize: 12,
         fontFamily: 'Nunito-Regular',
@@ -307,10 +499,7 @@ const styles = StyleSheet.create({
         position: 'relative',
         backgroundColor: '#000',
     },
-    postImage: {
-        width: '100%',
-        height: '100%',
-    },
+    postImage: { width: '100%', height: '100%' },
     priceOverlay: {
         position: 'absolute',
         bottom: 12,
@@ -339,19 +528,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 15,
     },
-    iconButton: {
-        padding: 4,
-    },
+    iconButton: { padding: 4 },
     viewsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
         marginLeft: 5,
     },
-    viewsText: {
-        fontSize: 12,
-        fontFamily: 'Nunito-Regular',
-    },
+    viewsText: { fontSize: 12, fontFamily: 'Nunito-Regular' },
     descriptionCard: {
         borderRadius: 10,
         padding: 12,
@@ -370,11 +554,18 @@ const styles = StyleSheet.create({
     commentsCard: {
         borderRadius: 10,
         padding: 12,
+        marginBottom: 8,
     },
     commentsHeader: {
         fontSize: 14,
         fontFamily: 'Nunito-Bold',
         marginBottom: 10,
+    },
+    noCommentsText: {
+        fontSize: 13,
+        fontFamily: 'Nunito-Regular',
+        textAlign: 'center',
+        paddingVertical: 8,
     },
     commentItem: {
         marginBottom: 12,
@@ -391,5 +582,26 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: 'Nunito-Regular',
         lineHeight: 16,
+    },
+    // Input de comentario fijo abajo
+    commentInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        gap: 10,
+    },
+    commentInput: {
+        flex: 1,
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        fontSize: 14,
+        fontFamily: 'Nunito-Regular',
+        maxHeight: 100,
+    },
+    sendButton: {
+        padding: 6,
     },
 });

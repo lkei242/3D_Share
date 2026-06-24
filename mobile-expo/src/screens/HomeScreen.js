@@ -157,7 +157,7 @@ export default function HomeScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <PostCard
       item={item}
-      onPress={() => navigation.navigate('PostDetail', { post: item })}
+      onPress={() => handlePostPress(item)}
     />
   );
 
