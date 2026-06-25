@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { auth } from './src/screens/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { View, ActivityIndicator } from 'react-native';
-
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Color fondo
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { Platform, StatusBar } from 'react-native';
@@ -37,11 +37,7 @@ import PublishScreen from './src/screens/PublishScreen';
 import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
 import PreferencesScreen from './src/screens/profile_screens/PreferencesScreen';
 import LikesScreen from './src/screens/profile_screens/Tu_actividad/LikesScreen';
-import CommentsScreen from './src/screens/profile_screens/Tu_actividad/CommentsScreen';
-import RepostScreen from './src/screens/profile_screens/Tu_actividad/RepostScreen';
 import SavedScreen from './src/screens/profile_screens/Tu_actividad/SavedScreen';
-import HistoryScreen from './src/screens/profile_screens/Tu_actividad/HistoryScreen';
-import TrashScreen from './src/screens/profile_screens/Tu_actividad/TrashScreen';
 import ConnectedDevicesScreen from './src/screens/profile_screens/ConnectedDevicesScreen';
 import ChangePasswordScreen from './src/screens/profile_screens/Tu_cuenta/ChangePasswordScreen';
 import NewPasswordScreen from './src/screens/profile_screens/Tu_cuenta/NewPasswordScreen';
@@ -179,11 +175,7 @@ function AppContent() {
           <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="LikesScreen" component={LikesScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="CommentsScreen" component={CommentsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="RepostScreen" component={RepostScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SavedScreen" component={SavedScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="HistoryScreen" component={HistoryScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="TrashScreen" component={TrashScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ConnectedDevicesScreen" component={ConnectedDevicesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} options={{ headerShown: false }} />
           <Stack.Screen name="NewPasswordScreen" component={NewPasswordScreen} options={{ headerShown: false }} />
@@ -205,8 +197,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

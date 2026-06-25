@@ -7,14 +7,10 @@ import { Ionicons } from '@expo/vector-icons';
 export default function ActivityScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-  // Mapeamos las opciones con sus respectivos nombres de pantalla en la navegación
+
   const activityOptions = [
     { label: 'Me gusta', screen: 'LikesScreen' },
-    { label: 'Comentarios', screen: 'CommentsScreen' },
-    { label: 'Repost', screen: 'RepostScreen' },
     { label: 'Guardados', screen: 'SavedScreen' },
-    { label: 'Historial', screen: 'HistoryScreen' },
-    { label: 'Papelera', screen: 'TrashScreen' },
   ];
 
   return (
@@ -37,7 +33,11 @@ export default function ActivityScreen({ navigation }) {
             <Text style={[styles.optionText, { color: colors.text }]}>
               {item.label}
             </Text>
-            <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDark ? '#AAA' : '#666'}
+            />
           </TouchableOpacity>
         ))}
       </ScrollView>
