@@ -1,6 +1,6 @@
 // src/screens/HomeScreen.js
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -122,16 +122,47 @@ export default function HomeScreen({ navigation }) {
         return;
       }
       const documentSnapshots = await getDocs(q);
-      const newPosts = documentSnapshots.docs.map(doc => ({
-        id: doc.id,
-        title: doc.data().titulo || 'Sin título',
-        image: doc.data().imagenes && doc.data().imagenes.length > 0 ? doc.data().imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
-        price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: formatViews(doc.data().vistas || 0),
-        totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
-        description: doc.data().descripcion || '',
-        author: doc.data().autor
-      }));
+
+            // Obtener UIDs únicos de autores
+      const authorUids = [...new Set(documentSnapshots.docs.map(d => d.data().autor).filter(Boolean))];
+
+      // Cargar info de autores por document ID
+      const authorsMap = {};
+      if (authorUids.length > 0) {
+          for (let i = 0; i < authorUids.length; i += 10) {
+              const chunk = authorUids.slice(i, i + 10);
+              const userPromises = chunk.map(uid => getDoc(doc(db, 'users', uid)));
+              const userSnaps = await Promise.all(userPromises);
+              userSnaps.forEach(uDoc => {
+                  if (uDoc.exists()) {
+                      const d = uDoc.data();
+                      authorsMap[uDoc.id] = {
+                          profileName: d.profileName || d.username || 'Usuario',
+                          username: d.username || 'usuario',
+                          profilePicture: d.profilePicture || '',
+                      };
+                  }
+              });
+          }
+      }
+
+      const newPosts = documentSnapshots.docs.map(d => {
+          const data = d.data();
+          const authorInfo = authorsMap[data.autor] || { profileName: 'Usuario', username: 'usuario', profilePicture: '' };
+          return {
+              id: d.id,
+              title: data.titulo || 'Sin título',
+              image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+              price: data.precio ? `${data.precio}$` : null,
+              views: formatViews(data.vistas || 0),
+              totalImages: data.imagenes ? data.imagenes.length : 1,
+              description: data.descripcion || '',
+              author: data.autor,
+              authorProfileName: authorInfo.profileName,
+              authorUsername: authorInfo.username,
+              authorProfilePicture: authorInfo.profilePicture,
+          };
+      });
       const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
       setLastVisible(lastVisibleDoc);
       if (reset) {

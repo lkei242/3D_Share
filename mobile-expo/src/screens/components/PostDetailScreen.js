@@ -44,7 +44,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // COMPONENTE: PostItem (un post individual, autónomo)
 // ============================================================
 
-function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark, pageHeight, onOpenComments }) {
+function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments }) {
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -121,7 +121,11 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark,
             <View style={styles.userInfoRow}>
                 <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
                     <Image
-                        source={isOwnPost ? require('../../../assets/profile_picture.jpg') : require('../../../assets/logo.png')}
+                        source={
+                            authorProfilePicture
+                                ? { uri: authorProfilePicture }
+                                : require('../../../assets/profile_picture.jpg')  // fallback genérico
+                        }
                         style={styles.avatarImage}
                     />
                 </View>
@@ -315,18 +319,9 @@ export default function PostDetailScreen({ route, navigation }) {
                         <PostItem
                             post={item}
                             isOwnPost={currentUser && item.author === currentUser.uid}
-                            displayName={
-                                currentUser && item.author === currentUser.uid
-                                    ? currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario'
-                                    : 'Creador3D'
-                            }
-                            displayHandle={
-                                '@' + (
-                                    currentUser && item.author === currentUser.uid
-                                        ? (currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Usuario')
-                                        : 'Creador3D'
-                                ).toLowerCase().replace(/\s+/g, '')
-                            }
+                            displayName={item.authorProfileName || 'Usuario'}
+                            displayHandle={'@' + (item.authorUsername || 'usuario')}
+                            authorProfilePicture={item.authorProfilePicture || ''}
                             onOpenComments={(post) => {
                                 setCommentsPost(post);
                             }}
