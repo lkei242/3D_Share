@@ -29,8 +29,11 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+  const [userUsername, setUserUsername] = useState(''); // Nuevo estado
   const [profilePicture, setProfilePicture] = useState('');
   const [presentation, setPresentation] = useState('');
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', { post, posts });
@@ -44,16 +47,17 @@ export default function ProfileScreen({ navigation }) {
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        const data = userDoc.data();
-        setUserName(data.profileName || data.username || user.email.split('@')[0]);
-        setUserEmail(data.email || user.email);
-        setProfilePicture(data.profilePicture || '');
-        setPresentation(data.presentation || '');
+          const data = userDoc.data();
+          setUserName(data.profileName || data.username || user.email.split('@')[0]);
+          setUserUsername(data.username || user.email.split('@')[0]);
+          setUserEmail(data.email || user.email);
+          setProfilePicture(data.profilePicture || '');
+          setPresentation(data.presentation || '');
       } else {
-        // Fallback
-        setUserEmail(user.email || '');
-        const namePart = user.displayName || user.email.split('@')[0];
-        setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
+          setUserEmail(user.email || '');
+          setUserUsername(user.email.split('@')[0]);
+          const namePart = user.displayName || user.email.split('@')[0];
+          setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
@@ -92,28 +96,47 @@ export default function ProfileScreen({ navigation }) {
       setLoading(false);
     }
   }, []);
+  // Contar seguidores y seguidos
+  const fetchFollowCounts = useCallback(async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+          // Seguidores: quienes me siguen
+          const followersQuery = query(collection(db, 'followers'), where('userId', '==', user.uid));
+          const followersSnap = await getDocs(followersQuery);
+          setFollowersCount(followersSnap.size);
+
+          // Seguidos: a quienes sigo
+          const followingQuery = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+          const followingSnap = await getDocs(followingQuery);
+          setFollowingCount(followingSnap.size);
+      } catch (error) {
+          console.log('Error fetching follow counts:', error);
+      }
+  }, []);
 
   // Carga/Recarga completa en cada focus de pestaña
   useFocusEffect(
-    useCallback(() => {
-      fetchUserProfile();
-      fetchUserPosts();
-    }, [fetchUserProfile, fetchUserPosts])
+      useCallback(() => {
+        fetchUserProfile();
+        fetchUserPosts();
+        fetchFollowCounts();
+      }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
         {/* HEADER */}
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => navigation.navigate('AccountSwitcher')}>
-            <Text style={[styles.username, { color: colors.text }]}>
-              {userName}
-            </Text>
-            <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
-              @{userEmail ? userEmail.split('@')[0] : 'usuario'}
-            </Text>
+              <Text style={[styles.username, { color: colors.text }]}>
+                  {userName}
+              </Text>
+              <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
+                  @{userUsername}
+              </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
@@ -143,12 +166,12 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts')}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
               <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#555' }]}>Seguidores</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts')}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
               <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#555' }]}>Seguidos</Text>
             </TouchableOpacity>
           </View>

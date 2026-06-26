@@ -33,12 +33,11 @@ export default function RegisterScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [birthDate, setBirthDate] = useState('');
 
   // Paso 2: Campos opcionales y adicionales
   const [image, setImage] = useState(null);
-  const [birthDate, setBirthDate] = useState('');
   const [presentation, setPresentation] = useState('');
-  const [language, setLanguage] = useState('Español (América Latina)');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Control de UI
@@ -80,7 +79,7 @@ export default function RegisterScreen({ navigation }) {
 
   // Validaciones y avance al Paso 2
   const handleContinue = () => {
-    if (!profileName.trim() || !username.trim() || !email.trim() || !password.trim()) {
+    if (!profileName.trim() || !username.trim() || !email.trim() || !password.trim() || !birthDate.trim()) {
       alert('Por favor, completa todos los campos obligatorios.');
       return;
     }
@@ -130,7 +129,7 @@ export default function RegisterScreen({ navigation }) {
         profileName: profileName.trim(),
         username: username.trim().toLowerCase(),
         email: email.trim(),
-        birthDate: birthDate.trim() || null,
+        birthDate: birthDate.trim(),
         profilePicture: profilePictureUrl || 'https://res.cloudinary.com/dvrjrpotj/image/upload/v1782073947/3d_share/default_avatar.png',
         presentation: presentation.trim() || null,
         createdAt: new Date(),
@@ -231,7 +230,13 @@ export default function RegisterScreen({ navigation }) {
               value={password}
               onChangeText={setPassword}
             />
-
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              placeholder="Fecha de nacimiento (DD/MM/AAAA)"
+              placeholderTextColor="#707070"
+              value={birthDate}
+              onChangeText={setBirthDate}
+            />
             <TouchableOpacity style={styles.button} onPress={handleContinue}>
               <Text style={styles.buttonText}>Continuar</Text>
             </TouchableOpacity>
@@ -262,15 +267,6 @@ export default function RegisterScreen({ navigation }) {
               </View>
             </TouchableOpacity>
 
-            {/* FECHA DE NACIMIENTO */}
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
-              placeholder="Fecha de nacimiento (DD/MM/AAAA) - Opcional"
-              placeholderTextColor="#707070"
-              value={birthDate}
-              onChangeText={setBirthDate}
-            />
-
             {/* PRESENTACIÓN / BIO */}
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: colors.inputBackground }]}
@@ -281,18 +277,6 @@ export default function RegisterScreen({ navigation }) {
               value={presentation}
               onChangeText={setPresentation}
             />
-
-            {/* IDIOMA (PLACEHOLDER) */}
-            <TouchableOpacity
-              style={[styles.placeholderSelector, { backgroundColor: colors.inputBackground }]}
-              onPress={() => alert('Selección de idioma (Placeholder)')}
-            >
-              <Text style={styles.selectorLabel}>Idioma:</Text>
-              <View style={styles.selectorValueRow}>
-                <Text style={styles.selectorValueText}>{language}</Text>
-                <Feather name="chevron-down" size={16} color="#707070" />
-              </View>
-            </TouchableOpacity>
 
             {/* CHECKBOX: TÉRMINOS Y CONDICIONES */}
             <TouchableOpacity
@@ -448,30 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Nunito-Bold',
     marginTop: 4,
-  },
-  placeholderSelector: {
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
-    marginBottom: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  selectorLabel: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Bold',
-    color: '#707070',
-  },
-  selectorValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  selectorValueText: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    color: '#000',
   },
   checkboxContainer: {
     flexDirection: 'row',

@@ -52,6 +52,7 @@ import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cue
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 import PostDetailScreen from './src/screens/components/PostDetailScreen';
+import UserProfileScreen from './src/screens/UserProfileScreen';
 
 const MiTemaClaro = {
   ...DefaultTheme,
@@ -164,6 +165,7 @@ function AppContent() {
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+          <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="AccountSwitcher" component={AccountSwitcherScreen} />
           <Stack.Screen name="Contacts" component={ContactsScreen} />
