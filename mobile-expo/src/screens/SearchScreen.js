@@ -9,6 +9,8 @@ import {
   FlatList,
   ActivityIndicator,
   Text,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -16,6 +18,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
+import { auth } from './config/firebase';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -26,6 +29,9 @@ export default function SearchScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastVisible, setLastVisible] = useState(null);
+  const [activeTab, setActiveTab] = useState('posts'); // 'posts' o 'users'
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(''); // Estado para la barra de búsqueda
 
   const fetchPosts = async (reset = false) => {
@@ -74,17 +80,44 @@ export default function SearchScreen({ navigation }) {
       setLoading(false);
     }
   };
+  const fetchUsers = async () => {
+      if (usersLoading) return;
+      setUsersLoading(true);
+      try {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, limit(100));
+          const snapshot = await getDocs(q);
+          const usersList = snapshot.docs.map(doc => ({
+              id: doc.id,
+              uid: doc.data().uid || doc.id,
+              profileName: doc.data().profileName || doc.data().username || 'Usuario',
+              username: doc.data().username || 'usuario',
+              profilePicture: doc.data().profilePicture || '',
+          }));
+          setUsers(usersList);
+      } catch (error) {
+          console.log("Error buscando usuarios:", error);
+      } finally {
+          setUsersLoading(false);
+      }
+  };
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchPosts(true);
-    });
-    return unsubscribe;
+      const unsubscribe = navigation.addListener('focus', () => {
+        fetchPosts(true);
+        fetchUsers();
+      });
+      return unsubscribe;
   }, [navigation]);
 
   // Filtrado reactivo en memoria según el título escrito
   const filteredPosts = posts.filter(post => 
-    post.title.toLowerCase().includes(searchQuery.toLowerCase())
+      post.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredUsers = users.filter(user => 
+      user.profileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const renderItem = ({ item }) => (
@@ -98,9 +131,39 @@ export default function SearchScreen({ navigation }) {
       />
     </TouchableOpacity>
   );
+  const renderUser = ({ item }) => (
+    <TouchableOpacity
+        style={[styles.userCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}
+        onPress={() => {
+            if (item.uid === auth.currentUser?.uid) {
+                navigation.navigate('Profile');
+            } else {
+                // Por ahora navegar al perfil del propio usuario
+                // Se podría crear una pantalla de perfil de otro usuario
+                navigation.navigate('Profile');
+            }
+        }}
+    >
+        <Image
+            source={item.profilePicture ? { uri: item.profilePicture } : require('../../assets/logo.png')}
+            style={styles.userAvatar}
+        />
+        <View style={styles.userInfo}>
+            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
+                {item.profileName}
+            </Text>
+            <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]} numberOfLines={1}>
+                @{item.username}
+            </Text>
+        </View>
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior="padding"
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: isDark ? '#1A1A1A' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <Image
@@ -116,7 +179,7 @@ export default function SearchScreen({ navigation }) {
           />
 
           <TextInput
-            placeholder="Buscar por título..."
+            placeholder="Buscar publicaciones o usuarios..."
             placeholderTextColor={isDark ? '#AAA' : '#888'}
             style={[styles.input, { color: colors.text }]}
             value={searchQuery}
@@ -125,26 +188,75 @@ export default function SearchScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Grid de Resultados */}
-      <FlatList
-        data={filteredPosts}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={3}
-        showsVerticalScrollIndicator={false}
-        onEndReached={() => fetchPosts(false)}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#9DBD3F"
-              style={{ marginVertical: 15 }}
-            />
-          ) : null
-        }
-      />
-    </View>
+      {/* Tabs */}
+      <View style={[styles.tabsContainer, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'posts' && { borderBottomColor: '#9DBD3F' }]}
+          onPress={() => setActiveTab('posts')}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'posts' ? '#9DBD3F' : (isDark ? '#888' : '#666') }]}>
+            Publicaciones
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'users' && { borderBottomColor: '#9DBD3F' }]}
+          onPress={() => setActiveTab('users')}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'users' ? '#9DBD3F' : (isDark ? '#888' : '#666') }]}>
+            Usuarios
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Resultados */}
+      {activeTab === 'posts' ? (
+        <FlatList
+          key="posts-grid"
+          data={filteredPosts}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
+          showsVerticalScrollIndicator={false}
+          onEndReached={() => fetchPosts(false)}
+          onEndReachedThreshold={0.3}
+          keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            loading ? (
+              <ActivityIndicator
+                size="large"
+                color="#9DBD3F"
+                style={{ marginVertical: 15 }}
+              />
+            ) : null
+          }
+        />
+      ) : (
+        <FlatList
+          key="users-list"
+          data={filteredUsers}
+          renderItem={renderUser}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            usersLoading ? (
+              <ActivityIndicator
+                size="large"
+                color="#9DBD3F"
+                style={{ marginVertical: 15 }}
+              />
+            ) : null
+          }
+          ListEmptyComponent={
+            !usersLoading && filteredUsers.length === 0 ? (
+              <Text style={[styles.emptyText, { color: isDark ? '#888' : '#666' }]}>
+                No se encontraron usuarios
+              </Text>
+            ) : null
+          }
+        />
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -176,6 +288,21 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     paddingVertical: 0,
   },
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+  },
   card: {
     width: '33.333%',
     aspectRatio: 1,
@@ -184,5 +311,37 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 10,
+    marginTop: 8,
+    borderRadius: 10,
+  },
+  userAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  userInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+  },
+  userHandle: {
+    fontSize: 13,
+    fontFamily: 'Nunito-Regular',
+    marginTop: 2,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    fontSize: 15,
+    fontFamily: 'Nunito-Regular',
   },
 });
