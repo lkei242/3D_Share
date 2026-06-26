@@ -34,6 +34,7 @@ export default function ProfileScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', { post, posts });
@@ -61,6 +62,8 @@ export default function ProfileScreen({ navigation }) {
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
+    } finally {
+      setProfileLoading(false);
     }
   }, []);
 
@@ -151,10 +154,25 @@ export default function ProfileScreen({ navigation }) {
         {/* PERFIL */}
         <View style={styles.profileSection}>
           <View style={[styles.avatar, { borderColor: colors.avatarborder }]}>
-            <Image
-              source={profilePicture ? { uri: profilePicture } : require('../../assets/profile_picture.jpg')}
-              style={styles.avatarImage}
-            />
+            {profileLoading ? null : profilePicture ? (
+              <Image
+                source={{ uri: profilePicture }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View
+                style={[
+                  styles.avatarFallback,
+                  { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }
+                ]}
+              >
+                <Ionicons
+                  name="person-circle-outline"
+                  size={110}
+                  color={isDark ? '#888' : '#999'}
+                />
+              </View>
+            )}
           </View>
 
           <View style={styles.statsContainer}>
@@ -410,5 +428,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontFamily: 'Nunito-Bold',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

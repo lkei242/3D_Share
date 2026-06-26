@@ -226,10 +226,17 @@ export default function UserProfileScreen({ route, navigation }) {
           {/* Fila: avatar + stats */}
           <View style={styles.avatarStatsRow}>
             <View style={[styles.avatarWrapper, { borderColor: '#9DBD3F' }]}>
-              <Image
-                source={profilePicture ? { uri: profilePicture } : require('../../assets/logo.png')}
-                style={styles.avatarImage}
-              />
+              {profilePicture ? (
+                <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+              ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={90}
+                    color={isDark ? '#888' : '#999'}
+                  />
+                </View>
+              )}
             </View>
 
             <View style={styles.statsRow}>
@@ -366,6 +373,12 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     overflow: 'hidden',
     marginRight: 20,
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarImage: {
     width: '100%',
