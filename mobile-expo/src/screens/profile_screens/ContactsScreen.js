@@ -59,12 +59,12 @@ export default function ContactsScreen({ navigation }) {
   const currentUser = auth.currentUser;
 
   // Filtrar datos según la búsqueda
-  const filteredFollowers = followers.filter(user => 
+  const filteredFollowers = followers.filter(user =>
     user.name.toLowerCase().includes(searchFollowers.toLowerCase()) ||
     user.username.toLowerCase().includes(searchFollowers.toLowerCase())
   );
 
-  const filteredFollowing = following.filter(user => 
+  const filteredFollowing = following.filter(user =>
     user.name.toLowerCase().includes(searchFollowing.toLowerCase()) ||
     user.username.toLowerCase().includes(searchFollowing.toLowerCase())
   );
@@ -164,19 +164,23 @@ export default function ContactsScreen({ navigation }) {
       {item.profilePicture ? (
         <Image source={{ uri: item.profilePicture }} style={styles.avatarImage} />
       ) : (
-        <View style={[styles.avatar, { backgroundColor: COLORS.GREEN_PRIMARY }]}>
-          <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+        <View style={[styles.avatar, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+          <Ionicons
+            name="person-circle-outline"
+            size={50}
+            color="#94BA46"
+          />
         </View>
       )}
       <View style={styles.userInfo}>
-        <Text 
-          style={[styles.userName, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]} 
+        <Text
+          style={[styles.userName, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}
           numberOfLines={1}
         >
           {item.name}
         </Text>
-        <Text 
-          style={[styles.userHandle, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]} 
+        <Text
+          style={[styles.userHandle, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}
           numberOfLines={1}
         >
           @{item.username}
@@ -214,7 +218,7 @@ export default function ContactsScreen({ navigation }) {
 
       {/* Indicador de Pestañas (Tabs) */}
       <View style={[styles.tabContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_100 }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tab, activeTab === 0 && styles.activeTab]}
           onPress={() => handleTabPress(0)}
         >
@@ -222,7 +226,7 @@ export default function ContactsScreen({ navigation }) {
             Seguidores
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tab, activeTab === 1 && styles.activeTab]}
           onPress={() => handleTabPress(1)}
         >
@@ -235,10 +239,10 @@ export default function ContactsScreen({ navigation }) {
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.GREEN_PRIMARY} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
-          horizontal 
-          pagingEnabled 
+          horizontal
+          pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScrollEnd}
           style={styles.scrollView}
@@ -405,7 +409,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 16,
     marginBottom: 12,
-    // Sombras sutiles para dar profundidad sin usar bordes duros
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -419,6 +422,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    backgroundColor: '#F0F0F0',
   },
   avatarText: {
     color: COLORS.WHITE,

@@ -147,10 +147,17 @@ export default function SearchScreen({ navigation }) {
             }
         }}
     >
-        <Image
-            source={item.profilePicture ? { uri: item.profilePicture } : require('../../assets/logo.png')}
-            style={styles.userAvatar}
-        />
+        {item.profilePicture ? (
+          <Image source={{ uri: item.profilePicture }} style={styles.userAvatar} />
+        ) : (
+          <View style={[styles.userAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+            <Ionicons
+              name="person-circle-outline"
+              size={50}
+              color="#94BA46"
+            />
+          </View>
+        )}
         <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
                 {item.profileName}
@@ -346,5 +353,12 @@ const styles = StyleSheet.create({
     marginTop: 40,
     fontSize: 15,
     fontFamily: 'Nunito-Regular',
+  },
+  userAvatarFallback: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
