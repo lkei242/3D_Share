@@ -32,6 +32,8 @@ export default function ProfileScreen({ navigation }) {
   const [userUsername, setUserUsername] = useState(''); // Nuevo estado
   const [profilePicture, setProfilePicture] = useState('');
   const [presentation, setPresentation] = useState('');
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', { post, posts });
@@ -94,13 +96,32 @@ export default function ProfileScreen({ navigation }) {
       setLoading(false);
     }
   }, []);
+  // Contar seguidores y seguidos
+  const fetchFollowCounts = useCallback(async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+          // Seguidores: quienes me siguen
+          const followersQuery = query(collection(db, 'followers'), where('userId', '==', user.uid));
+          const followersSnap = await getDocs(followersQuery);
+          setFollowersCount(followersSnap.size);
+
+          // Seguidos: a quienes sigo
+          const followingQuery = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+          const followingSnap = await getDocs(followingQuery);
+          setFollowingCount(followingSnap.size);
+      } catch (error) {
+          console.log('Error fetching follow counts:', error);
+      }
+  }, []);
 
   // Carga/Recarga completa en cada focus de pestaña
   useFocusEffect(
-    useCallback(() => {
-      fetchUserProfile();
-      fetchUserPosts();
-    }, [fetchUserProfile, fetchUserPosts])
+      useCallback(() => {
+        fetchUserProfile();
+        fetchUserPosts();
+        fetchFollowCounts();
+      }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
   );
 
   return (
@@ -145,12 +166,12 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts')}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
               <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#555' }]}>Seguidores</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts')}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
               <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#555' }]}>Seguidos</Text>
             </TouchableOpacity>
           </View>

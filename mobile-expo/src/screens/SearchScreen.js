@@ -89,7 +89,7 @@ export default function SearchScreen({ navigation }) {
           const snapshot = await getDocs(q);
           const usersList = snapshot.docs.map(doc => ({
               id: doc.id,
-              uid: doc.data().uid || doc.id,
+              uid: doc.id,
               profileName: doc.data().profileName || doc.data().username || 'Usuario',
               username: doc.data().username || 'usuario',
               profilePicture: doc.data().profilePicture || '',
@@ -138,9 +138,12 @@ export default function SearchScreen({ navigation }) {
             if (item.uid === auth.currentUser?.uid) {
                 navigation.navigate('Profile');
             } else {
-                // Por ahora navegar al perfil del propio usuario
-                // Se podría crear una pantalla de perfil de otro usuario
-                navigation.navigate('Profile');
+                navigation.navigate('UserProfile', {
+                    userId: item.uid,
+                    profileName: item.profileName,
+                    username: item.username,
+                    profilePicture: item.profilePicture,
+                });
             }
         }}
     >
