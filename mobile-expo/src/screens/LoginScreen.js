@@ -110,7 +110,7 @@ export default function LoginScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={[styles.link, { color: colors.text }]}> {/* <-- Texto dinámico */}
+          <Text style={[styles.link, { color: colors.text }]}>
             Volver
           </Text>
         </TouchableOpacity>

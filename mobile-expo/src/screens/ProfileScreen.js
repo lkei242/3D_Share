@@ -29,6 +29,7 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+  const [userUsername, setUserUsername] = useState(''); // Nuevo estado
   const [profilePicture, setProfilePicture] = useState('');
   const [presentation, setPresentation] = useState('');
 
@@ -44,16 +45,17 @@ export default function ProfileScreen({ navigation }) {
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        const data = userDoc.data();
-        setUserName(data.profileName || data.username || user.email.split('@')[0]);
-        setUserEmail(data.email || user.email);
-        setProfilePicture(data.profilePicture || '');
-        setPresentation(data.presentation || '');
+          const data = userDoc.data();
+          setUserName(data.profileName || data.username || user.email.split('@')[0]);
+          setUserUsername(data.username || user.email.split('@')[0]);
+          setUserEmail(data.email || user.email);
+          setProfilePicture(data.profilePicture || '');
+          setPresentation(data.presentation || '');
       } else {
-        // Fallback
-        setUserEmail(user.email || '');
-        const namePart = user.displayName || user.email.split('@')[0];
-        setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
+          setUserEmail(user.email || '');
+          setUserUsername(user.email.split('@')[0]);
+          const namePart = user.displayName || user.email.split('@')[0];
+          setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
@@ -103,17 +105,17 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
         {/* HEADER */}
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => navigation.navigate('AccountSwitcher')}>
-            <Text style={[styles.username, { color: colors.text }]}>
-              {userName}
-            </Text>
-            <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
-              @{userEmail ? userEmail.split('@')[0] : 'usuario'}
-            </Text>
+              <Text style={[styles.username, { color: colors.text }]}>
+                  {userName}
+              </Text>
+              <Text style={[styles.handle, { color: isDark ? '#999' : '#666' }]}>
+                  @{userUsername}
+              </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Settings')}>

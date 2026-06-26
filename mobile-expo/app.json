@@ -31,7 +31,8 @@
         {
           "microphonePermission": "Permite que $(PRODUCT_NAME) acceda al micrófono para grabar audio."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
