@@ -9,26 +9,26 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
-
-const TABS = ['Publicaciones', 'Videos', 'Etiquetas'];
+const TABS = ['Publicaciones', 'Etiquetas', 'Contactos'];
 
 export default function UserProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-
   const { userId, profileName, username, profilePicture } = route.params;
-
+  
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [presentation, setPresentation] = useState('');
@@ -36,6 +36,21 @@ export default function UserProfileScreen({ route, navigation }) {
   const [followersCount, setFollowersCount] = useState(0);
   const [friendsCount, setFriendsCount] = useState(0);
   const [activeTab, setActiveTab] = useState('Publicaciones');
+  const [userContacts, setUserContacts] = useState({
+    whatsapp: null,
+    email: null,
+    phone: null,
+    website: null,
+    location: null,
+    socialMedia: {
+      instagram: null,
+      facebook: null,
+      twitter: null,
+      tiktok: null,
+      linkedin: null,
+    },
+  });
+
   const currentUser = auth.currentUser;
 
   const handlePostPress = (post) => {
@@ -48,6 +63,24 @@ export default function UserProfileScreen({ route, navigation }) {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setPresentation(data.presentation || '');
+        
+        // Cargar contactos del usuario
+        if (data.contacts) {
+          setUserContacts({
+            whatsapp: data.contacts.whatsapp || null,
+            email: data.contacts.email || null,
+            phone: data.contacts.phone || null,
+            website: data.contacts.website || null,
+            location: data.contacts.location || null,
+            socialMedia: {
+              instagram: data.contacts.socialMedia?.instagram || null,
+              facebook: data.contacts.socialMedia?.facebook || null,
+              twitter: data.contacts.socialMedia?.twitter || null,
+              tiktok: data.contacts.socialMedia?.tiktok || null,
+              linkedin: data.contacts.socialMedia?.linkedin || null,
+            },
+          });
+        }
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
@@ -126,6 +159,43 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
+  // Funciones para manejar contactos
+  const handleWhatsApp = () => {
+    if (userContacts.whatsapp) {
+      const phone = userContacts.whatsapp.replace(/\D/g, '');
+      Linking.openURL(`whatsapp://send?phone=${phone}`);
+    }
+  };
+
+  const handleEmail = () => {
+    if (userContacts.email) {
+      Linking.openURL(`mailto:${userContacts.email}`);
+    }
+  };
+
+  const handlePhone = () => {
+    if (userContacts.phone) {
+      Linking.openURL(`tel:${userContacts.phone}`);
+    }
+  };
+
+  const handleWebsite = () => {
+    if (userContacts.website) {
+      const url = userContacts.website.startsWith('http') 
+        ? userContacts.website 
+        : `https://${userContacts.website}`;
+      Linking.openURL(url);
+    }
+  };
+
+  const handleSocialMedia = (platform) => {
+    const url = userContacts.socialMedia[platform];
+    if (url) {
+      const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+      Linking.openURL(fullUrl);
+    }
+  };
+
   useEffect(() => {
     fetchUserProfile();
     fetchUserPosts();
@@ -165,22 +235,163 @@ export default function UserProfileScreen({ route, navigation }) {
     );
   };
 
+  const renderContactCard = (icon, label, value, onPress, color) => {
+    if (!value) return null;
+    
+    return (
+      <TouchableOpacity
+        style={[styles.contactCard, { backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8' }]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.contactIconWrapper, { backgroundColor: color + '20' }]}>
+          {icon}
+        </View>
+        <View style={styles.contactInfo}>
+          <Text style={[styles.contactLabel, { color: isDark ? '#AAA' : '#666' }]}>
+            {label}
+          </Text>
+          <Text style={[styles.contactValue, { color: colors.text }]} numberOfLines={1}>
+            {value}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={isDark ? '#666' : '#CCC'} />
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSocialButton = (platform, iconName, color, iconType = 'Feather') => {
+    const url = userContacts.socialMedia[platform];
+    if (!url) return null;
+
+    const IconComponent = iconType === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
+
+    return (
+      <TouchableOpacity
+        key={platform}
+        style={[styles.socialButton, { backgroundColor: color + '15' }]}
+        onPress={() => handleSocialMedia(platform)}
+        activeOpacity={0.7}
+      >
+        <IconComponent name={iconName} size={28} color={color} />
+        <Text style={[styles.socialButtonText, { color: colors.text }]}>
+          {platform.charAt(0).toUpperCase() + platform.slice(1)}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Publicaciones':
         return renderGrid();
-      case 'Videos':
+      
+      case 'Contactos':
+        const hasContacts = userContacts.whatsapp || userContacts.email || 
+                           userContacts.phone || userContacts.website || 
+                           userContacts.location ||
+                           Object.values(userContacts.socialMedia).some(v => v !== null);
+
+        if (!hasContacts) {
+          return (
+            <View style={styles.emptyContactsContainer}>
+              <Ionicons 
+                name="contacts-outline" 
+                size={80} 
+                color={isDark ? '#444' : '#DDD'} 
+              />
+              <Text style={[styles.emptyContactsTitle, { color: isDark ? '#888' : '#999' }]}>
+                Sin información de contacto
+              </Text>
+              <Text style={[styles.emptyContactsSubtitle, { color: isDark ? '#666' : '#AAA' }]}>
+                Este usuario aún no ha compartido sus datos de contacto
+              </Text>
+            </View>
+          );
+        }
+
         return (
-          <Text style={[styles.emptyText, { color: isDark ? '#666' : '#AAA' }]}>
-            Sin videos aún
-          </Text>
+          <View style={styles.contactsContainer}>
+            {/* Información de contacto directa */}
+            {(userContacts.phone || userContacts.email || userContacts.whatsapp || userContacts.website || userContacts.location) && (
+              <View style={styles.contactsSection}>
+                <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
+                  Información de contacto
+                </Text>
+                
+                {renderContactCard(
+                  <Feather name="phone" size={22} color="#4CAF50" />,
+                  'Teléfono',
+                  userContacts.phone,
+                  handlePhone,
+                  '#4CAF50'
+                )}
+                
+                {renderContactCard(
+                  <Feather name="mail" size={22} color="#2196F3" />,
+                  'Email',
+                  userContacts.email,
+                  handleEmail,
+                  '#2196F3'
+                )}
+                
+                {renderContactCard(
+                  <MaterialCommunityIcons name="whatsapp" size={22} color="#25D366" />,
+                  'WhatsApp',
+                  userContacts.whatsapp,
+                  handleWhatsApp,
+                  '#25D366'
+                )}
+                
+                {renderContactCard(
+                  <Feather name="globe" size={22} color="#FF9800" />,
+                  'Sitio web',
+                  userContacts.website,
+                  handleWebsite,
+                  '#FF9800'
+                )}
+                
+                {renderContactCard(
+                  <Feather name="map-pin" size={22} color="#E91E63" />,
+                  'Ubicación',
+                  userContacts.location,
+                  () => {
+                    if (userContacts.location) {
+                      const encodedLocation = encodeURIComponent(userContacts.location);
+                      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedLocation}`);
+                    }
+                  },
+                  '#E91E63'
+                )}
+              </View>
+            )}
+
+            {/* Redes sociales */}
+            {Object.values(userContacts.socialMedia).some(v => v !== null) && (
+              <View style={styles.contactsSection}>
+                <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
+                  Redes sociales
+                </Text>
+                
+                <View style={styles.socialGrid}>
+                  {renderSocialButton('instagram', 'instagram', '#E1306C')}
+                  {renderSocialButton('facebook', 'facebook', '#1877F2')}
+                  {renderSocialButton('twitter', 'twitter', '#1DA1F2')}
+                  {renderSocialButton('tiktok', 'music-note', '#000000', 'MaterialCommunity')}
+                  {renderSocialButton('linkedin', 'linkedin', '#0A66C2')}
+                </View>
+              </View>
+            )}
+          </View>
         );
+      
       case 'Etiquetas':
         return (
           <Text style={[styles.emptyText, { color: isDark ? '#666' : '#AAA' }]}>
             Sin etiquetas aún
           </Text>
         );
+      
       default:
         return null;
     }
@@ -188,7 +399,6 @@ export default function UserProfileScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-
       {/* HEADER FIJO */}
       <View style={[
         styles.header,
@@ -203,7 +413,7 @@ export default function UserProfileScreen({ route, navigation }) {
         </TouchableOpacity>
 
         <Text style={[styles.headerUsername, { color: colors.text }]} numberOfLines={1}>
-          @{username}
+          {profileName}
         </Text>
 
         <View style={styles.headerActions}>
@@ -222,49 +432,55 @@ export default function UserProfileScreen({ route, navigation }) {
       >
         {/* SECCIÓN PERFIL */}
         <View style={styles.profileSection}>
-
           {/* Fila: avatar + stats */}
           <View style={styles.avatarStatsRow}>
-            <View style={[styles.avatarWrapper, { borderColor: '#9DBD3F' }]}>
+            <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
               {profilePicture ? (
                 <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
               ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
                   <Ionicons
                     name="person-circle-outline"
                     size={90}
-                    color={isDark ? '#888' : '#999'}
+                    color="#94BA46"
+                    style={{
+                      marginLeft: -3,
+                      marginTop: -4,
+                    }}
                   />
                 </View>
               )}
             </View>
 
             <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
-                <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Publicaciones</Text>
+              <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]}>@{username}</Text>
+              <View style={styles.statsNumbers}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
+                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Publicaciones</Text>
+                </View>
+                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                <TouchableOpacity style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.text }]}>{friendsCount}</Text>
+                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidos</Text>
+                </TouchableOpacity>
+                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                <TouchableOpacity style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
+                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidores</Text>
+                </TouchableOpacity>
               </View>
-              <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-              <TouchableOpacity style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{friendsCount}</Text>
-                <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Amigos</Text>
-              </TouchableOpacity>
-              <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-              <TouchableOpacity style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
-                <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidores</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Nombre */}
-          <Text style={[styles.profileName, { color: colors.text }]}>{profileName}</Text>
-
-          {/* Bio */}
-          {presentation ? (
-            <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
-              {presentation}
-            </Text>
+          {/* Nombre y Bio (solo si hay presentación) */}
+          {presentation && presentation.trim().length > 0 ? (
+            <>
+              <Text style={[styles.profileName, { color: colors.text }]}>{profileName}</Text>
+              <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
+                {presentation}
+              </Text>
+            </>
           ) : null}
 
           {/* Botones acción */}
@@ -331,7 +547,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
   // HEADER
   header: {
     flexDirection: 'row',
@@ -346,15 +561,14 @@ const styles = StyleSheet.create({
   },
   headerUsername: {
     flex: 1,
-    textAlign: 'center',
+    marginLeft: 18,
     fontSize: 16,
-    fontFamily: 'Nunito-Bold',
+    fontFamily: 'Nunito-BoldItalic',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   // PERFIL
   profileSection: {
     paddingHorizontal: 16,
@@ -372,7 +586,7 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     borderWidth: 3,
     overflow: 'hidden',
-    marginRight: 20,
+    marginRight: 1,
   },
   avatarFallback: {
     width: '100%',
@@ -386,9 +600,15 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  statsNumbers: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 4,
   },
   statDivider: {
     width: 1,
@@ -408,7 +628,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
     textAlign: 'center',
   },
-
+  userHandle: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 2,
+    marginLeft: 10,
+  },
   // NOMBRE Y BIO
   profileName: {
     fontSize: 17,
@@ -421,7 +646,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
-
   // BOTONES
   buttonsRow: {
     flexDirection: 'row',
@@ -468,7 +692,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   // TABS
   tabsContainer: {
     flexDirection: 'row',
@@ -486,7 +709,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Nunito-Bold',
   },
-
   // CONTENIDO
   tabContent: {
     paddingHorizontal: 5,
@@ -522,6 +744,84 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontFamily: 'Nunito-Bold',
+  },
+  // CONTACTOS MEJORADOS
+  contactsContainer: {
+    paddingHorizontal: 12,
+    paddingTop: 16,
+  },
+  contactsSection: {
+    marginBottom: 24,
+  },
+  contactsSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  contactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  contactIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 12,
+    fontFamily: 'Nunito-Regular',
+    marginBottom: 2,
+  },
+  contactValue: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+  },
+  socialGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  socialButton: {
+    width: (screenWidth - 60) / 3,
+    aspectRatio: 1,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  socialButtonText: {
+    fontSize: 12,
+    fontFamily: 'Nunito-Bold',
+    marginTop: 8,
+  },
+  emptyContactsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyContactsTitle: {
+    fontSize: 18,
+    fontFamily: 'Nunito-Bold',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyContactsSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   emptyText: {
     textAlign: 'center',
