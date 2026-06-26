@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
+import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -79,9 +80,7 @@ export default function ProfileScreen({ navigation }) {
           ? doc.data().imagenes[0]
           : 'https://picsum.photos/seed/placeholder/400/300',
         price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: doc.data().vistas >= 1000
-          ? `${(doc.data().vistas / 1000).toFixed(1)}k`
-          : (doc.data().vistas || 0).toString(),
+        views: formatViews(doc.data().vistas || 0),
         totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
         description: doc.data().descripcion || '',
         author: doc.data().autor,

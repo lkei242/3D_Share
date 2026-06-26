@@ -8,14 +8,19 @@ import {
   Image,
   FlatList,
   ActivityIndicator,
+  Text,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
 import { db } from './config/firebase';
+import { formatViews } from './config/formatViews';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const isDark = colors.text === '#FFFFFF';
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -49,7 +54,7 @@ export default function SearchScreen({ navigation }) {
         title: doc.data().titulo || '',
         description: doc.data().descripcion || '',
         price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: doc.data().vistas || 0,
+        views: formatViews(doc.data().vistas || 0),
         author: doc.data().autor
       }));
 
@@ -85,7 +90,7 @@ export default function SearchScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => navigation.navigate('PostDetail', { post: item })}
+      onPress={() => navigation.navigate('PostDetail', { post: item, posts: filteredPosts })}
     >
       <Image
         source={{ uri: item.image }}
@@ -95,27 +100,27 @@ export default function SearchScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1A1A1A' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <Image
           source={require('../../assets/logo.png')}
           style={styles.logo}
         />
 
-        <View style={styles.searchBar}>
+        <View style={[styles.searchBar, { backgroundColor: isDark ? '#273500' : '#E8E8E8' }]}>
           <Ionicons
             name="search"
             size={20}
-            color="#FFF"
+            color={isDark ? '#FFF' : '#666'}
           />
 
           <TextInput
             placeholder="Buscar por título..."
-            placeholderTextColor="#AAA"
-            style={styles.input}
+            placeholderTextColor={isDark ? '#AAA' : '#888'}
+            style={[styles.input, { color: colors.text }]}
             value={searchQuery}
-            onChangeText={setSearchQuery} // Actualiza la búsqueda reactivamente
+            onChangeText={setSearchQuery}
           />
         </View>
       </View>
@@ -146,14 +151,12 @@ export default function SearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 10,
-    backgroundColor: '#1A1A1A',
   },
   logo: {
     width: 35,
@@ -164,14 +167,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#273500',
     borderRadius: 20,
     paddingHorizontal: 12,
     height: 40,
   },
   input: {
     flex: 1,
-    color: '#FFF',
     marginLeft: 8,
     paddingVertical: 0,
   },
