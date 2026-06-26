@@ -8,12 +8,11 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from './config/firebase';
 import { API_URL } from './config/api';
@@ -121,26 +120,22 @@ export default function PublishScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <View style={{ paddingTop: insets.top }}>
-        {/* Header adaptable */}
-        <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Crear Publicación</Text>
-          <View style={{ width: 24 }} />
-        </View>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Crear Publicación</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        extraScrollHeight={170}
+        enableOnAndroid={true}
       >
         <TouchableOpacity 
           style={[
@@ -234,8 +229,8 @@ export default function PublishScreen({ navigation }) {
             <Text style={styles.publishButtonText}>Publicar</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
