@@ -1,5 +1,5 @@
 // src/screens/PostDetailScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -25,6 +25,7 @@ import {
     getDoc,
     setDoc,
     deleteDoc,
+    updateDoc,
     collection,
     query,
     where,
@@ -32,7 +33,10 @@ import {
     getDocs,
     addDoc,
     serverTimestamp,
+    increment,
+    onSnapshot,
 } from 'firebase/firestore';
+import { formatViews } from '../config/formatViews';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -44,6 +48,22 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark,
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [postViews, setPostViews] = useState(post.views || 0);
+
+    // Escuchar cambios en tiempo real del post
+    useEffect(() => {
+        if (!post?.id) return;
+        const postRef = doc(db, 'posts', post.id);
+
+        const unsubscribe = onSnapshot(postRef, (snapshot) => {
+            if (snapshot.exists()) {
+                setPostViews(snapshot.data().vistas || 0);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [post?.id]);
+
     // Cargar estado inicial (like, saved, comments)
 
 
@@ -112,13 +132,11 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark,
             </View>
 
             {/* CONTENIDO SCROLLEABLE INTERNO */}
-            <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 20 }}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled={true}
-                bounces={false}
-                keyboardShouldPersistTaps="handled"
+            <View
+                style={{
+                    flex: 1,
+                    height: pageHeight - 70, // Altura fija restando header de usuario
+                }}
             >
                 {/* POST IMAGE */}
                 <View style={styles.imageWrapper}>
@@ -147,7 +165,7 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark,
                         </TouchableOpacity>
                         <View style={styles.viewsContainer}>
                             <Feather name="bar-chart-2" size={16} color={isDark ? '#888' : '#666'} />
-                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{post.views}</Text>
+                            <Text style={[styles.viewsText, { color: isDark ? '#888' : '#666' }]}>{formatViews(postViews)}</Text>
                         </View>
                     </View>
                     <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
@@ -163,7 +181,7 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, colors, isDark,
                     </Text>
                 </View>
 
-            </ScrollView>
+            </View>
         </View>
     );
 }
@@ -197,10 +215,78 @@ export default function PostDetailScreen({ route, navigation }) {
     */
     if (!post) return null;
 
-    const getItemLayout = (data, index) => ({
-        length: PAGE_HEIGHT,
-        offset: PAGE_HEIGHT * index,
-        index,
+    const flatListRef = useRef(null);
+
+    // Hacer scroll al post seleccionado después del montaje
+    useEffect(() => {
+        if (flatListRef.current && validIndex > 0) {
+            // Pequeño delay para asegurar que el FlatList esté renderizado
+            const timer = setTimeout(() => {
+                flatListRef.current.scrollToIndex({
+                    index: validIndex,
+                    animated: false,
+                });
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [validIndex]);
+
+    // Manejar fallo de scroll a índice
+    const onScrollToIndexFailed = useCallback((info) => {
+        // Si falla, hacer scroll al índice más cercano
+        if (flatListRef.current) {
+            flatListRef.current.scrollToIndex({
+                index: info.index,
+                animated: false,
+            });
+        }
+    }, []);
+
+    // Ref para trackear posts ya vistos en esta sesión
+    const viewedPosts = useRef(new Set());
+
+    // Función para incrementar vista
+    const incrementView = async (postId) => {
+        if (!currentUser || !postId || viewedPosts.current.has(postId)) return;
+        viewedPosts.current.add(postId);
+
+        const viewDocId = `${currentUser.uid}_${postId}`;
+        const viewRef = doc(db, 'views', viewDocId);
+        const postRef = doc(db, 'posts', postId);
+
+        try {
+            const snap = await getDoc(viewRef);
+            if (!snap.exists()) {
+                await setDoc(viewRef, {
+                    userId: currentUser.uid,
+                    postId: postId,
+                    createdAt: new Date(),
+                });
+                await updateDoc(postRef, { vistas: increment(1) });
+            }
+        } catch (error) {
+            console.log('Error incrementando vista:', error);
+        }
+    };
+
+    // Callback cuando cambia la visibilidad de items
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        viewableItems.forEach((item) => {
+            if (item.isViewable && item.item?.id) {
+                incrementView(item.item.id);
+            }
+        });
+    });
+
+    const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 });
+
+    // onScroll como respaldo: detecta el post visible según la posición del scroll
+    const onScroll = useRef((e) => {
+        const offsetY = e.nativeEvent.contentOffset.y;
+        const index = Math.round(offsetY / PAGE_HEIGHT);
+        if (posts[index]?.id) {
+            incrementView(posts[index].id);
+        }
     });
 
     return (
@@ -218,6 +304,7 @@ export default function PostDetailScreen({ route, navigation }) {
                 </View>
 
                 <FlatList
+                    ref={flatListRef}
                     style={{ flex: 1 }}
                     contentContainerStyle={{
                         paddingBottom: 20,
@@ -246,15 +333,17 @@ export default function PostDetailScreen({ route, navigation }) {
                             colors={colors}
                             isDark={isDark}
                             pageHeight={PAGE_HEIGHT}
-                            //
                         />
                     )}
+                    onViewableItemsChanged={onViewableItemsChanged.current}
+                    viewabilityConfig={viewabilityConfig.current}
+                    onScroll={onScroll.current}
+                    scrollEventThrottle={16}
                     horizontal={false}
                     showsVerticalScrollIndicator={false}
                     removeClippedSubviews={false}
                     windowSize={5}
-                    initialScrollIndex={validIndex}
-                    getItemLayout={getItemLayout}
+                    onScrollToIndexFailed={onScrollToIndexFailed}
                     keyboardShouldPersistTaps="handled"
                 />
             </View>
@@ -310,7 +399,7 @@ const styles = StyleSheet.create({
     userHandleText: { fontSize: 13 },
     imageWrapper: {
         width: screenWidth,
-        height: screenHeight * 0.45,
+        flex: 1,
         position: 'relative',
     },
     postImage: { width: '100%', height: '100%' },
