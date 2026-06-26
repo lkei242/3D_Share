@@ -38,8 +38,7 @@
         {
           "microphonePermission": "Permite que $(PRODUCT_NAME) acceda al micrófono para grabar audio."
         }
-      ],
-      "react-native-nitro-sound"
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"
