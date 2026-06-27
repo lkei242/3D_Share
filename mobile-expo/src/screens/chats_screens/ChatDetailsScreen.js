@@ -37,6 +37,9 @@ import {
   orderBy, 
   serverTimestamp 
 } from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
 
 const GREEN_ACCENT = '#546F1C';
 
@@ -722,7 +725,12 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   // Enviar o editar mensaje en Firestore
   const handleSend = async () => {
-    if (inputText.trim() === '') return;
+    const textToSend = inputText.trim();
+    if (textToSend === '') return;
+
+    // 1. Limpiar input INMEDIATAMENTE para feedback instantáneo
+    setInputText('');
+    setEditingMessageId(null); // También resetear edición si aplica
 
     try {
       const user = auth.currentUser;
@@ -731,38 +739,173 @@ export default function ChatDetailScreen({ route, navigation }) {
       if (editingMessageId) {
         // Guardar edición
         const msgRef = doc(db, `chats/${chatId}/messages/${editingMessageId}`);
-        await updateDoc(msgRef, { text: inputText.trim() });
-        setEditingMessageId(null);
+        await updateDoc(msgRef, { text: textToSend });
       } else {
-        // Enviar nuevo
+        // Enviar nuevo - operaciones en paralelo para máxima velocidad
         const messagesRef = collection(db, `chats/${chatId}/messages`);
-        await addDoc(messagesRef, {
-          text: inputText.trim(),
-          sender: user.uid,
-          createdAt: serverTimestamp(),
-          read: false,
-          isFavorite: false
-        });
-
-        // Actualizar último mensaje en la cabecera del chat
         const chatRef = doc(db, `chats/${chatId}`);
-        await updateDoc(chatRef, {
-          lastMessage: inputText.trim(),
-          lastMessageTime: serverTimestamp(),
-          lastSender: user.uid
-        });
+
+        // Ejecutar ambas escrituras en paralelo
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: textToSend,
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false
+          }),
+          updateDoc(chatRef, {
+            lastMessage: textToSend,
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid
+          })
+        ]);
       }
     } catch (error) {
       console.log("Error al enviar mensaje:", error);
+      // Opcional: restaurar el texto si falla
+      // setInputText(textToSend);
     }
-    
-    setInputText('');
+  };
+
+  const handleOpenCamera = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      await handleUploadAndSendMedia(result.assets[0]);
+    }
+  };
+
+  const handleOpenGallery = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la galería.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+      allowsMultipleSelection: false,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      await handleUploadAndSendMedia(result.assets[0]);
+    }
+  };
+
+  const handleOpenFiles = async () => {
+    setShowAttachmentMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const file = result.assets[0];
+      await handleUploadAndSendMedia({
+        uri: file.uri,
+        type: file.mimeType || 'application/octet-stream',
+        fileName: file.name,
+      });
+    }
+  };
+
+  const handleSendLocation = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la ubicación.');
+      return;
+    }
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const { latitude, longitude } = loc.coords;
+    const user = auth.currentUser;
+    const token = await user.getIdToken();
+    const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+
+    const messagesRef = collection(db, `chats/${chatId}/messages`);
+    const chatRef = doc(db, `chats/${chatId}`);
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: `📍 Ubicación: ${mapsUrl}`,
+        type: 'text',
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: '📍 Ubicación compartida',
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  };
+
+  // Handler genérico que sube a Cloudinary y manda el mensaje
+  const handleUploadAndSendMedia = async (asset) => {
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+      const uri = asset.uri;
+      const type = asset.type || asset.mimeType || 'image/jpeg';
+      const extension = uri.split('.').pop() || 'jpg';
+      const fileName = asset.fileName || `media_${Date.now()}.${extension}`;
+
+      const formData = new FormData();
+      formData.append('imagen', { uri, type, name: fileName });
+
+      const xhr = new XMLHttpRequest();
+      const uploadRes = await new Promise((resolve, reject) => {
+        xhr.open('POST', `${API_URL}/api/media/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.onload = () => resolve({ ok: xhr.status === 200, json: () => JSON.parse(xhr.responseText) });
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(formData);
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) {
+        Alert.alert('Error', 'No se pudo subir el archivo.');
+        return;
+      }
+
+      const isVideo = type.startsWith('video');
+      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const chatRef = doc(db, `chats/${chatId}`);
+      await Promise.all([
+        addDoc(messagesRef, {
+          text: isVideo ? 'Video' : 'Imagen',
+          type: isVideo ? 'video' : 'image',
+          mediaUrl: uploadData.url,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+        }),
+        updateDoc(chatRef, {
+          lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+        }),
+      ]);
+    } catch (err) {
+      console.log('Error subiendo media:', err);
+      Alert.alert('Error', 'No se pudo enviar el archivo.');
+    }
   };
 
   const handleReply = () => {
     if (!activeMsg) return;
     Alert.alert('Responder', `Respondiendo a: "${activeMsg.text}"`);
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const handleFavorite = async () => {
@@ -832,14 +975,14 @@ export default function ChatDetailScreen({ route, navigation }) {
   const handleCopy = () => {
     if (!activeMsg) return;
     Alert.alert('Copiado', 'El mensaje se ha copiado al portapapeles');
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const handleStartEdit = () => {
     if (!activeMsg || activeMsg.sender !== 'me') return;
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const renderMessageItem = React.useCallback(({ item }) => {
@@ -879,30 +1022,56 @@ export default function ChatDetailScreen({ route, navigation }) {
         {/* HEADER MULTI-SELECCIÓN O NORMAL */}
         {selectedIds.length > 0 ? (
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 8 }}>
+            {/* Flecha + contador */}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 12 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={[styles.headerName, { color: colors.text, marginLeft: 4 }]}>
-                {selectedIds.length} seleccionado{selectedIds.length > 1 ? 's' : ''}
+              <Text style={[styles.headerName, { color: colors.text, fontSize: 20 }]}>
+                {selectedIds.length}
               </Text>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {/* Acciones — varían según si el mensaje es mío o del otro */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
+                <Ionicons name="arrow-undo" size={24} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Responder</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                <Ionicons name="star-outline" size={27} color={colors.text} />
+                <Ionicons
+                  name={activeMsg?.isFavorite ? "star" : "star-outline"}
+                  size={24}
+                  color={colors.text}
+                />
                 <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
               </TouchableOpacity>
 
+              {/* Editar: solo si es 1 mensaje Y es mío */}
+              {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
+                  <Ionicons name="pencil" size={24} color={colors.text} />
+                  <Text style={[styles.toolText, { color: colors.text }]}>Editar</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
+                <Ionicons name="trash" size={24} color="#a70d0d" />
+                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight: 'bold' }]}>Eliminar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
+                <Ionicons name="copy" size={24} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
-                <Ionicons name="arrow-redo" size={27} color={colors.text} />
+                <Ionicons name="arrow-redo" size={24} color={colors.text} />
                 <Text style={[styles.toolText, { color: colors.text }]}>Reenviar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
-                <Ionicons name="trash" size={27} color="#a70d0d" />
-                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight:"bold" }]}>Eliminar</Text>
-              </TouchableOpacity>
             </View>
           </View>
         ) : (
@@ -1025,23 +1194,23 @@ export default function ChatDetailScreen({ route, navigation }) {
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Cámara', 'Abrir cámara'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenCamera}>
                 <Ionicons name="camera" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Cámara</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Galería', 'Abrir galería'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenGallery}>
                 <Ionicons name="images" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Galería</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Archivos', 'Abrir archivos'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenFiles}>
                 <Ionicons name="document-text" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Archivos</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Ubicación', 'Enviar ubicación'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleSendLocation}>
                 <Ionicons name="location" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Ubicación</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Perfil', `Ver perfil de ${chatName}`); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={() => setShowAttachmentMenu(false)}>
                 <Ionicons name="person" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Ver perfil</Text>
               </TouchableOpacity>
@@ -1124,7 +1293,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </Animated.View>
               ) : (
                 <View style={[styles.textInputWrapper, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
-                  <TouchableOpacity onPress={() => Alert.alert('Cámara', 'Cámara rápida')}>
+                  <TouchableOpacity onPress={handleOpenCamera}>
                     <Ionicons name="camera-outline" size={24} color={GREEN_ACCENT} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>
 
