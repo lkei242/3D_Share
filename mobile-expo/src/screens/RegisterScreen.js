@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { Ionicons, Feather, FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 
@@ -122,7 +122,7 @@ export default function RegisterScreen({ navigation }) {
   const validateEmailOnBlur = () => {
     const v = email.trim();
     if (!v) return showToast('El correo es obligatorio.');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return showToast('El formato del correo no es válido.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return showToast('El formato del correo no es válido. Solamente @gmail');
   };
 
   const validatePasswordOnBlur = () => {

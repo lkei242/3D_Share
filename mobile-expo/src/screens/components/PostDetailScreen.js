@@ -44,7 +44,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // COMPONENTE: PostItem (un post individual, autónomo)
 // ============================================================
 
-const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments }) {
+const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress }) {
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -118,13 +118,13 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             }}
         >
             {/* USER INFO */}
-            <View style={styles.userInfoRow}>
+            <TouchableOpacity style={styles.userInfoRow} onPress={onAuthorPress} activeOpacity={0.7}>
                 <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
                     <Image
                         source={
                             authorProfilePicture
                                 ? { uri: authorProfilePicture }
-                                : require('../../../assets/profile_picture.jpg')  // fallback genérico
+                                : require('../../../assets/profile_picture.jpg')
                         }
                         style={styles.avatarImage}
                     />
@@ -133,7 +133,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                     <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
                     <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
                 </View>
-            </View>
+            </TouchableOpacity>
 
             {/* CONTENIDO SCROLLEABLE INTERNO */}
             <View
@@ -324,6 +324,18 @@ export default function PostDetailScreen({ route, navigation }) {
                             authorProfilePicture={item.authorProfilePicture || ''}
                             onOpenComments={(post) => {
                                 setCommentsPost(post);
+                            }}
+                            onAuthorPress={() => {
+                                if (currentUser && item.author === currentUser.uid) {
+                                    navigation.navigate('Profile');
+                                } else {
+                                    navigation.navigate('UserProfile', {
+                                        userId: item.author,
+                                        profileName: item.authorProfileName || 'Usuario',
+                                        username: item.authorUsername || 'usuario',
+                                        profilePicture: item.authorProfilePicture || '',
+                                    });
+                                }
                             }}
                             colors={colors}
                             isDark={isDark}

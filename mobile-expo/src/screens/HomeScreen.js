@@ -215,7 +215,7 @@ export default function HomeScreen({ navigation }) {
           style={styles.headerLogo}
         />
 
-        <TouchableOpacity style={styles.headerButton}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('SavedScreen')}>
           <Text style={[styles.headerButtonText, { color: colors.text }]}>Guardado</Text>
         </TouchableOpacity>
       </View>

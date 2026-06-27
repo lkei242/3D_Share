@@ -5,18 +5,24 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { auth, db } from '../../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { API_URL } from '../../config/api';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export default function AdvancedInfoScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
+  const [profilePicture, setProfilePicture] = useState('');
+  const [uploading, setUploading] = useState(false);
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Cargar datos actuales desde Firestore cada vez que la pantalla recibe foco
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
@@ -27,6 +33,7 @@ export default function AdvancedInfoScreen({ navigation }) {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setPresentation(data.presentation || '');
+            setProfilePicture(data.profilePicture || '');
           }
         } catch (error) {
           console.log('Error fetching advanced info:', error);
@@ -35,6 +42,77 @@ export default function AdvancedInfoScreen({ navigation }) {
       fetchData();
     }, [])
   );
+
+  const pickAndUploadImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert('Se requieren permisos de galería para seleccionar una imagen.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(asset.mimeType)) {
+      alert('Solo se permiten imágenes JPG, PNG o WebP.');
+      return;
+    }
+
+    const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+    if (fileInfo.exists && fileInfo.size > 10 * 1024 * 1024) {
+      alert('La imagen no puede superar los 10MB.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+
+      const formData = new FormData();
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () { resolve(xhr.response); };
+        xhr.onerror = function () { reject(new TypeError('Error al leer el archivo.')); };
+        xhr.responseType = 'blob';
+        xhr.open('GET', asset.uri, true);
+        xhr.send(null);
+      });
+      const filename = asset.uri.split('/').pop();
+      formData.append('imagen', blob, filename);
+
+      const res = await fetch(`${API_URL}/api/media/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const uploadData = await res.json();
+
+      if (res.ok) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          profilePicture: uploadData.url,
+        });
+        setProfilePicture(uploadData.url);
+      } else {
+        alert('Error al subir la imagen.');
+      }
+    } catch (error) {
+      console.log('Error subiendo imagen:', error);
+      alert('Error al subir la imagen.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <View
@@ -74,23 +152,30 @@ export default function AdvancedInfoScreen({ navigation }) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.avatarContainer}>
-          <View
-            style={[
-              styles.avatar,
-              {
-                backgroundColor: isDark
-                  ? '#1E1E1E'
-                  : '#F5F5F5',
-              },
-            ]}
-          >
-            <Ionicons
-              name="person"
-              size={40}
-              color={isDark ? '#999' : '#666'}
+        <TouchableOpacity style={styles.avatarContainer} onPress={pickAndUploadImage} disabled={uploading}>
+          {uploading ? (
+            <View style={[styles.avatar, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5' }]}>
+              <ActivityIndicator size="small" color="#546F1C" />
+            </View>
+          ) : profilePicture ? (
+            <Image
+              source={{ uri: profilePicture }}
+              style={[styles.avatar, { borderColor: isDark ? '#333' : '#DCDCDC' }]}
             />
-          </View>
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                styles.avatarFallback,
+                {
+                  backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5',
+                  borderColor: isDark ? '#333' : '#DCDCDC',
+                },
+              ]}
+            >
+              <Ionicons name="person-circle-outline" size={84} color="#94BA46" />
+            </View>
+          )}
 
           <Text
             style={[
@@ -98,7 +183,7 @@ export default function AdvancedInfoScreen({ navigation }) {
               { color: colors.text }
             ]}
           >
-            Foto de perfil
+            {uploading ? 'Subiendo...' : 'Cambiar foto de perfil'}
           </Text>
         </TouchableOpacity>
 
@@ -181,6 +266,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
+    overflow: 'hidden',
+  },
+  avatarFallback: {
+    backgroundColor: 'transparent',
   },
 
   avatarText: {

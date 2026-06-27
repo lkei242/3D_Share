@@ -1,13 +1,35 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { auth } from '../config/firebase';
+import { Ionicons, AntDesign } from '@expo/vector-icons';
+import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function SettingsScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
+  const [userData, setUserData] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const user = auth.currentUser;
+      if (!user) { setLoading(false); return; }
+      try {
+        const docSnap = await getDoc(doc(db, 'users', user.uid));
+        if (docSnap.exists()) {
+          setUserData(docSnap.data());
+        }
+      } catch (error) {
+        console.log('Error cargando datos del usuario:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
   
   const handleLogout = async () => {
     try {
@@ -31,13 +53,28 @@ export default function SettingsScreen({ navigation }) {
         <Text style={[styles.title, { color: colors.textnegrita }]}>Configuración</Text>
       </View>
 
+      {loading ? (
+        <ActivityIndicator size="large" color="#546F1C" style={{ flex: 1, justifyContent: 'center' }} />
+      ) : (
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.profileSection}>
-          <Image
-            source={require('../../../assets/profile_picture.jpg')}
-            style={[styles.avatar, { borderColor: colors.avatarborder, backgroundColor: colors.card }]}
-          />
-          <Text style={[styles.username, { color: colors.textnegrita }]}>Nombre</Text>
+          <TouchableOpacity onPress={() => setModalVisible(true)}>
+            {userData?.profilePicture ? (
+              <Image
+                source={{ uri: userData.profilePicture }}
+                style={[styles.avatar, { borderColor: colors.avatarborder, backgroundColor: colors.card }]}
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback, { borderColor: colors.avatarborder, backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                <Ionicons name="person-circle-outline" size={84} color="#94BA46" />
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('EditProfileInfoScreen')}>
+            <Text style={[styles.username, { color: colors.textnegrita }]}>
+              {userData?.profileName || 'Usuario'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Las opciones ahora usan colors.border de React Navigation de manera limpia */}
@@ -88,6 +125,35 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
+      )}
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
+            {userData?.profilePicture ? (
+              <Image
+                source={{ uri: userData.profilePicture }}
+                style={styles.fullImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.fullImageFallback}>
+                <Ionicons name="person-circle-outline" size={200} color="#94BA46" />
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <AntDesign name="close" size={24} color="#FFF" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -119,8 +185,13 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    borderWidth: 2, // Añadido para que se note el avatarborder
+    borderWidth: 2,
     marginBottom: 10,
+    overflow: 'hidden',
+  },
+  avatarFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   username: {
     fontSize: 18,
@@ -146,5 +217,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImage: {
+    width: '90%',
+    height: '80%',
+    borderRadius: 10,
+  },
+  fullImageFallback: {
+    width: '90%',
+    height: '80%',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
   },
 });
