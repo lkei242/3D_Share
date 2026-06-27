@@ -722,7 +722,12 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   // Enviar o editar mensaje en Firestore
   const handleSend = async () => {
-    if (inputText.trim() === '') return;
+    const textToSend = inputText.trim();
+    if (textToSend === '') return;
+
+    // 1. Limpiar input INMEDIATAMENTE para feedback instantáneo
+    setInputText('');
+    setEditingMessageId(null); // También resetear edición si aplica
 
     try {
       const user = auth.currentUser;
@@ -731,38 +736,39 @@ export default function ChatDetailScreen({ route, navigation }) {
       if (editingMessageId) {
         // Guardar edición
         const msgRef = doc(db, `chats/${chatId}/messages/${editingMessageId}`);
-        await updateDoc(msgRef, { text: inputText.trim() });
-        setEditingMessageId(null);
+        await updateDoc(msgRef, { text: textToSend });
       } else {
-        // Enviar nuevo
+        // Enviar nuevo - operaciones en paralelo para máxima velocidad
         const messagesRef = collection(db, `chats/${chatId}/messages`);
-        await addDoc(messagesRef, {
-          text: inputText.trim(),
-          sender: user.uid,
-          createdAt: serverTimestamp(),
-          read: false,
-          isFavorite: false
-        });
-
-        // Actualizar último mensaje en la cabecera del chat
         const chatRef = doc(db, `chats/${chatId}`);
-        await updateDoc(chatRef, {
-          lastMessage: inputText.trim(),
-          lastMessageTime: serverTimestamp(),
-          lastSender: user.uid
-        });
+
+        // Ejecutar ambas escrituras en paralelo
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: textToSend,
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false
+          }),
+          updateDoc(chatRef, {
+            lastMessage: textToSend,
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid
+          })
+        ]);
       }
     } catch (error) {
       console.log("Error al enviar mensaje:", error);
+      // Opcional: restaurar el texto si falla
+      // setInputText(textToSend);
     }
-    
-    setInputText('');
   };
 
   const handleReply = () => {
     if (!activeMsg) return;
     Alert.alert('Responder', `Respondiendo a: "${activeMsg.text}"`);
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const handleFavorite = async () => {
@@ -832,14 +838,14 @@ export default function ChatDetailScreen({ route, navigation }) {
   const handleCopy = () => {
     if (!activeMsg) return;
     Alert.alert('Copiado', 'El mensaje se ha copiado al portapapeles');
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const handleStartEdit = () => {
     if (!activeMsg || activeMsg.sender !== 'me') return;
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
-    setSelectedMessageId(null);
+    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
   const renderMessageItem = React.useCallback(({ item }) => {
@@ -879,30 +885,56 @@ export default function ChatDetailScreen({ route, navigation }) {
         {/* HEADER MULTI-SELECCIÓN O NORMAL */}
         {selectedIds.length > 0 ? (
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 8 }}>
+            {/* Flecha + contador */}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 12 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={[styles.headerName, { color: colors.text, marginLeft: 4 }]}>
-                {selectedIds.length} seleccionado{selectedIds.length > 1 ? 's' : ''}
+              <Text style={[styles.headerName, { color: colors.text, fontSize: 20 }]}>
+                {selectedIds.length}
               </Text>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {/* Acciones — varían según si el mensaje es mío o del otro */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
+                <Ionicons name="arrow-undo" size={24} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Responder</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                <Ionicons name="star-outline" size={27} color={colors.text} />
+                <Ionicons
+                  name={activeMsg?.isFavorite ? "star" : "star-outline"}
+                  size={24}
+                  color={colors.text}
+                />
                 <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
               </TouchableOpacity>
 
+              {/* Editar: solo si es 1 mensaje Y es mío */}
+              {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
+                  <Ionicons name="pencil" size={24} color={colors.text} />
+                  <Text style={[styles.toolText, { color: colors.text }]}>Editar</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
+                <Ionicons name="trash" size={24} color="#a70d0d" />
+                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight: 'bold' }]}>Eliminar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
+                <Ionicons name="copy" size={24} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
-                <Ionicons name="arrow-redo" size={27} color={colors.text} />
+                <Ionicons name="arrow-redo" size={24} color={colors.text} />
                 <Text style={[styles.toolText, { color: colors.text }]}>Reenviar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
-                <Ionicons name="trash" size={27} color="#a70d0d" />
-                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight:"bold" }]}>Eliminar</Text>
-              </TouchableOpacity>
             </View>
           </View>
         ) : (
