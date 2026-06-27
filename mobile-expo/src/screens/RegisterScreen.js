@@ -1,10 +1,10 @@
 // src/screens/RegisterScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
 import { API_URL } from './config/api';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import {
   View,
   Text,
@@ -17,9 +17,11 @@ import {
   Platform,
   Keyboard,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Ionicons, Feather, FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 export default function RegisterScreen({ navigation }) {
   const { colors } = useTheme();
@@ -43,6 +45,15 @@ export default function RegisterScreen({ navigation }) {
   // Control de UI
   const [loading, setLoading] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
+  const [errors, setErrors] = useState({});
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
+  const timeoutRef = useRef(null);
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('error');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
 
   useEffect(() => {
     const showListener = Keyboard.addListener('keyboardDidShow', () => {
@@ -56,6 +67,51 @@ export default function RegisterScreen({ navigation }) {
       hideListener.remove();
     };
   }, []);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(''));
+    }, 3000);
+  };
+
+  const sanitizeInput = (text) => {
+    return text
+      .replace(/</g, '')
+      .replace(/>/g, '')
+      .replace(/&/g, '')
+      .replace(/"/g, '')
+      .replace(/'/g, '');
+  };
+  const checkUsernameAvailability = async (usernameValue) => {
+    if (!usernameValue || usernameValue.length < 3) {
+      setUsernameAvailable(null);
+      return;
+    }
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('username', '==', usernameValue.toLowerCase().trim())
+      );
+      const snapshot = await getDocs(q);
+      setUsernameAvailable(snapshot.empty);
+    } catch (error) {
+      console.log('Error verificando username:', error);
+      setUsernameAvailable(null);
+    }
+  };
 
   // Seleccionar la foto de perfil usando el carrete del dispositivo
   const pickProfileImage = async () => {
@@ -73,25 +129,123 @@ export default function RegisterScreen({ navigation }) {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(asset.mimeType)) {
+        showToast('Solo se permiten imágenes JPG, PNG o WebP.');
+        return;
+      }
+      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      if (fileInfo.exists && fileInfo.size > 10 * 1024 * 1024) {
+        showToast('La imagen no puede superar los 10MB.');
+        return;
+      }
+      setImage(asset.uri);
     }
   };
 
   // Validaciones y avance al Paso 2
   const handleContinue = () => {
-    if (!profileName.trim() || !username.trim() || !email.trim() || !password.trim() || !birthDate.trim()) {
-      alert('Por favor, completa todos los campos obligatorios.');
-      return;
+    const newErrors = {};
+
+    // ProfileName
+    const cleanProfileName = profileName.trim();
+    if (!cleanProfileName) {
+      newErrors.profileName = 'El nombre de perfil es obligatorio.';
+    } else if (cleanProfileName.length > 50) {
+      newErrors.profileName = 'Máximo 50 caracteres.';
+    } else if (/^[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/.test(cleanProfileName)) {
+      newErrors.profileName = 'No puede empezar con números o símbolos.';
+    } else if (/[^\wáéíóúÁÉÍÓÚñÑ\s.-]/.test(cleanProfileName)) {
+      newErrors.profileName = 'Caracteres no permitidos.';
     }
-    if (password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres.');
-      return;
+
+    // Username
+    const cleanUsername = username.trim();
+    if (!cleanUsername) {
+      newErrors.username = 'El nombre de usuario es obligatorio.';
+    } else if (cleanUsername.length < 3) {
+      newErrors.username = 'Mínimo 3 caracteres.';
+    } else if (cleanUsername.length > 20) {
+      newErrors.username = 'Máximo 20 caracteres.';
+    } else if (!/^[a-zA-Z]/.test(cleanUsername)) {
+      newErrors.username = 'Debe empezar con una letra.';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      newErrors.username = 'Solo letras, números y guion bajo.';
+    } else if (usernameAvailable === false) {
+      newErrors.username = 'Este usuario ya está en uso.';
     }
-    setStep(2);
+
+    // Email
+    const cleanEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail) {
+      newErrors.email = 'El correo es obligatorio.';
+    } else if (cleanEmail.length > 100) {
+      newErrors.email = 'Máximo 100 caracteres.';
+    } else if (!emailRegex.test(cleanEmail)) {
+      newErrors.email = 'Formato de correo no válido.';
+    }
+
+    // Password
+    if (!password) {
+      newErrors.password = 'La contraseña es obligatoria.';
+    } else if (password.length < 6) {
+      newErrors.password = 'Mínimo 6 caracteres.';
+    } else if (password.length > 64) {
+      newErrors.password = 'Máximo 64 caracteres.';
+    } else if (!/[A-Z]/.test(password)) {
+      newErrors.password = 'Debe tener al menos una mayúscula.';
+    } else if (!/[0-9]/.test(password)) {
+      newErrors.password = 'Debe tener al menos un número.';
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      newErrors.password = 'Debe tener un carácter especial (!@#$...).';
+    }
+
+    // BirthDate
+    const cleanBirthDate = birthDate.trim();
+    if (!cleanBirthDate) {
+      newErrors.birthDate = 'La fecha de nacimiento es obligatoria.';
+    } else {
+      const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
+      if (!dateRegex.test(cleanBirthDate)) {
+        newErrors.birthDate = 'Formato: DD/MM/AAAA.';
+      } else {
+        const [day, month, year] = cleanBirthDate.split('/').map(Number);
+        const birth = new Date(year, month - 1, day);
+        const today = new Date();
+        if (birth.getDate() !== day || birth.getMonth() !== month - 1 || birth.getFullYear() !== year) {
+          newErrors.birthDate = 'Fecha no válida.';
+        } else if (birth > today) {
+          newErrors.birthDate = 'La fecha no puede ser futura.';
+        } else {
+          let age = today.getFullYear() - birth.getFullYear();
+          const monthDiff = today.getMonth() - birth.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+            age--;
+          }
+          if (age < 18) {
+            newErrors.birthDate = 'Debes tener al menos 18 años.';
+          }
+        }
+      }
+    }
+
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
+      const firstError = Object.values(newErrors)[0];
+      showToast(firstError);
+    } else {
+      setStep(2);
+    }
   };
 
   // Crear la cuenta en Firebase y guardar detalles adicionales en Firestore
   const handleRegister = async () => {
+    if (presentation.trim().length > 200) {
+      showToast('La presentación no puede superar los 200 caracteres.');
+      return;
+    }
     setLoading(true);
     try {
       // 1. Crear usuario
@@ -126,23 +280,27 @@ export default function RegisterScreen({ navigation }) {
       // 3. Guardar en Firestore (usuario aún logueado)
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
-        profileName: profileName.trim(),
+        profileName: sanitizeInput(profileName.trim()),
         username: username.trim().toLowerCase(),
         email: email.trim(),
         birthDate: birthDate.trim(),
         profilePicture: profilePictureUrl || 'https://res.cloudinary.com/dvrjrpotj/image/upload/v1782073947/3d_share/default_avatar.png',
-        presentation: presentation.trim() || null,
+        presentation: sanitizeInput(presentation.trim()) || null,
         createdAt: new Date(),
       });
 
       // 4. Cerrar sesión DESPUÉS de guardar todo
       await signOut(auth);
 
-      alert('¡Cuenta creada con éxito! Ahora puedes iniciar sesión.');
-      navigation.replace('Login');
+      showToast('¡Cuenta creada con éxito!', 'success');
+      setTimeout(() => navigation.replace('Login'), 1500);
 
     } catch (error) {
-      alert(error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        showToast('Este correo ya está registrado. Intenta con otro.');
+      } else {
+        showToast(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -196,46 +354,78 @@ export default function RegisterScreen({ navigation }) {
             <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>Paso 1 de 2: Datos obligatorios</Text>
 
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              style={[styles.input, errors.profileName && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Nombre de perfil (Ej: Juan Pérez)"
               placeholderTextColor="#707070"
               value={profileName}
-              onChangeText={setProfileName}
+              onChangeText={(text) => {
+                setProfileName(sanitizeInput(text));
+                if (errors.profileName) setErrors((prev) => ({ ...prev, profileName: null }));
+              }}
+              maxLength={50}
             />
 
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              style={[styles.input, errors.username && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Nombre de usuario (Ej: juan_perez)"
               placeholderTextColor="#707070"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => {
+                const filtered = text.toLowerCase().replace(/[^a-z0-9_]/g, '');  // <-- ya no necesitás a-zA-Z porque convertís a lower antes
+                if (filtered !== username) {  // solo actualizás si cambió algo relevante
+                  setUsername(filtered);
+                }
+                if (errors.username) setErrors((prev) => ({ ...prev, username: null }));
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(() => {
+                  checkUsernameAvailability(filtered);
+                }, 500);
+              }}
               autoCapitalize="none"
+              autoCorrect={false}        // <-- agregá esto
+              spellCheck={false}         // <-- y esto
+              maxLength={20}
             />
 
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              style={[styles.input, errors.email && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Email"
               placeholderTextColor="#707070"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
+              maxLength={100}
             />
 
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              style={[styles.input, errors.password && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Contraseña (mínimo 6 caracteres)"
               placeholderTextColor="#707070"
               secureTextEntry
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
+              }}
+              maxLength={64}
             />
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBackground }]}
+              style={[styles.input, errors.birthDate && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Fecha de nacimiento (DD/MM/AAAA)"
               placeholderTextColor="#707070"
               value={birthDate}
-              onChangeText={setBirthDate}
+              onChangeText={(text) => {
+                const filtered = text.replace(/[^0-9/]/g, '');
+                if (filtered !== birthDate) {
+                  setBirthDate(filtered);
+                }
+                if (errors.birthDate) setErrors((prev) => ({ ...prev, birthDate: null }));
+              }}
+              maxLength={10}
             />
             <TouchableOpacity style={styles.button} onPress={handleContinue}>
               <Text style={styles.buttonText}>Continuar</Text>
@@ -276,7 +466,11 @@ export default function RegisterScreen({ navigation }) {
               numberOfLines={3}
               value={presentation}
               onChangeText={setPresentation}
+              maxLength={200}
             />
+            <Text style={[styles.charCount, { color: colors.text, opacity: 0.5 }]}>
+              {presentation.length}/200
+            </Text>
 
             {/* CHECKBOX: TÉRMINOS Y CONDICIONES */}
             <TouchableOpacity
@@ -313,6 +507,32 @@ export default function RegisterScreen({ navigation }) {
         )}
 
       </ScrollView>
+
+      {/* TOAST / POP-UP */}
+      {toastMessage !== '' && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: toastType === 'success' ? '#27AE60' : '#E74C3C',
+              opacity: toastAnim,
+              transform: [{
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color="#FFF"
+          />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -443,6 +663,34 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 13,
     fontFamily: 'Nunito-Regular',
+    flex: 1,
+  },
+  inputError: {
+    borderWidth: 1,
+    borderColor: '#E74C3C',
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
     flex: 1,
   },
 });
