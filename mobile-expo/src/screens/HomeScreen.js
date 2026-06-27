@@ -14,7 +14,8 @@ import {
   FlatList,
   Image,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 
 const GREEN = '#9DBD3F';
@@ -99,6 +100,7 @@ export default function HomeScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', {
@@ -180,6 +182,14 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setLastVisible(null);
+    setHasMore(true);
+    await fetchPosts(true);
+    setRefreshing(false);
+  };
+
   const hasFetched = React.useRef(false);
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -234,6 +244,14 @@ export default function HomeScreen({ navigation }) {
         maxToRenderPerBatch={10}
         windowSize={7}
         initialNumToRender={10}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#546F1C']}
+            tintColor="#546F1C"
+          />
+        }
         ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />
     </View>

@@ -160,7 +160,7 @@ export default function ContactsScreen({ navigation, route }) {
       ]}
       onPress={() => {
         if (item.uid === currentUser?.uid) {
-          navigation.navigate('Profile');
+          navigation.navigate('MainTabs', { screen: 'Profile' });
         } else {
           navigation.navigate('UserProfile', {
             userId: item.uid,

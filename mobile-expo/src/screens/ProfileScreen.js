@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
@@ -28,6 +29,7 @@ export default function ProfileScreen({ navigation }) {
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userUsername, setUserUsername] = useState('');
@@ -106,6 +108,12 @@ export default function ProfileScreen({ navigation }) {
     if (!user) return;
     setLoading(true);
     try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      const authorName = userData.profileName || userData.username || 'Usuario';
+      const authorUsername = userData.username || 'usuario';
+      const authorPicture = userData.profilePicture || '';
+
       const q = query(
         collection(db, 'posts'),
         where('autor', '==', user.uid),
@@ -123,6 +131,9 @@ export default function ProfileScreen({ navigation }) {
         totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
         description: doc.data().descripcion || '',
         author: doc.data().autor,
+        authorProfileName: authorName,
+        authorUsername: authorUsername,
+        authorProfilePicture: authorPicture,
       }));
       setPosts(postsFormateados);
     } catch (error) {
@@ -131,6 +142,12 @@ export default function ProfileScreen({ navigation }) {
       setLoading(false);
     }
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
+    setRefreshing(false);
+  };
 
   // Contar seguidores y seguidos
   const fetchFollowCounts = useCallback(async () => {
@@ -365,6 +382,14 @@ export default function ProfileScreen({ navigation }) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#546F1C']}
+            tintColor="#546F1C"
+          />
+        }
       >
         {/* SECCIÓN PERFIL */}
         <View style={styles.profileSection}>

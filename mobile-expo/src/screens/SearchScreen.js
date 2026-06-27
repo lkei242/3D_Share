@@ -11,11 +11,12 @@ import {
   Text,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, where, documentId } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { auth } from './config/firebase';
@@ -32,7 +33,8 @@ export default function SearchScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('posts'); // 'posts' o 'users'
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // Estado para la barra de búsqueda
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchPosts = async (reset = false) => {
     if (loading) return;
@@ -54,15 +56,42 @@ export default function SearchScreen({ navigation }) {
       }
 
       const querySnapshot = await getDocs(q);
-      const list = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        image: doc.data().imagenes && doc.data().imagenes.length > 0 ? doc.data().imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
-        title: doc.data().titulo || '',
-        description: doc.data().descripcion || '',
-        price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: formatViews(doc.data().vistas || 0),
-        author: doc.data().autor
-      }));
+
+      const authorUids = [...new Set(querySnapshot.docs.map(d => d.data().autor).filter(Boolean))];
+      const authorsMap = {};
+
+      if (authorUids.length > 0) {
+        for (let i = 0; i < authorUids.length; i += 10) {
+          const chunk = authorUids.slice(i, i + 10);
+          const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', chunk));
+          const usersSnap = await getDocs(usersQuery);
+          usersSnap.forEach(uDoc => {
+            const d = uDoc.data();
+            authorsMap[uDoc.id] = {
+              profileName: d.profileName || d.username || 'Usuario',
+              username: d.username || 'usuario',
+              profilePicture: d.profilePicture || '',
+            };
+          });
+        }
+      }
+
+      const list = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        const authorInfo = authorsMap[data.autor] || { profileName: 'Usuario', username: 'usuario', profilePicture: '' };
+        return {
+          id: doc.id,
+          image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+          title: data.titulo || '',
+          description: data.descripcion || '',
+          price: data.precio ? `${data.precio}$` : null,
+          views: formatViews(data.vistas || 0),
+          author: data.autor,
+          authorProfileName: authorInfo.profileName,
+          authorUsername: authorInfo.username,
+          authorProfilePicture: authorInfo.profilePicture,
+        };
+      });
 
       const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
       setLastVisible(lastVisibleDoc);
@@ -87,19 +116,30 @@ export default function SearchScreen({ navigation }) {
           const usersRef = collection(db, 'users');
           const q = query(usersRef, limit(100));
           const snapshot = await getDocs(q);
-          const usersList = snapshot.docs.map(doc => ({
-              id: doc.id,
-              uid: doc.id,
-              profileName: doc.data().profileName || doc.data().username || 'Usuario',
-              username: doc.data().username || 'usuario',
-              profilePicture: doc.data().profilePicture || '',
-          }));
+          const currentUid = auth.currentUser?.uid;
+          const usersList = snapshot.docs
+              .map(doc => ({
+                  id: doc.id,
+                  uid: doc.id,
+                  profileName: doc.data().profileName || doc.data().username || 'Usuario',
+                  username: doc.data().username || 'usuario',
+                  profilePicture: doc.data().profilePicture || '',
+              }))
+              .filter(user => user.uid !== currentUid);
           setUsers(usersList);
       } catch (error) {
           console.log("Error buscando usuarios:", error);
       } finally {
           setUsersLoading(false);
       }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setLastVisible(null);
+    setHasMore(true);
+    await Promise.all([fetchPosts(true), fetchUsers()]);
+    setRefreshing(false);
   };
 
   const hasFetched = React.useRef(false);
@@ -116,7 +156,9 @@ export default function SearchScreen({ navigation }) {
 
   // Filtrado reactivo en memoria según el título escrito
   const filteredPosts = posts.filter(post => 
-      post.title.toLowerCase().includes(searchQuery.toLowerCase())
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (post.authorProfileName && post.authorProfileName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.authorUsername && post.authorUsername.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredUsers = users.filter(user => 
@@ -140,7 +182,7 @@ export default function SearchScreen({ navigation }) {
         style={[styles.userCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}
         onPress={() => {
             if (item.uid === auth.currentUser?.uid) {
-                navigation.navigate('Profile');
+                navigation.navigate('MainTabs', { screen: 'Profile' });
             } else {
                 navigation.navigate('UserProfile', {
                     userId: item.uid,
@@ -238,6 +280,14 @@ export default function SearchScreen({ navigation }) {
           maxToRenderPerBatch={15}
           windowSize={7}
           initialNumToRender={18}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#546F1C']}
+              tintColor="#546F1C"
+            />
+          }
           ListFooterComponent={
             loading ? (
               <ActivityIndicator
@@ -256,6 +306,14 @@ export default function SearchScreen({ navigation }) {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#546F1C']}
+              tintColor="#546F1C"
+            />
+          }
           ListFooterComponent={
             usersLoading ? (
               <ActivityIndicator

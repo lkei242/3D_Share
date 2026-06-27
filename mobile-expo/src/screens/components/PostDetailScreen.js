@@ -327,7 +327,7 @@ export default function PostDetailScreen({ route, navigation }) {
                             }}
                             onAuthorPress={() => {
                                 if (currentUser && item.author === currentUser.uid) {
-                                    navigation.navigate('Profile');
+                                    navigation.navigate('MainTabs', { screen: 'Profile' });
                                 } else {
                                     navigation.navigate('UserProfile', {
                                         userId: item.author,
