@@ -7,7 +7,7 @@ node_modules/
 #.env.local
 #.env*.local
 #(sacar el # cuando sea necesario)
-
+mobile-expo/.expo/
 *.apk
 
 # Logs

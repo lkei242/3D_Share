@@ -149,12 +149,14 @@ export default function ProfileScreen({ navigation }) {
     }
   }, []);
 
+  const hasFetched = React.useRef(false);
   useFocusEffect(
-    useCallback(() => {
-      fetchUserProfile();
-      fetchUserPosts();
-      fetchFollowCounts();
-    }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
+      useCallback(() => {
+        if (!hasFetched.current) {
+          Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
+          hasFetched.current = true;
+        }
+      }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
   );
 
   // Renderizar grid de publicaciones

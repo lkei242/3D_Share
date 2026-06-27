@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import {
   Alert,
   Animated,
   Pressable,
-  ActivityIndicator
+  ActivityIndicator,
+  Keyboard
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -245,9 +246,9 @@ const MessageItem = React.memo(({
   isDark, 
   colors, 
   chatName, 
-  isSelected, 
-  selectedMessageId, 
-  setSelectedMessageId, 
+  isChecked,
+  selectedIds,
+  onToggleSelect,
   setShowMsgInfo 
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -272,37 +273,35 @@ const MessageItem = React.memo(({
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
-      toValue: isSelected ? 1 : 0,
+      toValue: isChecked ? 1 : 0,
       duration: 300,
       useNativeDriver: false,
     }).start();
-  }, [isSelected]);
+  }, [isChecked]);
 
   const handlePressIn = () => {
-    if (isSelected) return;
+    if (isChecked) return;
     Animated.timing(fadeAnim, { toValue: 1, duration: 80, useNativeDriver: false }).start();
   };
 
   const handlePressOut = () => {
-    if (isSelected) return;
+    if (isChecked) return;
     Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: false }).start();
   };
 
   const handlePress = () => {
-    if (selectedMessageId) {
-      isSelected ? setSelectedMessageId(null) : (setSelectedMessageId(item.id), setShowMsgInfo(false));
+    if (selectedIds.length > 0) {
+      onToggleSelect(item.id);
     }
   };
 
   const handleLongPress = () => {
-    setSelectedMessageId(item.id);
+    onToggleSelect(item.id);
     setShowMsgInfo(false);
   };
 
   return (
     <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={450}
@@ -313,6 +312,20 @@ const MessageItem = React.memo(({
         isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
         { backgroundColor: rowBgColor },
       ]}>
+        {/* CHECKBOX — visible solo en modo multi-selección */}
+        {selectedIds.length > 0 && (
+          <TouchableOpacity
+            onPress={() => onToggleSelect(item.id)}
+            style={styles.checkboxColumn}
+          >
+            <Ionicons
+              name={isChecked ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={isChecked ? "#34C759" : "#999"}
+            />
+          </TouchableOpacity>
+        )}
+
         {!isMe && (
           <View style={[styles.bubbleAvatarCircle, { marginRight: 8, marginHorizontal: 0 }]}>
             <Text style={styles.bubbleAvatarText}>{chatName.charAt(0)}</Text>
@@ -325,10 +338,8 @@ const MessageItem = React.memo(({
           isMe ? { borderBottomRightRadius: 2 } : { borderBottomLeftRadius: 2 },
         ]}>
           {item.type === 'audio' ? (
-            // 🎙️ Si es audio, renderiza el reproductor nativo
             <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
           ) : (
-            // ⌨️ Si es texto, renderiza el texto estándar
             <Text style={[styles.messageText, { color: isMe ? '#FFF' : colors.text }]}>
               {item.text}
               {"\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0"}
@@ -355,9 +366,9 @@ const MessageItem = React.memo(({
   prev.item.text === next.item.text && 
   prev.item.read === next.item.read && 
   prev.item.isFavorite === next.item.isFavorite && 
-  prev.isSelected === next.isSelected && 
+  prev.isChecked === next.isChecked && 
   prev.isDark === next.isDark &&
-  (prev.selectedMessageId !== null) === (next.selectedMessageId !== null)
+  (prev.selectedIds.length > 0) === (next.selectedIds.length > 0)
 );
 
 export default function ChatDetailScreen({ route, navigation }) {
@@ -375,7 +386,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showMoreSubMenu, setShowMoreSubMenu] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [showMsgInfo, setShowMsgInfo] = useState(false);
 
     // --- Estados de Grabación ---
@@ -407,6 +418,13 @@ export default function ChatDetailScreen({ route, navigation }) {
       }).start();
     });
   };
+  const handleToggleSelect = useCallback((id) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) return prev.filter(i => i !== id);
+      return [...prev, id];
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds([]), []);
 
   // Cronómetro sincronizado con el grabador real (vía addRecordBackListener).
   // El listener deja de emitir mientras la grabación está en pausa, así que
@@ -659,7 +677,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   const flatListRef = useRef(null);
-  const activeMsg = messages.find(m => m.id === selectedMessageId);
+  const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
 
   // Escuchar mensajes en tiempo real desde Firestore
   useEffect(() => {
@@ -748,23 +766,27 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   const handleFavorite = async () => {
-    if (!selectedMessageId || !activeMsg) return;
+    if (selectedIds.length === 0) return;
     try {
-      const msgRef = doc(db, `chats/${chatId}/messages/${selectedMessageId}`);
-      await updateDoc(msgRef, { isFavorite: !activeMsg.isFavorite });
+      const firstMsg = messages.find(m => m.id === selectedIds[0]);
+      const newFav = !firstMsg?.isFavorite;
+      const batch = selectedIds.map(id => {
+        const msgRef = doc(db, `chats/${chatId}/messages/${id}`);
+        return updateDoc(msgRef, { isFavorite: newFav });
+      });
+      await Promise.all(batch);
     } catch (error) {
       console.log("Error al marcar favorito:", error);
     }
-    setSelectedMessageId(null);
+    clearSelection();
   };
 
   const handleDelete = () => {
-    if (!selectedMessageId) return;
-    const msg = messages.find(m => m.id === selectedMessageId);
+    if (selectedIds.length === 0) return;
 
     Alert.alert(
-      'Eliminar Mensaje',
-      '¿Deseas eliminar este mensaje?',
+      `Eliminar ${selectedIds.length > 1 ? 'mensajes' : 'mensaje'}`,
+      `¿Deseas eliminar ${selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -772,27 +794,27 @@ export default function ChatDetailScreen({ route, navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              if (msg?.type === 'audio' && msg?.mediaUrl) {
-                // Extraer el publicId de la URL de Cloudinary
-                // Ej: https://res.cloudinary.com/demo/video/upload/v123/3d_share/audios/voice_abc
-                const match = msg.mediaUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);
-                if (match) {
-                  const publicId = match[1]; // "3d_share/audios/voice_abc"
-                  await fetch(`${API_URL}/api/media/delete`, {
-                    method: 'POST',  
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ publicId }),
-                  });
+              const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
+              const deletions = msgsToDelete.map(async (msg) => {
+                if (msg?.type === 'audio' && msg?.mediaUrl) {
+                  const match = msg.mediaUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);
+                  if (match) {
+                    const publicId = match[1];
+                    await fetch(`${API_URL}/api/media/delete`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ publicId }),
+                    });
+                  }
                 }
-              }
-
-              // Borrar documento de Firestore
-              const msgRef = doc(db, `chats/${chatId}/messages/${selectedMessageId}`);
-              await deleteDoc(msgRef);
+                const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
+                await deleteDoc(msgRef);
+              });
+              await Promise.all(deletions);
             } catch (error) {
-              console.log("Error al borrar mensaje:", error);
+              console.log("Error al borrar mensajes:", error);
             }
-            setSelectedMessageId(null);
+            clearSelection();
           }
         }
       ]
@@ -800,9 +822,11 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   const handleForward = () => {
-    if (!activeMsg) return;
-    Alert.alert('Reenviar', `Reenviando mensaje: "${activeMsg.text}"`);
-    setSelectedMessageId(null);
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const texts = messages.filter(m => selectedIds.includes(m.id)).map(m => m.text).join('", "');
+    Alert.alert('Reenviar', `Reenviando ${count} mensaje${count > 1 ? 's' : ''}: "${texts}"`);
+    clearSelection();
   };
 
   const handleCopy = () => {
@@ -820,7 +844,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const renderMessageItem = React.useCallback(({ item }) => {
     const isMe = item.sender === 'me';
-    const isSelected = selectedMessageId === item.id;
+    const isChecked = selectedIds.includes(item.id);
     return (
       <MessageItem
         item={item}
@@ -828,70 +852,58 @@ export default function ChatDetailScreen({ route, navigation }) {
         isDark={isDark}
         colors={colors}
         chatName={chatName}
-        isSelected={isSelected}
-        selectedMessageId={selectedMessageId}
-        setSelectedMessageId={setSelectedMessageId}
+        isChecked={isChecked}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
         setShowMsgInfo={setShowMsgInfo}
       />
     );
-  }, [selectedMessageId, isDark, colors, chatName]);
+  }, [selectedIds, isDark, colors, chatName]);
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
   
   return (
     <TouchableWithoutFeedback onPress={closeAllMenus}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         
-        {/* HEADER DUAL */}
-        {selectedMessageId ? (
+        {/* HEADER MULTI-SELECCIÓN O NORMAL */}
+        {selectedIds.length > 0 ? (
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
-            <TouchableOpacity onPress={() => setSelectedMessageId(null)}>
-              <Ionicons name="close" size={26} color={colors.text} />
-            </TouchableOpacity>
-            
-            {activeMsg?.sender === 'me' ? (
-              <>
-                <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
-                  <Ionicons name="arrow-undo" size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Responder</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                  <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
-                  <Ionicons name="pencil" size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Editar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
-                  <Ionicons name="trash" size={27} color="#a70d0d" />
-                  <Text style={[styles.toolText, { color: '#a70d0d', fontWeight:"bold" }]}>Eliminar</Text>
-                </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 8 }}>
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.headerName, { color: colors.text, marginLeft: 4 }]}>
+                {selectedIds.length} seleccionado{selectedIds.length > 1 ? 's' : ''}
+              </Text>
+            </View>
 
-                <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
-                  <Ionicons name="copy" size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
-                  <Ionicons name="arrow-undo" size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Responder</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                  <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
-                  <Ionicons name="copy" size={27} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
+                <Ionicons name="star-outline" size={27} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
+                <Ionicons name="arrow-redo" size={27} color={colors.text} />
+                <Text style={[styles.toolText, { color: colors.text }]}>Reenviar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
+                <Ionicons name="trash" size={27} color="#a70d0d" />
+                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight:"bold" }]}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
@@ -918,7 +930,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         )}
 
                 {/* DETALLE DE INFO DEL MENSAJE (Leído por / Entregado a) */}
-        {showMsgInfo && activeMsg && (
+        {showMsgInfo && activeMsg && selectedIds.length === 0 && (
           <View style={[styles.infoOverlay, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
             <Text style={[styles.infoTitle, { color: colors.text }]}>Información del mensaje</Text>
             <View style={styles.infoLine}>
@@ -1004,15 +1016,12 @@ export default function ChatDetailScreen({ route, navigation }) {
             maxToRenderPerBatch={15}
             windowSize={10}
             initialNumToRender={20}
+            style={{ flex: 1 }}
           />
         )}
 
         {/* INPUT DE MENSAJE */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          style={{ paddingBottom: insets.bottom }}
-        >
+
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
@@ -1044,6 +1053,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             <Animated.View style={[styles.lockedRecordContainer, {
                 backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
                 borderColor: isDark ? '#2C2C2C' : '#E0E0E0',
+                bottom: Math.max(keyboardHeight + 60, insets.bottom + 10),
                 transform: [{ translateY: lockSlideAnim }],
                 opacity: lockOpacityAnim,
               }]}>
@@ -1095,7 +1105,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             </Animated.View>
           ) : (
             // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
               {isRecording ? (
                 // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
                 <Animated.View style={[styles.recordHintBar, {
@@ -1177,7 +1187,6 @@ export default function ChatDetailScreen({ route, navigation }) {
               )}
             </View>
           )}
-        </KeyboardAvoidingView>
       </View>
     </TouchableWithoutFeedback>
   );
@@ -1223,7 +1232,7 @@ const styles = StyleSheet.create({
   attachmentTray: {position: 'absolute',bottom: 120,right: 20,left: 20,borderRadius: 15,borderWidth: 0.5,shadowColor: '#000',shadowOffset: { width: 0, height: -2 },shadowOpacity: 0.15,shadowRadius: 4,elevation: 4,zIndex: 98,padding: 16,flexDirection: 'row',justifyContent: 'space-around',},
   attachmentItem: {alignItems: 'center',width: 65,},
   attachmentText: {fontSize: 12,marginTop: 4,fontFamily: 'Nunito-Regular',textAlign: 'center',},
-  lockedRecordContainer: {padding: 14,marginHorizontal: 12,marginVertical: 10,borderRadius: 24,borderWidth: 1,gap: 12,},
+  lockedRecordContainer: {position: 'absolute',left: 12,right: 12,padding: 14,borderRadius: 24,borderWidth: 1,gap: 12,zIndex: 50,elevation: 8,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,},
   recordTopRow: {flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',paddingHorizontal: 8,},
   recordSeconds: {fontSize: 16,fontFamily: 'Nunito-Bold',minWidth: 50,},
   waveformContainer: {flexDirection: 'row',alignItems: 'center',gap: 3,flex: 1,justifyContent: 'center',paddingHorizontal: 12,height: 36,},
