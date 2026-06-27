@@ -14,11 +14,13 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ navigation }) {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
 
   useEffect(() => {
@@ -83,14 +85,26 @@ export default function LoginScreen({ navigation }) {
           autoCapitalize="none"
         />
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground }]}
-          placeholder="Contraseña"
-          placeholderTextColor="#707070"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.inputBackground, flex: 1 }]}
+            placeholder="Contraseña"
+            placeholderTextColor="#707070"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off' : 'eye'}
+              size={22}
+              color="#707070"
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={() => navigation.navigate('ForgotPassword')}
@@ -152,6 +166,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 0,
     marginBottom: 15,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    marginBottom: 14,
   },
 
   input2: {

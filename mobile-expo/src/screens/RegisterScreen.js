@@ -38,6 +38,7 @@ export default function RegisterScreen({ navigation }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [birthDate, setBirthDate] = useState('');
 
   // Paso 2: Campos opcionales y adicionales
@@ -419,19 +420,31 @@ export default function RegisterScreen({ navigation }) {
               maxLength={100}
             />
 
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError, { backgroundColor: colors.inputBackground }]}
-              placeholder="Contraseña (mínimo 6 caracteres)"
-              placeholderTextColor="#707070"
-              secureTextEntry
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
-              }}
-              onBlur={validatePasswordOnBlur}
-              maxLength={64}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, errors.password && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1}]}
+                placeholder="Contraseña (mínimo 6 caracteres)"
+                placeholderTextColor="#707070"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
+                }}
+                onBlur={validatePasswordOnBlur}
+                maxLength={64}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={22}
+                  color="#707070"
+                />
+              </TouchableOpacity>
+            </View>
 
             {/* FECHA DE NACIMIENTO - botón que abre el picker nativo */}
             <TouchableOpacity
@@ -715,6 +728,15 @@ const styles = StyleSheet.create({
   inputError: {
     borderWidth: 1,
     borderColor: '#E74C3C',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    marginBottom: 14,
   },
   charCount: {
     fontSize: 12,
