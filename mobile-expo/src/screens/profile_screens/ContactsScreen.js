@@ -41,13 +41,23 @@ const COLORS = {
   GRAY_50: '#F5F5F5',
 };
 
-export default function ContactsScreen({ navigation }) {
+export default function ContactsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.dark || colors.text === '#FFFFFF';
   
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(route.params?.initialTab ?? 0);
   const scrollViewRef = useRef(null);
+  useEffect(() => {
+    if (route.params?.initialTab === 1) {
+      const timer = setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ x: PAGE_WIDTH, animated: false });
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -245,6 +255,11 @@ export default function ContactsScreen({ navigation }) {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScrollEnd}
+          onContentSizeChange={() => {
+            if (route.params?.initialTab === 1 && scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ x: PAGE_WIDTH, animated: false });
+            }
+          }}
           style={styles.scrollView}
         >
           {/* Página 1: Seguidores */}
@@ -335,26 +350,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingVertical: 20,
-    borderRadius: 20,
+    marginBottom: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
   },
   statLabel: {
-    fontSize: 13,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 2,
     fontWeight: '500',
   },
   statDivider: {
     width: 1,
-    height: 40,
+    height: 28,
   },
   tabContainer: {
     flexDirection: 'row',
