@@ -22,6 +22,9 @@ import {
 import { Ionicons, Feather, FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+
 
 export default function RegisterScreen({ navigation }) {
   const { colors } = useTheme();
@@ -48,7 +51,11 @@ export default function RegisterScreen({ navigation }) {
   const [errors, setErrors] = useState({});
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const timeoutRef = useRef(null);
+  const usernameRef = useRef(null);
 
+  // DatePicker
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerDate, setDatePickerDate] = useState(new Date(2000, 0, 1));
   // Toast
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
@@ -95,6 +102,37 @@ export default function RegisterScreen({ navigation }) {
       .replace(/"/g, '')
       .replace(/'/g, '');
   };
+  // Validaciones en tiempo real al salir del campo (onBlur)
+  const validateProfileNameOnBlur = () => {
+    const v = profileName.trim();
+    if (!v) return showToast('El nombre de perfil es obligatorio.');
+    if (/^[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/.test(v)) return showToast('El nombre no puede empezar con números o símbolos.');
+    if (/[^\wáéíóúÁÉÍÓÚñÑ\s.-]/.test(v)) return showToast('El nombre contiene caracteres no permitidos.');
+  };
+
+  const validateUsernameOnBlur = () => {
+    const v = username.trim();
+    if (!v) return showToast('El nombre de usuario es obligatorio.');
+    if (v.length < 3) return showToast('El usuario debe tener al menos 3 caracteres.');
+    if (!/^[a-zA-Z]/.test(v)) return showToast('El usuario debe empezar con una letra.');
+    if (/[^a-z0-9_]/.test(v)) return showToast('Solo se permiten letras, números y guion bajo (_).');
+  };
+
+  const validateEmailOnBlur = () => {
+    const v = email.trim();
+    if (!v) return showToast('El correo es obligatorio.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return showToast('El formato del correo no es válido.');
+  };
+
+  const validatePasswordOnBlur = () => {
+    const v = password;
+    if (!v) return showToast('La contraseña es obligatoria.');
+    if (v.length < 6) return showToast('La contraseña debe tener al menos 6 caracteres.');
+    if (!/[A-Z]/.test(v)) return showToast('La contraseña debe tener al menos una mayúscula.');
+    if (!/[0-9]/.test(v)) return showToast('La contraseña debe tener al menos un número.');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(v)) return showToast('La contraseña debe tener un carácter especial (!@#\$...).');
+  };
+
   const checkUsernameAvailability = async (usernameValue) => {
     if (!usernameValue || usernameValue.length < 3) {
       setUsernameAvailable(null);
@@ -178,7 +216,7 @@ export default function RegisterScreen({ navigation }) {
 
     // Email
     const cleanEmail = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
     if (!cleanEmail) {
       newErrors.email = 'El correo es obligatorio.';
     } else if (cleanEmail.length > 100) {
@@ -202,33 +240,9 @@ export default function RegisterScreen({ navigation }) {
       newErrors.password = 'Debe tener un carácter especial (!@#$...).';
     }
 
-    // BirthDate
-    const cleanBirthDate = birthDate.trim();
-    if (!cleanBirthDate) {
+    // BirthDate - ya validada y formateada por el DateTimePicker
+    if (!birthDate.trim()) {
       newErrors.birthDate = 'La fecha de nacimiento es obligatoria.';
-    } else {
-      const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
-      if (!dateRegex.test(cleanBirthDate)) {
-        newErrors.birthDate = 'Formato: DD/MM/AAAA.';
-      } else {
-        const [day, month, year] = cleanBirthDate.split('/').map(Number);
-        const birth = new Date(year, month - 1, day);
-        const today = new Date();
-        if (birth.getDate() !== day || birth.getMonth() !== month - 1 || birth.getFullYear() !== year) {
-          newErrors.birthDate = 'Fecha no válida.';
-        } else if (birth > today) {
-          newErrors.birthDate = 'La fecha no puede ser futura.';
-        } else {
-          let age = today.getFullYear() - birth.getFullYear();
-          const monthDiff = today.getMonth() - birth.getMonth();
-          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-            age--;
-          }
-          if (age < 18) {
-            newErrors.birthDate = 'Debes tener al menos 18 años.';
-          }
-        }
-      }
     }
 
     setErrors(newErrors);
@@ -362,6 +376,7 @@ export default function RegisterScreen({ navigation }) {
                 setProfileName(sanitizeInput(text));
                 if (errors.profileName) setErrors((prev) => ({ ...prev, profileName: null }));
               }}
+              onBlur={validateProfileNameOnBlur}
               maxLength={50}
             />
 
@@ -371,19 +386,21 @@ export default function RegisterScreen({ navigation }) {
               placeholderTextColor="#707070"
               value={username}
               onChangeText={(text) => {
-                const filtered = text.toLowerCase().replace(/[^a-z0-9_]/g, '');  // <-- ya no necesitás a-zA-Z porque convertís a lower antes
-                if (filtered !== username) {  // solo actualizás si cambió algo relevante
-                  setUsername(filtered);
+                const lower = text.toLowerCase();
+                if (/[^a-z0-9_]/.test(lower)) {
+                  showToast('Solo se permiten letras, números y guion bajo (_).');
                 }
+                setUsername(lower);
                 if (errors.username) setErrors((prev) => ({ ...prev, username: null }));
                 if (timeoutRef.current) clearTimeout(timeoutRef.current);
                 timeoutRef.current = setTimeout(() => {
-                  checkUsernameAvailability(filtered);
+                  checkUsernameAvailability(lower);
                 }, 500);
               }}
+              onBlur={validateUsernameOnBlur}
               autoCapitalize="none"
-              autoCorrect={false}        // <-- agregá esto
-              spellCheck={false}         // <-- y esto
+              autoCorrect={false}
+              spellCheck={false}
               maxLength={20}
             />
 
@@ -396,6 +413,7 @@ export default function RegisterScreen({ navigation }) {
                 setEmail(text);
                 if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
               }}
+              onBlur={validateEmailOnBlur}
               keyboardType="email-address"
               autoCapitalize="none"
               maxLength={100}
@@ -411,22 +429,51 @@ export default function RegisterScreen({ navigation }) {
                 setPassword(text);
                 if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
               }}
+              onBlur={validatePasswordOnBlur}
               maxLength={64}
             />
-            <TextInput
-              style={[styles.input, errors.birthDate && styles.inputError, { backgroundColor: colors.inputBackground }]}
-              placeholder="Fecha de nacimiento (DD/MM/AAAA)"
-              placeholderTextColor="#707070"
-              value={birthDate}
-              onChangeText={(text) => {
-                const filtered = text.replace(/[^0-9/]/g, '');
-                if (filtered !== birthDate) {
-                  setBirthDate(filtered);
-                }
-                if (errors.birthDate) setErrors((prev) => ({ ...prev, birthDate: null }));
-              }}
-              maxLength={10}
-            />
+
+            {/* FECHA DE NACIMIENTO - botón que abre el picker nativo */}
+            <TouchableOpacity
+              style={[styles.input, errors.birthDate && styles.inputError, { backgroundColor: colors.inputBackground, justifyContent: 'center' }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={{ color: birthDate ? '#000' : '#707070', fontFamily: 'Nunito-Bold', fontSize: 14 }}>
+                {birthDate || 'Fecha de nacimiento'}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={datePickerDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (event.type === 'dismissed') return;
+                  if (selectedDate) {
+                    setDatePickerDate(selectedDate);
+                    const day = String(selectedDate.getDate()).padStart(2, '0');
+                    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                    const year = selectedDate.getFullYear();
+                    const formatted = `${day}/${month}/${year}`;
+                    // Validar edad mínima
+                    const today = new Date();
+                    let age = today.getFullYear() - selectedDate.getFullYear();
+                    const monthDiff = today.getMonth() - selectedDate.getMonth();
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate())) age--;
+                    if (age < 15) {
+                      showToast('Debes tener al menos 15 años para registrarte.');
+                      setBirthDate('');
+                    } else {
+                      setBirthDate(formatted);
+                      if (errors.birthDate) setErrors((prev) => ({ ...prev, birthDate: null }));
+                    }
+                  }
+                }}
+              />
+            )}
             <TouchableOpacity style={styles.button} onPress={handleContinue}>
               <Text style={styles.buttonText}>Continuar</Text>
             </TouchableOpacity>
@@ -668,6 +715,13 @@ const styles = StyleSheet.create({
   inputError: {
     borderWidth: 1,
     borderColor: '#E74C3C',
+  },
+  charCount: {
+    fontSize: 12,
+    fontFamily: 'Nunito-Regular',
+    textAlign: 'right',
+    marginTop: -10,
+    marginBottom: 10,
   },
   toast: {
     position: 'absolute',
