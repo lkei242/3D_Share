@@ -37,6 +37,9 @@ import {
   orderBy, 
   serverTimestamp 
 } from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
 
 const GREEN_ACCENT = '#546F1C';
 
@@ -765,6 +768,140 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
+  const handleOpenCamera = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      await handleUploadAndSendMedia(result.assets[0]);
+    }
+  };
+
+  const handleOpenGallery = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la galería.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.8,
+      allowsMultipleSelection: false,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      await handleUploadAndSendMedia(result.assets[0]);
+    }
+  };
+
+  const handleOpenFiles = async () => {
+    setShowAttachmentMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const file = result.assets[0];
+      await handleUploadAndSendMedia({
+        uri: file.uri,
+        type: file.mimeType || 'application/octet-stream',
+        fileName: file.name,
+      });
+    }
+  };
+
+  const handleSendLocation = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la ubicación.');
+      return;
+    }
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const { latitude, longitude } = loc.coords;
+    const user = auth.currentUser;
+    const token = await user.getIdToken();
+    const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+
+    const messagesRef = collection(db, `chats/${chatId}/messages`);
+    const chatRef = doc(db, `chats/${chatId}`);
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: `📍 Ubicación: ${mapsUrl}`,
+        type: 'text',
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: '📍 Ubicación compartida',
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  };
+
+  // Handler genérico que sube a Cloudinary y manda el mensaje
+  const handleUploadAndSendMedia = async (asset) => {
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+      const uri = asset.uri;
+      const type = asset.type || asset.mimeType || 'image/jpeg';
+      const extension = uri.split('.').pop() || 'jpg';
+      const fileName = asset.fileName || `media_${Date.now()}.${extension}`;
+
+      const formData = new FormData();
+      formData.append('imagen', { uri, type, name: fileName });
+
+      const xhr = new XMLHttpRequest();
+      const uploadRes = await new Promise((resolve, reject) => {
+        xhr.open('POST', `${API_URL}/api/media/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.onload = () => resolve({ ok: xhr.status === 200, json: () => JSON.parse(xhr.responseText) });
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(formData);
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) {
+        Alert.alert('Error', 'No se pudo subir el archivo.');
+        return;
+      }
+
+      const isVideo = type.startsWith('video');
+      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const chatRef = doc(db, `chats/${chatId}`);
+      await Promise.all([
+        addDoc(messagesRef, {
+          text: isVideo ? 'Video' : 'Imagen',
+          type: isVideo ? 'video' : 'image',
+          mediaUrl: uploadData.url,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+        }),
+        updateDoc(chatRef, {
+          lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+        }),
+      ]);
+    } catch (err) {
+      console.log('Error subiendo media:', err);
+      Alert.alert('Error', 'No se pudo enviar el archivo.');
+    }
+  };
+
   const handleReply = () => {
     if (!activeMsg) return;
     Alert.alert('Responder', `Respondiendo a: "${activeMsg.text}"`);
@@ -1057,23 +1194,23 @@ export default function ChatDetailScreen({ route, navigation }) {
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Cámara', 'Abrir cámara'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenCamera}>
                 <Ionicons name="camera" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Cámara</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Galería', 'Abrir galería'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenGallery}>
                 <Ionicons name="images" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Galería</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Archivos', 'Abrir archivos'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenFiles}>
                 <Ionicons name="document-text" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Archivos</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Ubicación', 'Enviar ubicación'); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleSendLocation}>
                 <Ionicons name="location" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Ubicación</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); Alert.alert('Perfil', `Ver perfil de ${chatName}`); }}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={() => setShowAttachmentMenu(false)}>
                 <Ionicons name="person" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Ver perfil</Text>
               </TouchableOpacity>
@@ -1156,7 +1293,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </Animated.View>
               ) : (
                 <View style={[styles.textInputWrapper, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
-                  <TouchableOpacity onPress={() => Alert.alert('Cámara', 'Cámara rápida')}>
+                  <TouchableOpacity onPress={handleOpenCamera}>
                     <Ionicons name="camera-outline" size={24} color={GREEN_ACCENT} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>
 
