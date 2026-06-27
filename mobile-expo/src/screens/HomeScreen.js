@@ -21,7 +21,7 @@ const GREEN = '#9DBD3F';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
 
-function PostCard({ item, onPress }) {
+const PostCard = React.memo(function PostCard({ item, onPress }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
   const [saved, setSaved] = useState(false);
@@ -29,11 +29,13 @@ function PostCard({ item, onPress }) {
 
   useEffect(() => {
     if (!currentUser) return;
+    let cancelled = false;
     const savedRef = doc(db, 'saved', `${currentUser.uid}_${item.id}`);
     getDoc(savedRef).then((snap) => {
-      setSaved(snap.exists());
+      if (!cancelled) setSaved(snap.exists());
     });
-  }, [item, currentUser]);
+    return () => { cancelled = true; };
+  }, [item.id, currentUser?.uid]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -86,7 +88,7 @@ function PostCard({ item, onPress }) {
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 
 export default function HomeScreen({ navigation }) {
@@ -178,19 +180,23 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
+  const hasFetched = React.useRef(false);
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      fetchPosts(true);
+      if (!hasFetched.current) {
+        fetchPosts(true);
+        hasFetched.current = true;
+      }
     });
     return unsubscribe;
   }, [navigation]);
 
-  const renderItem = ({ item }) => (
+  const renderItem = React.useCallback(({ item }) => (
     <PostCard
       item={item}
       onPress={() => handlePostPress(item)}
     />
-  );
+  ), [posts]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -224,6 +230,10 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         onEndReached={() => fetchPosts(false)}
         onEndReachedThreshold={0.3}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        initialNumToRender={10}
         ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
       />
     </View>

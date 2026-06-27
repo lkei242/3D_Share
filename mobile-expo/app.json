@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "mobile-expo",
+    "name": "3D Share",
     "slug": "mobile-expo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon-app.png",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#121212",
     "ios": {
@@ -31,12 +31,34 @@
       "translucent": true,
       "backgroundColor": "#00000000"
     },
-    "plugins": [
+"plugins": [
       "@react-native-community/datetimepicker",
       [
         "expo-audio",
         {
-          "microphonePermission": "Permite que $(PRODUCT_NAME) acceda al micrófono para grabar audio."
+          "microphonePermission": "Permite que $(PRODUCT_NAME) acceda al micrófono para grabar audio.",
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite que $(PRODUCT_NAME) acceda a la cámara."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon-app.png",
+          "color": "#546F1C"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite que $(PRODUCT_NAME) acceda a tu ubicación.",
+          "locationWhenInUsePermission": "Permite que $(PRODUCT_NAME) acceda a tu ubicación mientras usas la app."
         }
       ],
       "expo-video"

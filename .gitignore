@@ -8,6 +8,8 @@ node_modules/
 #.env*.local
 #(sacar el # cuando sea necesario)
 
+*.apk
+
 # Logs
 *.log
 

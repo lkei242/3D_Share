@@ -102,10 +102,14 @@ export default function SearchScreen({ navigation }) {
       }
   };
 
+  const hasFetched = React.useRef(false);
   useEffect(() => {
       const unsubscribe = navigation.addListener('focus', () => {
-        fetchPosts(true);
-        fetchUsers();
+        if (!hasFetched.current) {
+          fetchPosts(true);
+          fetchUsers();
+          hasFetched.current = true;
+        }
       });
       return unsubscribe;
   }, [navigation]);
@@ -230,6 +234,10 @@ export default function SearchScreen({ navigation }) {
           onEndReached={() => fetchPosts(false)}
           onEndReachedThreshold={0.3}
           keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={15}
+          windowSize={7}
+          initialNumToRender={18}
           ListFooterComponent={
             loading ? (
               <ActivityIndicator

@@ -21,12 +21,10 @@ import { auth, db } from '../config/firebase';
 import { API_URL } from '../config/api';
 import {
   useAudioPlayer,
-  useAudioRecorder,
   AudioModule,
-  RecordingPresets,
   setAudioModeAsync,
-  useAudioRecorderState,
 } from 'expo-audio';
+import Sound from 'react-native-nitro-sound';
 import { 
   collection, 
   doc, 
@@ -41,7 +39,7 @@ import {
 
 const GREEN_ACCENT = '#546F1C';
 
-const AudioPlayer = ({ url, duration, isMe, colors }) => {
+const AudioPlayer = React.memo(({ url, duration, isMe, colors }) => {
   const player = useAudioPlayer({ uri: url });
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -100,7 +98,7 @@ const AudioPlayer = ({ url, duration, isMe, colors }) => {
             setProgress(newProgress);
           }
         } else {
-          progressRef.current += 1 / (totalSecs * 10);
+          progressRef.current += 1 / (totalSecs * 4);
           if (progressRef.current >= 1) {
             progressRef.current = 1;
             setProgress(1);
@@ -110,7 +108,7 @@ const AudioPlayer = ({ url, duration, isMe, colors }) => {
             setProgress(progressRef.current);
           }
         }
-      }, 100);
+      }, 250);
     }
     return () => clearInterval(interval);
   }, [isPlaying, totalSecs]);
@@ -238,9 +236,10 @@ const AudioPlayer = ({ url, duration, isMe, colors }) => {
       </Text>
     </View>
   );
-};
+
+}, (prev, next) => prev.url === next.url && prev.isMe === next.isMe && prev.duration === next.duration);
 // Componente de burbuja animada adaptado para Firestore
-const MessageItem = ({ 
+const MessageItem = React.memo(({
   item, 
   isMe, 
   isDark, 
@@ -274,7 +273,7 @@ const MessageItem = ({
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: isSelected ? 1 : 0,
-      duration: 10000,
+      duration: 300,
       useNativeDriver: false,
     }).start();
   }, [isSelected]);
@@ -351,7 +350,15 @@ const MessageItem = ({
       </Animated.View>
     </Pressable>
   );
-};
+}, (prev, next) => 
+  prev.item.id === next.item.id && 
+  prev.item.text === next.item.text && 
+  prev.item.read === next.item.read && 
+  prev.item.isFavorite === next.item.isFavorite && 
+  prev.isSelected === next.isSelected && 
+  prev.isDark === next.isDark &&
+  (prev.selectedMessageId !== null) === (next.selectedMessageId !== null)
+);
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
@@ -373,43 +380,65 @@ export default function ChatDetailScreen({ route, navigation }) {
 
     // --- Estados de Grabación ---
   const [isLocked, setIsLocked] = useState(false);
-  const [waveHeights, setWaveHeights] = useState(new Array(22).fill(15));
+  const waveBarAnims = useRef(
+    Array.from({ length: 22 }, () => new Animated.Value(0.3))
+  ).current;
   const lockBounceAnim = useRef(new Animated.Value(0)).current;
-
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(audioRecorder);
+  const lockSlideAnim = useRef(new Animated.Value(50)).current;
+  const lockOpacityAnim = useRef(new Animated.Value(0)).current;
+  const cancelSlideAnim = useRef(new Animated.Value(0)).current;
+  const isCancellingRef = useRef(false);
 
   const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
 
-  const isRecording = recorderState.isRecording;
+  const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const animateWaveFromDB = (db) => {
+  const normalized = Math.min(1, Math.max(0, (db + 60) / 55));
+    waveBarAnims.forEach((anim) => {
+      const variation = 0.75 + Math.random() * 0.5;
+      const target = Math.max(0.1, Math.min(1, normalized * variation));
+      Animated.timing(anim, {
+        toValue: target,
+        duration: 80,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
 
+  // Cronómetro sincronizado con el grabador real (vía addRecordBackListener).
+  // El listener deja de emitir mientras la grabación está en pausa, así que
+  // recordSeconds se congela solo, sin necesidad de chequear isPaused a mano.
   useEffect(() => {
-    let interval;
-    if (isRecording && !isPaused) {
-      interval = setInterval(() => {
-        setRecordSeconds(prev => prev + 1);
-      }, 1000);
-    } else if (!isRecording) {
+    if (!isRecording) {
       setRecordSeconds(0);
+      return;
     }
-    return () => clearInterval(interval);
-  }, [isRecording, isPaused]);
 
-  // Animación del oscilador para simular onda de voz capturada en tiempo real
+    Sound.addRecordBackListener((e) => {
+      setRecordSeconds(Math.floor(e.currentPosition / 1000));
+      if (e.currentMetering != null) {
+        animateWaveFromDB(e.currentMetering);
+      }
+    });
+
+    return () => {
+      Sound.removeRecordBackListener();
+    };
+  }, [isRecording]);
+
+  // useEffect 2 — resetear barras al pausar/detener
   useEffect(() => {
-    let interval;
-    if (isRecording && !isPaused) {
-      interval = setInterval(() => {
-        setWaveHeights(
-          new Array(22).fill(0).map(() => Math.floor(Math.random() * 32) + 4)
-        );
-      }, 110);
-    } else if (!isRecording) {
-      setWaveHeights(new Array(22).fill(15));
+    const isActive = isRecording && !isPaused;
+
+    if (!isActive) {
+      waveBarAnims.forEach((anim) => {
+        anim.stopAnimation();
+        Animated.timing(anim, { toValue: 0.1, duration: 200, useNativeDriver: true }).start();
+      });
     }
-    return () => clearInterval(interval);
   }, [isRecording, isPaused]);
 
   // Animación de "rebote" del indicador de bloqueo (sugiere deslizar hacia arriba)
@@ -429,7 +458,28 @@ export default function ChatDetailScreen({ route, navigation }) {
     return () => loopAnim && loopAnim.stop();
   }, [isRecording, isLocked]);
 
-  // --- Funciones de Grabación con expo-audio ---
+  useEffect(() => {
+    if (isLocked) {
+      Animated.parallel([
+        Animated.spring(lockSlideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 8,
+        }),
+        Animated.timing(lockOpacityAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      lockSlideAnim.setValue(50);
+      lockOpacityAnim.setValue(0);
+    }
+  }, [isLocked]);
+
+  // --- Permisos y modo de audio (esto sigue siendo de expo-audio) ---
   useEffect(() => {
     (async () => {
       const status = await AudioModule.requestRecordingPermissionsAsync();
@@ -445,23 +495,30 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const startRecording = async () => {
     try {
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
       setIsPaused(false);
       setIsLocked(false);
+      const uri = await Sound.startRecorder(
+        undefined,  // path por defecto
+        undefined,  // audioSet por defecto
+        true        //  meteringEnabled
+      );
+      if (!uri) throw new Error('No se obtuvo URI');
+      setIsRecording(true);
     } catch (err) {
       console.log('Error iniciando grabación:', err);
+      setIsRecording(false);
     }
   };
 
   const stopAndSendRecording = async (discard = false) => {
     try {
       const duration = recordSeconds;
-      await audioRecorder.stop();
-      const uri = audioRecorder.uri;
-          console.log('URI del audio grabado:', uri); // ← agregá esto temporalmente
-    console.log('Duración total:', duration, 'segundos');
+      const uri = await Sound.stopRecorder();
+      Sound.removeRecordBackListener();
+      console.log('URI del audio grabado:', uri);
+      console.log('Duración total:', duration, 'segundos');
 
+      setIsRecording(false);
       setIsPaused(false);
       setIsLocked(false);
 
@@ -474,12 +531,16 @@ export default function ChatDetailScreen({ route, navigation }) {
       const user = auth.currentUser;
       const token = await user.getIdToken();
 
+      // nitro-sound devuelve .m4a en iOS y .mp4 en Android — usamos la
+      // extensión real del archivo en vez de asumir siempre m4a
+      const extension = uri.split('.').pop() || 'm4a';
+
       const uploadRes = await new Promise((resolve, reject) => {
         const formData = new FormData();
         formData.append('imagen', {
           uri,
-          type: 'audio/m4a',
-          name: `voice_${Date.now()}.m4a`,
+          type: `audio/${extension}`,
+          name: `voice_${Date.now()}.${extension}`,
         });
 
         const xhr = new XMLHttpRequest();
@@ -518,6 +579,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
     } catch (err) {
       console.log('Error deteniendo grabación:', err);
+      setIsRecording(false);
     } finally {
       setRecordSeconds(0);
     }
@@ -526,11 +588,10 @@ export default function ChatDetailScreen({ route, navigation }) {
   const togglePauseRecording = async () => {
     try {
       if (isPaused) {
-        // En expo-audio nativo, record() después de pause() continúa el mismo archivo
-        audioRecorder.resume();
+        await Sound.resumeRecorder();
         setIsPaused(false);
       } else {
-        audioRecorder.pause();
+        await Sound.pauseRecorder();
         setIsPaused(true);
       }
     } catch (err) {
@@ -540,20 +601,53 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const handleTouchStart = (e) => {
     touchStartY.current = e.nativeEvent.pageY;
+    touchStartX.current = e.nativeEvent.pageX;
+    isCancellingRef.current = false; // 👈
     startRecording();
   };
 
   const handleTouchMove = (e) => {
-    if (isLocked) return;
+    if (isLocked || isCancellingRef.current) return; // 👈 agregá isCancellingRef.current
+
     const currentY = e.nativeEvent.pageY;
+    const currentX = e.nativeEvent.pageX;
     const deltaY = touchStartY.current - currentY;
+    const deltaX = touchStartX.current - currentX;
+
     if (deltaY > 60) {
       setIsLocked(true);
+      cancelSlideAnim.setValue(0);
+      return;
+    }
+
+    if (deltaX > 0) {
+      cancelSlideAnim.setValue(-deltaX);
+    }
+
+    if (deltaX > 80) {
+      isCancellingRef.current = true; // 👈 marcar antes de animar
+      Animated.timing(cancelSlideAnim, {
+        toValue: -300,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        cancelSlideAnim.setValue(0);
+        stopAndSendRecording(true);
+      });
     }
   };
 
   const handleTouchEnd = () => {
+    if (isCancellingRef.current) return;
     if (!isLocked) {
+      const deltaX = touchStartX.current - (cancelSlideAnim._value ? -cancelSlideAnim._value : 0);
+      // Volver a posición original con spring
+      Animated.spring(cancelSlideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 120,
+        friction: 8,
+      }).start();
       stopAndSendRecording(false);
     }
   };
@@ -724,7 +818,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     setSelectedMessageId(null);
   };
 
-  const renderMessageItem = ({ item }) => {
+  const renderMessageItem = React.useCallback(({ item }) => {
     const isMe = item.sender === 'me';
     const isSelected = selectedMessageId === item.id;
     return (
@@ -740,7 +834,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         setShowMsgInfo={setShowMsgInfo}
       />
     );
-  };
+  }, [selectedMessageId, isDark, colors, chatName]);
   
   return (
     <TouchableWithoutFeedback onPress={closeAllMenus}>
@@ -901,7 +995,15 @@ export default function ChatDetailScreen({ route, navigation }) {
             keyExtractor={(item) => item.id}
             renderItem={renderMessageItem}
             contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onContentSizeChange={() => {
+              if (messages.length > 0) {
+                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+              }
+            }}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={15}
+            windowSize={10}
+            initialNumToRender={20}
           />
         )}
 
@@ -909,6 +1011,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          style={{ paddingBottom: insets.bottom }}
         >
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
@@ -938,7 +1041,12 @@ export default function ChatDetailScreen({ route, navigation }) {
 
           {isLocked ? (
             // 🔒 VISTA DE GRABACIÓN BLOQUEADA (Imagen 2)
-            <View style={[styles.lockedRecordContainer, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2', borderColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+            <Animated.View style={[styles.lockedRecordContainer, {
+                backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
+                borderColor: isDark ? '#2C2C2C' : '#E0E0E0',
+                transform: [{ translateY: lockSlideAnim }],
+                opacity: lockOpacityAnim,
+              }]}>
               <View style={styles.recordTopRow}>
                 <Text style={[styles.recordSeconds, { color: colors.text }]}>
                   {formatTime(recordSeconds)}
@@ -946,8 +1054,14 @@ export default function ChatDetailScreen({ route, navigation }) {
 
                 {/* Waveform oscilante */}
                 <View style={styles.waveformContainer}>
-                  {waveHeights.map((h, i) => (
-                    <View key={i} style={[styles.waveBar, { height: h, backgroundColor: isPaused ? '#888' : GREEN_ACCENT }]} />
+                  {waveBarAnims.map((anim, i) => (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        styles.waveBar,
+                        { backgroundColor: isPaused ? '#888' : GREEN_ACCENT, transform: [{ scaleY: anim }] },
+                      ]}
+                    />
                   ))}
                 </View>
               </View>
@@ -978,13 +1092,16 @@ export default function ChatDetailScreen({ route, navigation }) {
                   <Feather name="arrow-up" size={28} color="#FFF" />
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           ) : (
             // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
             <View style={styles.inputContainer}>
               {isRecording ? (
                 // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
-                <View style={[styles.recordHintBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                <Animated.View style={[styles.recordHintBar, {
+                    backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
+                    transform: [{ translateX: cancelSlideAnim }],
+                  }]}>
                   <Text style={[styles.recordSeconds, { color: colors.text }]}>
                     {formatTime(recordSeconds)}
                   </Text>
@@ -994,7 +1111,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                       Desliza para cancelar
                     </Text>
                   </View>
-                </View>
+                </Animated.View>
               ) : (
                 <View style={[styles.textInputWrapper, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
                   <TouchableOpacity onPress={() => Alert.alert('Cámara', 'Cámara rápida')}>
@@ -1103,14 +1220,14 @@ const styles = StyleSheet.create({
   dropdownItem: {paddingVertical: 12,paddingHorizontal: 16,},
   dropdownItemText: {fontSize: 14,fontFamily: 'Nunito-Regular',},
   subDropdownMenu: {borderRadius: 8,borderWidth: 0.5,marginTop: 4,marginHorizontal: 8,paddingVertical: 4,},
-  attachmentTray: {position: 'absolute',bottom: 64,right: 20,left: 20,borderRadius: 15,borderWidth: 0.5,shadowColor: '#000',shadowOffset: { width: 0, height: -2 },shadowOpacity: 0.15,shadowRadius: 4,elevation: 4,zIndex: 98,padding: 16,flexDirection: 'row',justifyContent: 'space-around',},
+  attachmentTray: {position: 'absolute',bottom: 120,right: 20,left: 20,borderRadius: 15,borderWidth: 0.5,shadowColor: '#000',shadowOffset: { width: 0, height: -2 },shadowOpacity: 0.15,shadowRadius: 4,elevation: 4,zIndex: 98,padding: 16,flexDirection: 'row',justifyContent: 'space-around',},
   attachmentItem: {alignItems: 'center',width: 65,},
   attachmentText: {fontSize: 12,marginTop: 4,fontFamily: 'Nunito-Regular',textAlign: 'center',},
   lockedRecordContainer: {padding: 14,marginHorizontal: 12,marginVertical: 10,borderRadius: 24,borderWidth: 1,gap: 12,},
   recordTopRow: {flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',paddingHorizontal: 8,},
   recordSeconds: {fontSize: 16,fontFamily: 'Nunito-Bold',minWidth: 50,},
-  waveformContainer: {flexDirection: 'row',alignItems: 'center',gap: 3,flex: 1,justifyContent: 'center',paddingHorizontal: 12,},
-  waveBar: {width: 3,borderRadius: 1.5,},
+  waveformContainer: {flexDirection: 'row',alignItems: 'center',gap: 3,flex: 1,justifyContent: 'center',paddingHorizontal: 12,height: 36,},
+  waveBar: {width: 3,height: 32,borderRadius: 1.5,},
   recordActionRow: {flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',gap: 10,paddingHorizontal: 4,},
   recordDiscardButton: {width: 44,height: 44,borderRadius: 22,justifyContent: 'center',alignItems: 'center',},
   recordSendButton: {width: 44,height: 44,borderRadius: 22,justifyContent: 'center',alignItems: 'center',elevation: 2,},

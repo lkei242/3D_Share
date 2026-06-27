@@ -75,7 +75,7 @@ const MiTemaOscuro = {
     ...DarkTheme.colors,
     background: '#121212', // Fondo oscuro
     inputBackground: '#ffffff',
-    letraschicas: '#9DBD3F',
+    letraschicas: '#94BA46',
     avatarborder: '#2C2C2C',
     card: '#1C1C1C',
     text: '#FFFFFF',

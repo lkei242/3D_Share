@@ -34,7 +34,7 @@ import {
     addDoc,
     serverTimestamp,
     increment,
-    onSnapshot,
+    // onSnapshot,
 } from 'firebase/firestore';
 import { formatViews } from '../config/formatViews';
 
@@ -44,24 +44,24 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // COMPONENTE: PostItem (un post individual, autónomo)
 // ============================================================
 
-function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments }) {
+const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments }) {
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
     const [postViews, setPostViews] = useState(post.views || 0);
 
     // Escuchar cambios en tiempo real del post
+    // Leer vistas una sola vez (sin listener en tiempo real)
     useEffect(() => {
         if (!post?.id) return;
+        let cancelled = false;
         const postRef = doc(db, 'posts', post.id);
-
-        const unsubscribe = onSnapshot(postRef, (snapshot) => {
-            if (snapshot.exists()) {
+        getDoc(postRef).then((snapshot) => {
+            if (!cancelled && snapshot.exists()) {
                 setPostViews(snapshot.data().vistas || 0);
             }
         });
-
-        return () => unsubscribe();
+        return () => { cancelled = true; };
     }, [post?.id]);
 
     // Cargar estado inicial (like, saved, comments)
@@ -188,7 +188,7 @@ function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePi
             </View>
         </View>
     );
-}
+});
 
 // ============================================================
 // COMPONENTE PRINCIPAL: PostDetailScreen

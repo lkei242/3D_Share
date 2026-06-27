@@ -79,7 +79,7 @@ export default function ChatScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  const renderChatItem = ({ item }) => (
+  const renderChatItem = React.useCallback(({ item }) => (
     <TouchableOpacity 
       style={styles.chatRow} 
       activeOpacity={0.7} 
@@ -101,7 +101,7 @@ export default function ChatScreen({ navigation }) {
         </Text>
       </View>
     </TouchableOpacity>
-  );
+  ), [colors, isDark, navigation]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
