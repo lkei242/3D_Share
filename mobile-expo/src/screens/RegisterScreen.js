@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputError: {
-    borderWidth: 1,
+    borderWidth: 3,
     borderColor: '#E74C3C',
   },
   passwordContainer: {
