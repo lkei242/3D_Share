@@ -14,6 +14,7 @@ import {
     FlatList,
     Keyboard,
     ScrollView,
+    Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -49,6 +50,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
     const [postViews, setPostViews] = useState(post.views || 0);
+    const [selectedImage, setSelectedImage] = useState(null);
 
     // Escuchar cambios en tiempo real del post
     // Leer vistas una sola vez (sin listener en tiempo real)
@@ -144,12 +146,9 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             >
                 {/* POST IMAGE */}
                 <View style={styles.imageWrapper}>
-                    <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
-                    {post.price && (
-                        <View style={styles.priceOverlay}>
-                            <Text style={styles.priceText}>Precio: {post.price}</Text>
-                        </View>
-                    )}
+                    <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedImage(post.image)}>
+                        <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
+                    </TouchableOpacity>
                 </View>
 
                 {/* INTERACTION BAR */}
@@ -186,6 +185,11 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                 </View>
 
             </View>
+            <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
+                <TouchableOpacity style={styles.imageModalOverlay} activeOpacity={1} onPress={() => setSelectedImage(null)}>
+                    <Image source={{ uri: selectedImage }} style={styles.imageModalImage} resizeMode="contain" />
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 });
@@ -438,5 +442,16 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     descriptionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-    descriptionText: { fontSize: 14, lineHeight: 20 }
+    descriptionText: { fontSize: 14, lineHeight: 20 },
+    // AGREGAR:
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalImage: {
+    width: screenWidth,
+    height: screenWidth,
+  },
 });

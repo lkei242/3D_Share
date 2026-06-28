@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
@@ -20,6 +21,7 @@ export default function AdvancedInfoScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
@@ -114,6 +116,24 @@ export default function AdvancedInfoScreen({ navigation }) {
     }
   };
 
+  const removeProfilePicture = async () => {
+    setShowOptions(false);
+    setUploading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      await updateDoc(doc(db, 'users', user.uid), {
+        profilePicture: '',
+      });
+      setProfilePicture('');
+    } catch (error) {
+      console.log('Error eliminando foto:', error);
+      alert('No se pudo eliminar la foto.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <View
       style={[
@@ -152,7 +172,7 @@ export default function AdvancedInfoScreen({ navigation }) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.avatarContainer} onPress={pickAndUploadImage} disabled={uploading}>
+        <TouchableOpacity style={styles.avatarContainer} onPress={() => setShowOptions(true)} disabled={uploading}>
           {uploading ? (
             <View style={[styles.avatar, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5' }]}>
               <ActivityIndicator size="small" color="#546F1C" />
@@ -222,6 +242,31 @@ export default function AdvancedInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={showOptions} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowOptions(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#2A2A2A' : '#FFF' }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Foto de perfil</Text>
+            <View style={[styles.modalDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => { setShowOptions(false); pickAndUploadImage(); }}
+            >
+              <Ionicons name="camera" size={22} color="#546F1C" />
+              <Text style={[styles.modalOptionText, { color: colors.text }]}>Cambiar foto</Text>
+            </TouchableOpacity>
+            <View style={[styles.modalDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+            <TouchableOpacity style={styles.modalOption} onPress={removeProfilePicture}>
+              <Ionicons name="trash" size={22} color="#E74C3C" />
+              <Text style={[styles.modalOptionText, { color: '#E74C3C' }]}>Eliminar foto</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -291,5 +336,36 @@ const styles = StyleSheet.create({
 
   buttonSpacing: {
     marginBottom: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '75%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  modalDivider: {
+    height: 1,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

@@ -39,6 +39,8 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [birthDate, setBirthDate] = useState('');
 
   // Paso 2: Campos opcionales y adicionales
@@ -241,6 +243,13 @@ export default function RegisterScreen({ navigation }) {
       newErrors.password = 'Debe tener un carácter especial (!@#$...).';
     }
 
+    // Confirm Password
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'Confirmá tu contraseña.';
+    } else if (confirmPassword !== password) {
+      newErrors.confirmPassword = 'Las contraseñas no coinciden.';
+    }
+
     // BirthDate - ya validada y formateada por el DateTimePicker
     if (!birthDate.trim()) {
       newErrors.birthDate = 'La fecha de nacimiento es obligatoria.';
@@ -440,6 +449,31 @@ export default function RegisterScreen({ navigation }) {
               >
                 <Ionicons
                   name={showPassword ? 'eye-off' : 'eye'}
+                  size={22}
+                  color="#707070"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.passwordContainer, { marginBottom: 15 }]}>
+              <TextInput
+                style={[styles.input, errors.confirmPassword && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1, marginBottom: 0 }]}
+                placeholder="Repetí tu contraseña"
+                placeholderTextColor="#707070"
+                secureTextEntry={!showConfirmPassword}
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: null }));
+                }}
+                maxLength={64}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off' : 'eye'}
                   size={22}
                   color="#707070"
                 />
