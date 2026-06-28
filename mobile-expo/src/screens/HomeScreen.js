@@ -1,8 +1,9 @@
 // src/screens/HomeScreen.js
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
+import { getBlockedUids } from './config/userActions';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -102,6 +103,7 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [blockedUids, setBlockedUids] = useState([]);
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', {
       post,
@@ -110,6 +112,14 @@ export default function HomeScreen({ navigation }) {
   };
 
   const [lastVisible, setLastVisible] = useState(null);
+
+  const fetchBlockedUsers = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const blocked = await getBlockedUids(user.uid);
+    setBlockedUids(blocked);
+  };
+
   const fetchPosts = async (reset = false) => {
     if (loading || (!hasMore && !reset)) return;
     setLoading(true);
@@ -166,7 +176,7 @@ export default function HomeScreen({ navigation }) {
               authorUsername: authorInfo.username,
               authorProfilePicture: authorInfo.profilePicture,
           };
-      });
+      }).filter(p => !blockedUids.includes(p.author));
       const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
       setLastVisible(lastVisibleDoc);
       if (reset) {
@@ -186,6 +196,7 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(true);
     setLastVisible(null);
     setHasMore(true);
+    await fetchBlockedUsers();
     await fetchPosts(true);
     setRefreshing(false);
   };
@@ -194,7 +205,7 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (!hasFetched.current) {
-        fetchPosts(true);
+        fetchBlockedUsers().then(() => fetchPosts(true));
         hasFetched.current = true;
       }
     });

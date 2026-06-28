@@ -20,6 +20,7 @@ import { collection, query, orderBy, getDocs, limit, startAfter, where, document
 import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { auth } from './config/firebase';
+import { getBlockedUids } from './config/userActions';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -35,6 +36,14 @@ export default function SearchScreen({ navigation }) {
   const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [blockedUids, setBlockedUids] = useState([]);
+
+  const fetchBlockedUsers = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const blocked = await getBlockedUids(user.uid);
+    setBlockedUids(blocked);
+  };
 
   const fetchPosts = async (reset = false) => {
     if (loading) return;
@@ -138,6 +147,7 @@ export default function SearchScreen({ navigation }) {
     setRefreshing(true);
     setLastVisible(null);
     setHasMore(true);
+    await fetchBlockedUsers();
     await Promise.all([fetchPosts(true), fetchUsers()]);
     setRefreshing(false);
   };
@@ -146,8 +156,10 @@ export default function SearchScreen({ navigation }) {
   useEffect(() => {
       const unsubscribe = navigation.addListener('focus', () => {
         if (!hasFetched.current) {
-          fetchPosts(true);
-          fetchUsers();
+          fetchBlockedUsers().then(() => {
+            fetchPosts(true);
+            fetchUsers();
+          });
           hasFetched.current = true;
         }
       });
@@ -156,15 +168,17 @@ export default function SearchScreen({ navigation }) {
 
   // Filtrado reactivo en memoria según el título escrito
   const filteredPosts = posts.filter(post => 
+      !blockedUids.includes(post.author) && (
       post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (post.authorProfileName && post.authorProfileName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (post.authorUsername && post.authorUsername.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  ));
 
   const filteredUsers = users.filter(user => 
+      !blockedUids.includes(user.uid) && (
       user.profileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ));
 
   const renderItem = ({ item }) => (
     <TouchableOpacity

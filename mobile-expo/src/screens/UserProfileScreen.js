@@ -18,6 +18,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser } from './config/userActions';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
@@ -36,6 +37,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [followersCount, setFollowersCount] = useState(0);
   const [friendsCount, setFriendsCount] = useState(0);
   const [activeTab, setActiveTab] = useState('Publicaciones');
+  const [isBlocked, setIsBlocked] = useState(false);
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
     email: null,
@@ -90,23 +92,29 @@ export default function UserProfileScreen({ route, navigation }) {
   const fetchUserPosts = useCallback(async () => {
     setLoading(true);
     try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+
       const q = query(
         collection(db, 'posts'),
         where('autor', '==', userId),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      const postsFormateados = snapshot.docs.map(doc => ({
-        id: doc.id,
-        title: doc.data().titulo || 'Sin título',
-        image: doc.data().imagenes && doc.data().imagenes.length > 0
-          ? doc.data().imagenes[0]
+      const postsFormateados = snapshot.docs.map(d => ({
+        id: d.id,
+        title: d.data().titulo || 'Sin título',
+        image: d.data().imagenes && d.data().imagenes.length > 0
+          ? d.data().imagenes[0]
           : 'https://picsum.photos/seed/placeholder/400/300',
-        price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: formatViews(doc.data().vistas || 0),
-        totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
-        description: doc.data().descripcion || '',
-        author: doc.data().autor,
+        price: d.data().precio ? `${d.data().precio}$` : null,
+        views: formatViews(d.data().vistas || 0),
+        totalImages: d.data().imagenes ? d.data().imagenes.length : 1,
+        description: d.data().descripcion || '',
+        author: d.data().autor,
+        authorProfileName: userData.profileName || userData.username || 'Usuario',
+        authorUsername: userData.username || 'usuario',
+        authorProfilePicture: userData.profilePicture || '',
       }));
       setPosts(postsFormateados);
     } catch (error) {
@@ -118,44 +126,91 @@ export default function UserProfileScreen({ route, navigation }) {
 
   const checkFollowing = useCallback(async () => {
     if (!currentUser || currentUser.uid === userId) return;
-    try {
-      const followRef = doc(db, 'followers', `${userId}_${currentUser.uid}`);
-      const followDoc = await getDoc(followRef);
-      setIsFollowing(followDoc.exists());
-    } catch (error) {
-      console.log('Error checking follow status:', error);
-    }
+    const following = await checkIfFollowing(currentUser.uid, userId);
+    setIsFollowing(following);
   }, [userId, currentUser]);
 
   const fetchFollowersCount = useCallback(async () => {
-    try {
-      const q = query(collection(db, 'followers'), where('userId', '==', userId));
-      const snapshot = await getDocs(q);
-      setFollowersCount(snapshot.size);
-    } catch (error) {
-      console.log('Error fetching followers count:', error);
-    }
+    const count = await getFollowersCount(userId);
+    setFollowersCount(count);
   }, [userId]);
 
   const handleFollow = async () => {
     if (!currentUser) return;
-    try {
-      const followRef = doc(db, 'followers', `${userId}_${currentUser.uid}`);
-      if (isFollowing) {
-        await deleteDoc(followRef);
-        setIsFollowing(false);
-        setFollowersCount(prev => Math.max(0, prev - 1));
-      } else {
-        await setDoc(followRef, {
-          userId: userId,
-          followerId: currentUser.uid,
-          createdAt: new Date(),
-        });
+    if (isFollowing) {
+      setIsFollowing(false);
+      setFollowersCount(prev => Math.max(0, prev - 1));
+      const ok = await unfollowUser(currentUser.uid, userId);
+      if (!ok) {
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
       }
-    } catch (error) {
-      console.log('Error following/unfollowing:', error);
+    } else {
+      setIsFollowing(true);
+      setFollowersCount(prev => prev + 1);
+      const ok = await followUser(currentUser.uid, userId);
+      if (!ok) {
+        setIsFollowing(false);
+        setFollowersCount(prev => Math.max(0, prev - 1));
+      }
+    }
+  };
+
+  const fetchBlocked = useCallback(async () => {
+    if (!currentUser) return;
+    const blocked = await checkIfBlocked(currentUser.uid, userId);
+    setIsBlocked(blocked);
+  }, [currentUser?.uid, userId]);
+
+  const handleBlock = () => {
+    if (isBlocked) {
+      Alert.alert(
+        'Desbloquear usuario',
+        `¿Querés desbloquear a ${profileName}?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Desbloquear',
+            onPress: async () => {
+              setIsBlocked(false);
+              const ok = await unblockUser(currentUser.uid, userId);
+              if (!ok) setIsBlocked(true);
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Bloquear usuario',
+        `¿Querés bloquear a ${profileName}? No verás sus publicaciones ni podrán interactuar.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Bloquear',
+            style: 'destructive',
+            onPress: async () => {
+              setIsBlocked(true);
+              let wasFollowing = isFollowing;
+              if (isFollowing) {
+                setIsFollowing(false);
+                setFollowersCount(prev => Math.max(0, prev - 1));
+              }
+              const ok = await blockUser(currentUser.uid, userId);
+              if (!ok) {
+                setIsBlocked(false);
+                if (wasFollowing) {
+                  setIsFollowing(true);
+                  setFollowersCount(prev => prev + 1);
+                }
+                return;
+              }
+              if (wasFollowing) {
+                await unfollowUser(currentUser.uid, userId);
+              }
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -201,7 +256,8 @@ export default function UserProfileScreen({ route, navigation }) {
     fetchUserPosts();
     checkFollowing();
     fetchFollowersCount();
-  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount]);
+    fetchBlocked();
+  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount, fetchBlocked]);
 
   const renderGrid = () => {
     if (loading) {
@@ -420,7 +476,7 @@ export default function UserProfileScreen({ route, navigation }) {
           <TouchableOpacity style={styles.headerBtn}>
             <Ionicons name="notifications-outline" size={24} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn}>
+          <TouchableOpacity style={styles.headerBtn} onPress={handleBlock}>
             <Feather name="more-vertical" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -476,7 +532,6 @@ export default function UserProfileScreen({ route, navigation }) {
           {/* Nombre y Bio (solo si hay presentación) */}
           {presentation && presentation.trim().length > 0 ? (
             <>
-              <Text style={[styles.profileName, { color: colors.text }]}>{profileName}</Text>
               <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
                 {presentation}
               </Text>
@@ -485,6 +540,16 @@ export default function UserProfileScreen({ route, navigation }) {
 
           {/* Botones acción */}
           {currentUser?.uid !== userId ? (
+            isBlocked ? (
+              <View style={styles.buttonsRow}>
+                <View style={[styles.btnBlocked, { backgroundColor: isDark ? '#3A2020' : '#FFE0E0' }]}>
+                  <Ionicons name="ban-outline" size={16} color="#E53935" style={{ marginRight: 6 }} />
+                  <Text style={[styles.btnBlockedText, { color: '#E53935' }]}>
+                    Bloqueado
+                  </Text>
+                </View>
+              </View>
+            ) : (
             <View style={styles.buttonsRow}>
               <TouchableOpacity
                 style={[styles.btnPrimary, isFollowing && styles.btnFollowing]}
@@ -513,6 +578,7 @@ export default function UserProfileScreen({ route, navigation }) {
                 <Feather name="share-2" size={18} color={isDark ? '#FFF' : '#333'} />
               </TouchableOpacity>
             </View>
+            )
           ) : null}
         </View>
 
@@ -664,6 +730,18 @@ const styles = StyleSheet.create({
   },
   btnFollowing: {
     backgroundColor: '#444',
+  },
+  btnBlocked: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  btnBlockedText: {
+    fontFamily: 'Nunito-Bold',
+    fontSize: 14,
   },
   btnPrimaryText: {
     color: '#FFF',

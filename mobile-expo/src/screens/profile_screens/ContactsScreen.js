@@ -17,6 +17,7 @@ import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { getBlockedUids, unblockUser } from '../config/userActions';
 
 const { width } = Dimensions.get('window');
 const PAGE_WIDTH = width - 40;
@@ -49,10 +50,10 @@ export default function ContactsScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState(route.params?.initialTab ?? 0);
   const scrollViewRef = useRef(null);
   useEffect(() => {
-    if (route.params?.initialTab === 1) {
+    if (route.params?.initialTab) {
       const timer = setTimeout(() => {
         if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ x: PAGE_WIDTH, animated: false });
+          scrollViewRef.current.scrollTo({ x: route.params.initialTab * PAGE_WIDTH, animated: false });
         }
       }, 300);
       return () => clearTimeout(timer);
@@ -60,11 +61,13 @@ export default function ContactsScreen({ navigation, route }) {
   }, []);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
+  const [blocked, setBlocked] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // Estados para la búsqueda
   const [searchFollowers, setSearchFollowers] = useState('');
   const [searchFollowing, setSearchFollowing] = useState('');
+  const [searchBlocked, setSearchBlocked] = useState('');
   
   const currentUser = auth.currentUser;
 
@@ -77,6 +80,11 @@ export default function ContactsScreen({ navigation, route }) {
   const filteredFollowing = following.filter(user =>
     user.name.toLowerCase().includes(searchFollowing.toLowerCase()) ||
     user.username.toLowerCase().includes(searchFollowing.toLowerCase())
+  );
+
+  const filteredBlocked = blocked.filter(user =>
+    user.name.toLowerCase().includes(searchBlocked.toLowerCase()) ||
+    user.username.toLowerCase().includes(searchBlocked.toLowerCase())
   );
 
   // Obtener lista de seguidos
@@ -135,15 +143,80 @@ export default function ContactsScreen({ navigation, route }) {
     }
   }, [currentUser]);
 
+  // Obtener lista de bloqueados
+  const fetchBlocked = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const blockedUids = await getBlockedUids(currentUser.uid);
+      const blockedData = [];
+      for (const uid of blockedUids) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          blockedData.push({
+            id: uid,
+            uid: uid,
+            name: data.profileName || data.username || 'Usuario',
+            username: data.username || 'usuario',
+            profilePicture: data.profilePicture || '',
+          });
+        }
+      }
+      setBlocked(blockedData);
+    } catch (error) {
+      console.log('Error fetching blocked users:', error);
+    }
+  }, [currentUser]);
+
+  const handleUnblock = async (uid) => {
+    if (!currentUser) return;
+    setBlocked(prev => prev.filter(u => u.uid !== uid));
+    const ok = await unblockUser(currentUser.uid, uid);
+    if (!ok) fetchBlocked();
+  };
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchFollowing(), fetchFollowers()]).finally(() => setLoading(false));
-  }, [fetchFollowing, fetchFollowers]);
+    Promise.all([fetchFollowing(), fetchFollowers(), fetchBlocked()]).finally(() => setLoading(false));
+  }, [fetchFollowing, fetchFollowers, fetchBlocked]);
 
   const handleTabPress = (index) => {
     setActiveTab(index);
     scrollViewRef.current?.scrollTo({ x: index * PAGE_WIDTH, animated: true });
   };
+
+  const renderBlockedItem = ({ item }) => (
+    <View
+      style={[
+        styles.userRow,
+        {
+          backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.WHITE,
+        }
+      ]}
+    >
+      {item.profilePicture ? (
+        <Image source={{ uri: item.profilePicture }} style={styles.avatarImage} />
+      ) : (
+        <View style={[styles.avatar, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+          <Ionicons name="person-circle-outline" size={50} color="#94BA46" />
+        </View>
+      )}
+      <View style={styles.userInfo}>
+        <Text style={[styles.userName, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={[styles.userHandle, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]} numberOfLines={1}>
+          @{item.username}
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.unblockButton, { backgroundColor: isDark ? '#3A2020' : '#FFE0E0' }]}
+        onPress={() => handleUnblock(item.uid)}
+      >
+        <Text style={styles.unblockText}>Desbloquear</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const handleScrollEnd = (event) => {
     const index = Math.round(event.nativeEvent.contentOffset.x / PAGE_WIDTH);
@@ -204,11 +277,8 @@ export default function ContactsScreen({ navigation, route }) {
     <View style={[styles.container, { backgroundColor: isDark ? COLORS.BLACK_DARK : COLORS.WHITE, paddingTop: insets.top + 10 }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={isDark ? COLORS.WHITE : COLORS.BLACK} />
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>Contactos</Text>
       </View>
@@ -223,6 +293,11 @@ export default function ContactsScreen({ navigation, route }) {
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{following.length}</Text>
           <Text style={[styles.statLabel, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}>Seguidos</Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: isDark ? COLORS.GRAY_800 : COLORS.GRAY_200 }]} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{blocked.length}</Text>
+          <Text style={[styles.statLabel, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}>Bloqueados</Text>
         </View>
       </View>
 
@@ -244,6 +319,14 @@ export default function ContactsScreen({ navigation, route }) {
             Seguidos
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 2 && styles.activeTab]}
+          onPress={() => handleTabPress(2)}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 2 ? COLORS.WHITE : (isDark ? COLORS.GRAY_400 : COLORS.GRAY_600) }]}>
+            Bloqueados
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -256,8 +339,8 @@ export default function ContactsScreen({ navigation, route }) {
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScrollEnd}
           onContentSizeChange={() => {
-            if (route.params?.initialTab === 1 && scrollViewRef.current) {
-              scrollViewRef.current.scrollTo({ x: PAGE_WIDTH, animated: false });
+            if (route.params?.initialTab && scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ x: route.params.initialTab * PAGE_WIDTH, animated: false });
             }
           }}
           style={styles.scrollView}
@@ -319,6 +402,35 @@ export default function ContactsScreen({ navigation, route }) {
               }
             />
           </View>
+
+          {/* Página 3: Bloqueados */}
+          <View style={{ width: PAGE_WIDTH }}>
+            <View style={[styles.searchContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>
+              <Ionicons name="search" size={20} color={isDark ? COLORS.GRAY_500 : COLORS.GRAY_400} style={styles.searchIcon} />
+              <TextInput
+                placeholder="Buscar bloqueados..."
+                placeholderTextColor={isDark ? COLORS.GRAY_600 : COLORS.GRAY_400}
+                value={searchBlocked}
+                onChangeText={setSearchBlocked}
+                style={[styles.searchInput, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}
+              />
+            </View>
+            <FlatList
+              data={filteredBlocked}
+              keyExtractor={(item) => item.id}
+              renderItem={renderBlockedItem}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="ban-outline" size={48} color={isDark ? COLORS.GRAY_600 : COLORS.GRAY_300} />
+                  <Text style={[styles.emptyText, { color: isDark ? COLORS.GRAY_500 : COLORS.GRAY_400, marginTop: 16 }]}>
+                    No tenés usuarios bloqueados
+                  </Text>
+                </View>
+              }
+            />
+          </View>
         </ScrollView>
       )}
     </View>
@@ -335,10 +447,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
     marginTop: 10,
-  },
-  backButton: {
-    padding: 10,
-    borderRadius: 12,
   },
   title: {
     fontSize: 26,
@@ -473,5 +581,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     fontWeight: '500',
+  },
+  unblockButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  unblockText: {
+    color: '#E53935',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
