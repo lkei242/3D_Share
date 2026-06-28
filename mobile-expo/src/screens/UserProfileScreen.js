@@ -35,7 +35,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [presentation, setPresentation] = useState('');
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
-  const [friendsCount, setFriendsCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [isBlocked, setIsBlocked] = useState(false);
   const [userContacts, setUserContacts] = useState({
@@ -133,6 +133,17 @@ export default function UserProfileScreen({ route, navigation }) {
   const fetchFollowersCount = useCallback(async () => {
     const count = await getFollowersCount(userId);
     setFollowersCount(count);
+  }, [userId]);
+
+  const fetchFollowingCount = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const q = query(collection(db, 'followers'), where('followerId', '==', userId));
+      const snapshot = await getDocs(q);
+      setFollowingCount(snapshot.size);
+    } catch (error) {
+      console.log('Error fetching following count:', error);
+    }
   }, [userId]);
 
   const handleFollow = async () => {
@@ -256,8 +267,9 @@ export default function UserProfileScreen({ route, navigation }) {
     fetchUserPosts();
     checkFollowing();
     fetchFollowersCount();
+    fetchFollowingCount();
     fetchBlocked();
-  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount, fetchBlocked]);
+  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount, fetchFollowingCount, fetchBlocked]);
 
   const renderGrid = () => {
     if (loading) {
@@ -352,7 +364,7 @@ export default function UserProfileScreen({ route, navigation }) {
           return (
             <View style={styles.emptyContactsContainer}>
               <Ionicons 
-                name="contacts-outline" 
+                name="people-outline" 
                 size={80} 
                 color={isDark ? '#444' : '#DDD'} 
               />
@@ -516,14 +528,14 @@ export default function UserProfileScreen({ route, navigation }) {
                   <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Publicaciones</Text>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>{friendsCount}</Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidos</Text>
-                </TouchableOpacity>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem}>
+                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 1 })}>
                   <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
                   <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidores</Text>
+                </TouchableOpacity>
+                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 2 })}>
+                  <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
+                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidos</Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -47,6 +47,10 @@ export default function ContactsScreen({ navigation, route }) {
   const { colors } = useTheme();
   const isDark = colors.dark || colors.text === '#FFFFFF';
   
+  const currentUser = auth.currentUser;
+  const profileUserId = route.params?.userId || currentUser?.uid;
+  const isOwnProfile = !route.params?.userId;
+
   const [activeTab, setActiveTab] = useState(route.params?.initialTab ?? 0);
   const scrollViewRef = useRef(null);
   useEffect(() => {
@@ -68,8 +72,6 @@ export default function ContactsScreen({ navigation, route }) {
   const [searchFollowers, setSearchFollowers] = useState('');
   const [searchFollowing, setSearchFollowing] = useState('');
   const [searchBlocked, setSearchBlocked] = useState('');
-  
-  const currentUser = auth.currentUser;
 
   // Filtrar datos según la búsqueda
   const filteredFollowers = followers.filter(user =>
@@ -89,9 +91,9 @@ export default function ContactsScreen({ navigation, route }) {
 
   // Obtener lista de seguidos
   const fetchFollowing = useCallback(async () => {
-    if (!currentUser) return;
+    if (!profileUserId) return;
     try {
-      const q = query(collection(db, 'followers'), where('followerId', '==', currentUser.uid));
+      const q = query(collection(db, 'followers'), where('followerId', '==', profileUserId));
       const snapshot = await getDocs(q);
       const followingIds = snapshot.docs.map(doc => doc.data().userId);
 
@@ -113,13 +115,13 @@ export default function ContactsScreen({ navigation, route }) {
     } catch (error) {
       console.log('Error fetching following:', error);
     }
-  }, [currentUser]);
+  }, [profileUserId]);
 
   // Obtener lista de seguidores
   const fetchFollowers = useCallback(async () => {
-    if (!currentUser) return;
+    if (!profileUserId) return;
     try {
-      const q = query(collection(db, 'followers'), where('userId', '==', currentUser.uid));
+      const q = query(collection(db, 'followers'), where('userId', '==', profileUserId));
       const snapshot = await getDocs(q);
       const followerIds = snapshot.docs.map(doc => doc.data().followerId);
 
@@ -141,7 +143,7 @@ export default function ContactsScreen({ navigation, route }) {
     } catch (error) {
       console.log('Error fetching followers:', error);
     }
-  }, [currentUser]);
+  }, [profileUserId]);
 
   // Obtener lista de bloqueados
   const fetchBlocked = useCallback(async () => {
@@ -177,8 +179,10 @@ export default function ContactsScreen({ navigation, route }) {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchFollowing(), fetchFollowers(), fetchBlocked()]).finally(() => setLoading(false));
-  }, [fetchFollowing, fetchFollowers, fetchBlocked]);
+    const promises = [fetchFollowing(), fetchFollowers()];
+    if (isOwnProfile) promises.push(fetchBlocked());
+    Promise.all(promises).finally(() => setLoading(false));
+  }, [fetchFollowing, fetchFollowers, fetchBlocked, isOwnProfile]);
 
   const handleTabPress = (index) => {
     setActiveTab(index);
@@ -280,7 +284,9 @@ export default function ContactsScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>Contactos</Text>
+        <Text style={[styles.title, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>
+          {isOwnProfile ? 'Contactos' : route.params?.profileName || 'Contactos'}
+        </Text>
       </View>
 
       {/* Estadísticas */}
@@ -294,11 +300,15 @@ export default function ContactsScreen({ navigation, route }) {
           <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{following.length}</Text>
           <Text style={[styles.statLabel, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}>Seguidos</Text>
         </View>
-        <View style={[styles.statDivider, { backgroundColor: isDark ? COLORS.GRAY_800 : COLORS.GRAY_200 }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{blocked.length}</Text>
-          <Text style={[styles.statLabel, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}>Bloqueados</Text>
-        </View>
+        {isOwnProfile && (
+          <>
+            <View style={[styles.statDivider, { backgroundColor: isDark ? COLORS.GRAY_800 : COLORS.GRAY_200 }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{blocked.length}</Text>
+              <Text style={[styles.statLabel, { color: isDark ? COLORS.GRAY_400 : COLORS.GRAY_600 }]}>Bloqueados</Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Indicador de Pestañas (Tabs) */}
@@ -319,14 +329,16 @@ export default function ContactsScreen({ navigation, route }) {
             Seguidos
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 2 && styles.activeTab]}
-          onPress={() => handleTabPress(2)}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 2 ? COLORS.WHITE : (isDark ? COLORS.GRAY_400 : COLORS.GRAY_600) }]}>
-            Bloqueados
-          </Text>
-        </TouchableOpacity>
+        {isOwnProfile && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 2 && styles.activeTab]}
+            onPress={() => handleTabPress(2)}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 2 ? COLORS.WHITE : (isDark ? COLORS.GRAY_400 : COLORS.GRAY_600) }]}>
+              Bloqueados
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (
@@ -403,7 +415,8 @@ export default function ContactsScreen({ navigation, route }) {
             />
           </View>
 
-          {/* Página 3: Bloqueados */}
+          {/* Página 3: Bloqueados (solo perfil propio) */}
+          {isOwnProfile && (
           <View style={{ width: PAGE_WIDTH }}>
             <View style={[styles.searchContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>
               <Ionicons name="search" size={20} color={isDark ? COLORS.GRAY_500 : COLORS.GRAY_400} style={styles.searchIcon} />
@@ -431,6 +444,7 @@ export default function ContactsScreen({ navigation, route }) {
               }
             />
           </View>
+          )}
         </ScrollView>
       )}
     </View>
