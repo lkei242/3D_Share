@@ -19,6 +19,7 @@ import {
   Linking,
   Dimensions
 } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@react-navigation/native';
@@ -499,9 +500,51 @@ const MessageItem = React.memo(({
           { backgroundColor: isMe ? myBubbleBgColor : otherBubbleBgColor },
           isMe ? { borderBottomRightRadius: 2 } : { borderBottomLeftRadius: 2 },
         ]}>
-          {item.type === 'audio' ? (
-            <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
-          ) : item.type === 'image' ? (
+        {item.type === 'audio' ? (
+          <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
+        ) : item.type === 'location' ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}
+            style={{ borderRadius: 12, overflow: 'hidden', width: 220 }}
+          >
+            <MapView
+              style={{ width: 220, height: 140 }}
+              region={{
+                latitude: item.latitude,
+                longitude: item.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              pointerEvents="none"
+            >
+              <Marker coordinate={{ latitude: item.latitude, longitude: item.longitude }} />
+            </MapView>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              gap: 6,
+            }}>
+              <Ionicons name="location" size={16} color={isMe ? '#FFF' : GREEN_ACCENT} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: 'Nunito-Bold', color: isMe ? '#FFF' : colors.text }} numberOfLines={1}>
+                  {item.locationName || 'Ubicación'}
+                </Text>
+                {!!item.locationAddress && (
+                  <Text style={{ fontSize: 11, fontFamily: 'Nunito-Regular', color: isMe ? 'rgba(255,255,255,0.75)' : '#888' }} numberOfLines={1}>
+                    {item.locationAddress}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        ) : item.type === 'image' ? (
             <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
               <Image source={{ uri: item.mediaUrl }} style={styles.mediaThumb} resizeMode="cover" />
             </TouchableOpacity>
@@ -896,9 +939,13 @@ export default function ChatDetailScreen({ route, navigation }) {
         return {
           id: docSnapshot.id,
           text: data.text,
-          type: data.type || 'text', // 👈 Traemos el tipo
-          mediaUrl: data.mediaUrl || null, // 👈 Traemos la url de Cloudinary
-          audioDuration: data.audioDuration || null, // 👈 Traemos la duración
+          type: data.type || 'text',
+          mediaUrl: data.mediaUrl || null,
+          audioDuration: data.audioDuration || null,
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          locationName: data.locationName || null,
+          locationAddress: data.locationAddress || null,
           sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
           time: timeString,
           read: data.read || false,
@@ -1051,26 +1098,40 @@ export default function ChatDetailScreen({ route, navigation }) {
     const { latitude, longitude } = loc.coords;
     const user = auth.currentUser;
     const token = await user.getIdToken();
-    const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+// Obtener nombre del lugar (geocoding inverso)
+  let locationName = 'Ubicación compartida';
+  let locationAddress = '';
+  try {
+    const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+    if (place) {
+      locationName = place.name || place.street || 'Ubicación';
+      locationAddress = [place.street, place.district, place.city]
+        .filter(Boolean).join(', ');
+    }
+  } catch (_) {}
 
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
-    const chatRef = doc(db, `chats/${chatId}`);
-    await Promise.all([
-      addDoc(messagesRef, {
-        text: `📍 Ubicación: ${mapsUrl}`,
-        type: 'text',
-        sender: user.uid,
-        createdAt: serverTimestamp(),
-        read: false,
-        isFavorite: false,
-      }),
-      updateDoc(chatRef, {
-        lastMessage: '📍 Ubicación compartida',
-        lastMessageTime: serverTimestamp(),
-        lastSender: user.uid,
-      }),
-    ]);
-  };
+  const messagesRef = collection(db, `chats/${chatId}/messages`);
+  const chatRef = doc(db, `chats/${chatId}`);
+  await Promise.all([
+    addDoc(messagesRef, {
+      text: locationName,
+      type: 'location',
+      latitude,
+      longitude,
+      locationName,
+      locationAddress,
+      sender: user.uid,
+      createdAt: serverTimestamp(),
+      read: false,
+      isFavorite: false,
+    }),
+    updateDoc(chatRef, {
+      lastMessage: '📍 Ubicación compartida',
+      lastMessageTime: serverTimestamp(),
+      lastSender: user.uid,
+    }),
+  ]);
+};
 
   // Handler genérico que sube a Cloudinary y manda el mensaje
   const handleUploadAndSendMedia = async (asset) => {
