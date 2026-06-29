@@ -2,25 +2,17 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
   Alert,
   Animated,
-  Pressable,
   ActivityIndicator,
   Keyboard,
   Image,
   Modal,
-  Linking,
-  Dimensions
 } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,564 +21,26 @@ import { auth, db } from '../config/firebase';
 import { API_URL } from '../config/api';
 import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import {
-  useAudioPlayer,
-  AudioModule,
-  setAudioModeAsync,
-} from 'expo-audio';
-import Sound from 'react-native-nitro-sound';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  serverTimestamp 
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
 } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 
-const GREEN_ACCENT = '#546F1C';
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Clasifica el mimeType real en 'image' | 'video' | 'file'
-const getMediaCategory = (mimeType) => {
-  if (!mimeType) return 'file';
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
-  return 'file';
-};
-
-// Cloudinary genera automáticamente un frame del video como thumbnail
-// si pedís la misma URL pero con extensión .jpg
-const getVideoThumbnail = (url) => url.replace(/\.\w+$/, '.jpg');
-
-const AudioPlayer = React.memo(({ url, duration, isMe, colors }) => {
-  const player = useAudioPlayer({ uri: url });
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [hasEnded, setHasEnded] = useState(false);
-  const [waveformWidth, setWaveformWidth] = useState(150);
-  const progressRef = useRef(0);
-  const isSeekingRef = useRef(false);
-  const waveformOffsetRef = useRef(0);
-  const waveformRef = useRef(null);
-  const isDraggedRef = useRef(false);
-  const barsRef = useRef(null);
-
-  if (!barsRef.current) {
-    let hash = 0;
-    for (let i = 0; i < url.length; i++) {
-      hash = ((hash << 5) - hash) + url.charCodeAt(i);
-      hash |= 0;
-    }
-    barsRef.current = new Array(35).fill(0).map((_, i) => {
-      const val = Math.abs(Math.sin(hash * (i + 1)) * 100);
-      return Math.floor(val % 24) + 6;
-    });
-  }
-  const bars = barsRef.current;
-
-  const totalSecs = (() => {
-    if (!duration) return 30;
-    const parts = duration.split(':');
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]) || 30;
-  })();
-
-  useEffect(() => {
-    return () => player.release();
-  }, [player]);
-
-  useEffect(() => {
-    let interval;
-    if (isPlaying && !isSeekingRef.current) {
-      interval = setInterval(() => {
-        let actual = null;
-        try {
-          if (player.status && typeof player.status.currentTime === 'number') {
-            actual = player.status.currentTime;
-          }
-        } catch (e) {}
-
-        if (actual !== null && totalSecs > 0) {
-          const newProgress = Math.min(actual / totalSecs, 1);
-          progressRef.current = newProgress;
-          if (newProgress >= 1) {
-            setProgress(1);
-            setHasEnded(true);
-            setIsPlaying(false);
-          } else {
-            setProgress(newProgress);
-          }
-        } else {
-          progressRef.current += 1 / (totalSecs * 4);
-          if (progressRef.current >= 1) {
-            progressRef.current = 1;
-            setProgress(1);
-            setHasEnded(true);
-            setIsPlaying(false);
-          } else {
-            setProgress(progressRef.current);
-          }
-        }
-      }, 250);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, totalSecs]);
-
-  const handlePlayPause = async () => {
-      if (isPlaying) {
-        player.pause();
-        setIsPlaying(false);
-      } else {
-      setLoadingAudio(true);
-      const seekPos = isDraggedRef.current ? progressRef.current * totalSecs : null;
-      isDraggedRef.current = false;
-
-      if (hasEnded) {
-        setHasEnded(false);
-        if (seekPos !== null && seekPos > 0) {
-          await player.play();
-          await player.seekTo(seekPos);
-        } else {
-          progressRef.current = 0;
-          setProgress(0);
-          await player.play();
-          await player.seekTo(0);
-        }
-      } else if (seekPos !== null && seekPos > 0) {
-        await player.play();
-        await player.seekTo(seekPos);
-      } else {
-        await player.play();
-      }
-
-      setIsPlaying(true);
-      setLoadingAudio(false);
-      }
-    };
-
-  const updateSeek = (ratio) => {
-      const clamped = Math.min(Math.max(ratio, 0), 1);
-      progressRef.current = clamped;
-      setProgress(clamped);
-      setHasEnded(false);
-    };
-
-  const handleTouchStart = (e) => {
-      isSeekingRef.current = true;
-      isDraggedRef.current = true;
-      const x = e.nativeEvent.pageX - waveformOffsetRef.current;
-      updateSeek(x / waveformWidth);
-      if (isPlaying) {
-        player.seekTo(progressRef.current * totalSecs);
-      }
-    };
-
-  const handleTouchMove = (e) => {
-      const x = e.nativeEvent.pageX - waveformOffsetRef.current;
-      updateSeek(x / waveformWidth);
-      if (isPlaying) {
-        player.seekTo(progressRef.current * totalSecs);
-      }
-    };
-
-  const handleTouchEnd = () => {
-      isSeekingRef.current = false;
-      if (isPlaying) {
-        player.seekTo(progressRef.current * totalSecs);
-      }
-    };
-
-  const played = isMe ? '#34C759' : '#007AFF';
-  const inactive = isMe ? 'rgba(255,255,255,0.3)' : '#C8C8C8';
-  const playBg = isMe ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)';
-  const numPlayed = Math.floor(progress * bars.length);
-  const dotSize = 8;
-
-  return (
-    <View style={[styles.waContainer, { backgroundColor: playBg }]}>
-      <TouchableOpacity onPress={handlePlayPause} style={[styles.waPlayBtn, { backgroundColor: played }]}>
-        {loadingAudio ? (
-          <ActivityIndicator size="small" color="#FFF" />
-        ) : (
-          <Ionicons
-            name={isPlaying ? "pause" : "play"}
-            size={16}
-            color="#FFF"
-            style={isPlaying ? {} : { marginLeft: 2 }}
-          />
-        )}
-      </TouchableOpacity>
-
-      <View
-        ref={waveformRef}
-        style={styles.waWaveform}
-        onLayout={(e) => {
-          setWaveformWidth(e.nativeEvent.layout.width);
-          waveformRef.current?.measureInWindow((x) => {
-            waveformOffsetRef.current = x;
-          });
-        }}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderGrant={handleTouchStart}
-        onResponderMove={handleTouchMove}
-        onResponderRelease={handleTouchEnd}
-      >
-        {bars.map((h, i) => (
-          <View
-            key={i}
-            style={[styles.waBar, { height: h, backgroundColor: i < numPlayed ? played : inactive }]}
-          />
-        ))}
-
-        <View
-          style={[styles.waDot, {
-            left: numPlayed * (3 + 2) + 1.5 - dotSize / 2,
-            backgroundColor: played,
-            width: dotSize,
-            height: dotSize,
-            borderRadius: dotSize / 2,
-          }]}
-        />
-      </View>
-
-      <Text style={[styles.waDuration, { color: isMe ? 'rgba(255,255,255,0.8)' : '#777' }]}>
-        {duration || '0:00'}
-      </Text>
-    </View>
-  );
-
-}, (prev, next) => prev.url === next.url && prev.isMe === next.isMe && prev.duration === next.duration);
-
-// --- Visor de media a pantalla completa (estilo WhatsApp) ---
-
-// Una sola "página" del visor: imagen con doble-tap para zoom, video con reproductor, o archivo con botón de abrir
-const MediaViewerItem = ({ item, isActive }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const isZoomedRef = useRef(false);
-  const lastTapRef = useRef(0);
-
-  // El hook siempre se llama (regla de hooks); si no es video, no le damos source.
-  const player = useVideoPlayer(item.type === 'video' ? item.mediaUrl : null, (p) => {
-    if (p) p.loop = false;
-  });
-
-  useEffect(() => {
-    if (player && item.type === 'video' && !isActive) {
-      player.pause();
-    }
-  }, [isActive]);
-
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 280) {
-      const target = isZoomedRef.current ? 1 : 2.5;
-      isZoomedRef.current = !isZoomedRef.current;
-      Animated.spring(scaleAnim, { toValue: target, useNativeDriver: true, friction: 6 }).start();
-    }
-    lastTapRef.current = now;
-  };
-
-  if (item.type === 'video') {
-    return (
-      <View style={styles.mediaViewerPage}>
-        <VideoView
-          player={player}
-          style={styles.mediaViewerVideo}
-          nativeControls
-          allowsFullscreen
-          contentFit="contain"
-        />
-      </View>
-    );
-  }
-
-  if (item.type === 'file') {
-    return (
-      <View style={styles.mediaViewerPage}>
-        <View style={styles.mediaViewerFileCard}>
-          <Ionicons name="document-text" size={64} color="#FFF" />
-          <Text style={styles.mediaViewerFileName} numberOfLines={2}>
-            {item.fileName || item.text}
-          </Text>
-          <TouchableOpacity
-            style={styles.mediaViewerFileBtn}
-            onPress={() => Linking.openURL(item.mediaUrl)}
-          >
-            <Ionicons name="download-outline" size={18} color="#FFF" />
-            <Text style={styles.mediaViewerFileBtnText}>Abrir / Descargar</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.mediaViewerPage}>
-      <Pressable onPress={handleDoubleTap} style={{ width: '100%', height: '100%' }}>
-        <Animated.Image
-          source={{ uri: item.mediaUrl }}
-          style={[styles.mediaViewerImage, { transform: [{ scale: scaleAnim }] }]}
-          resizeMode="contain"
-        />
-      </Pressable>
-    </View>
-  );
-};
-
-// Modal con swipe horizontal entre todas las fotos/videos/archivos del chat
-const MediaViewerModal = ({ visible, items, initialIndex, onClose }) => {
-  const insets = useSafeAreaInsets();
-  const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
-
-  useEffect(() => {
-    if (visible) setCurrentIndex(initialIndex || 0);
-  }, [visible, initialIndex]);
-
-  const handleScrollEnd = (e) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setCurrentIndex(idx);
-  };
-
-  return (
-    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
-      <View style={styles.mediaViewerContainer}>
-        <View style={[styles.mediaViewerHeader, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity onPress={onClose} style={styles.mediaViewerCloseBtn}>
-            <Ionicons name="close" size={28} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.mediaViewerCounter}>
-            {items.length > 0 ? `${currentIndex + 1} / ${items.length}` : ''}
-          </Text>
-          <TouchableOpacity
-            onPress={() => items[currentIndex] && Linking.openURL(items[currentIndex].mediaUrl)}
-            style={styles.mediaViewerCloseBtn}
-          >
-            <Ionicons name="share-outline" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-
-        {visible && (
-          <FlatList
-            data={items}
-            keyExtractor={(it) => it.id}
-            horizontal
-            pagingEnabled
-            initialScrollIndex={initialIndex || 0}
-            getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
-            onMomentumScrollEnd={handleScrollEnd}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item, index }) => (
-              <MediaViewerItem item={item} isActive={index === currentIndex} />
-            )}
-          />
-        )}
-      </View>
-    </Modal>
-  );
-};
-
-// Componente de burbuja animada adaptado para Firestore
-const MessageItem = React.memo(({
-  item, 
-  isMe, 
-  isDark, 
-  colors, 
-  chatName, 
-  isChecked,
-  selectedIds,
-  onToggleSelect,
-  setShowMsgInfo,
-  onOpenMedia
-}) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const myBubbleBgColor = fadeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [GREEN_ACCENT, '#73942B'],
-  });
-
-  const otherBubbleBgColor = fadeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [
-      isDark ? '#1C1C1C' : '#EFEFEF',
-      isDark ? '#2C3A16' : '#D4E6A7',
-    ],
-  });
-
-  const rowBgColor = fadeAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(157, 189, 63, 0)', 'rgba(157, 189, 63, 0.18)'],
-  });
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: isChecked ? 1 : 0,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [isChecked]);
-
-  const handlePressIn = () => {
-    if (isChecked) return;
-    Animated.timing(fadeAnim, { toValue: 1, duration: 80, useNativeDriver: false }).start();
-  };
-
-  const handlePressOut = () => {
-    if (isChecked) return;
-    Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: false }).start();
-  };
-
-  const handlePress = () => {
-    if (selectedIds.length > 0) {
-      onToggleSelect(item.id);
-    }
-  };
-
-  const handleLongPress = () => {
-    onToggleSelect(item.id);
-    setShowMsgInfo(false);
-  };
-
-  // En modo selección, tocar la miniatura selecciona el mensaje en vez de abrir el visor
-  const handleMediaPress = () => {
-    if (selectedIds.length > 0) {
-      onToggleSelect(item.id);
-    } else {
-      onOpenMedia(item);
-    }
-  };
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      delayLongPress={450}
-      style={{ width: '100%' }}
-    >
-      <Animated.View style={[
-        isMe ? styles.myMessageRow : styles.otherMessageRow,
-        isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
-        { backgroundColor: rowBgColor },
-      ]}>
-        {/* CHECKBOX — visible solo en modo multi-selección */}
-        {selectedIds.length > 0 && (
-          <TouchableOpacity
-            onPress={() => onToggleSelect(item.id)}
-            style={styles.checkboxColumn}
-          >
-            <Ionicons
-              name={isChecked ? "checkmark-circle" : "ellipse-outline"}
-              size={22}
-              color={isChecked ? "#34C759" : "#999"}
-            />
-          </TouchableOpacity>
-        )}
-
-        {!isMe && (
-          <View style={[styles.bubbleAvatarCircle, { marginRight: 8, marginHorizontal: 0 }]}>
-            <Text style={styles.bubbleAvatarText}>{chatName.charAt(0)}</Text>
-          </View>
-        )}
-
-        <Animated.View style={[
-          isMe ? styles.myMessageBubble : styles.otherMessageBubble,
-          { backgroundColor: isMe ? myBubbleBgColor : otherBubbleBgColor },
-          isMe ? { borderBottomRightRadius: 2 } : { borderBottomLeftRadius: 2 },
-        ]}>
-        {item.type === 'audio' ? (
-          <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
-        ) : item.type === 'location' ? (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}
-            style={{ borderRadius: 12, overflow: 'hidden', width: 240 }}
-          >
-            <View style={{ width: 240, height: 140, overflow: 'hidden' }} pointerEvents="none">
-              <WebView
-                style={{ flex: 1 }}
-                scrollEnabled={false}
-                pointerEvents="none"
-                source={{ html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%;overflow:hidden}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false,keyboard:false}).setView([${item.latitude},${item.longitude}],15);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);L.marker([${item.latitude},${item.longitude}]).addTo(map);</script></body></html>` }}
-              />
-            </View>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              gap: 6,
-              backgroundColor: isMe ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.06)',
-            }}>
-              <Ionicons name="location" size={16} color={isMe ? '#FFF' : GREEN_ACCENT} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontFamily: 'Nunito-Bold', color: isMe ? '#FFF' : colors.text }} numberOfLines={1}>
-                  {item.locationName || 'Ubicación'}
-                </Text>
-                {!!item.locationAddress && (
-                  <Text style={{ fontSize: 11, fontFamily: 'Nunito-Regular', color: isMe ? 'rgba(255,255,255,0.75)' : '#888' }} numberOfLines={1}>
-                    {item.locationAddress}
-                  </Text>
-                )}
-              </View>
-              <Ionicons name="open-outline" size={13} color={isMe ? 'rgba(255,255,255,0.6)' : '#AAA'} />
-            </View>
-          </TouchableOpacity>
-        ) : item.type === 'image' ? (
-            <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
-              <Image source={{ uri: item.mediaUrl }} style={styles.mediaThumb} resizeMode="cover" />
-            </TouchableOpacity>
-          ) : item.type === 'video' ? (
-            <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
-              <Image source={{ uri: getVideoThumbnail(item.mediaUrl) }} style={styles.mediaThumb} resizeMode="cover" />
-              <View style={styles.mediaPlayOverlay}>
-                <Ionicons name="play-circle" size={42} color="#FFF" />
-              </View>
-            </TouchableOpacity>
-          ) : item.type === 'file' ? (
-            <TouchableOpacity onPress={handleMediaPress} style={styles.fileCard} activeOpacity={0.85}>
-              <Ionicons name="document-text" size={28} color={isMe ? '#FFF' : colors.text} />
-              <Text style={[styles.fileName, { color: isMe ? '#FFF' : colors.text }]} numberOfLines={1}>
-                {item.fileName || item.text}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.messageText, { color: isMe ? '#FFF' : colors.text }]}>
-              {item.text}
-              {"\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0"}
-            </Text>
-          )}
-
-          <View style={styles.timeRow}>
-            {item.isFavorite && <Ionicons name="star" size={11} color={isMe ? '#FFEE00' : '#FFD700'} style={{ marginRight: 4 }} />}
-            <Text style={[styles.messageTime, { color: isMe ? '#E1E1E1' : '#888' }]}>{item.time}</Text>
-            {isMe && <Ionicons name={item.read ? "checkmark-done" : "checkmark"} size={14} color={item.read ? '#FFEE00' : '#E1E1E1'} style={{ marginLeft: 4 }} />}
-          </View>
-        </Animated.View>
-
-        {isMe && (
-          <View style={[styles.bubbleAvatarCircle, { backgroundColor: '#444', borderColor: '#CCC', marginLeft: 8, marginHorizontal: 0 }]}>
-            <Text style={[styles.bubbleAvatarText, { color: '#FFF' }]}>M</Text>
-          </View>
-        )}
-      </Animated.View>
-    </Pressable>
-  );
-}, (prev, next) => 
-  prev.item.id === next.item.id && 
-  prev.item.text === next.item.text && 
-  prev.item.read === next.item.read && 
-  prev.item.isFavorite === next.item.isFavorite && 
-  prev.isChecked === next.isChecked && 
-  prev.isDark === next.isDark &&
-  (prev.selectedIds.length > 0) === (next.selectedIds.length > 0)
-);
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './chatConstants';
+import styles from './chatStyles';
+import MessageItem from './MessageItem';
+import MediaViewerModal from './MediaViewer';
+import useVoiceRecorder from './useVoiceRecorder';
+import CustomCameraModal from '../components/CustomCameraModal';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
@@ -596,12 +50,13 @@ export default function ChatDetailScreen({ route, navigation }) {
   const { chatId, name: chatName } = route.params;
 
   const [messages, setMessages] = useState([]);
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
 
   // --- Visor de media a pantalla completa ---
   const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
   const mediaMessages = React.useMemo(
-    () => messages.filter(m => ['image', 'video', 'file'].includes(m.type)),
+    () => messages.filter(m => ['image', 'video', 'file', 'media_group'].includes(m.type)),
     [messages]
   );
   const openMediaViewer = useCallback((item) => {
@@ -625,35 +80,27 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
-    // --- Estados de Grabación ---
-  const [isLocked, setIsLocked] = useState(false);
-  const waveBarAnims = useRef(
-    Array.from({ length: 22 }, () => new Animated.Value(0.3))
-  ).current;
-  const lockBounceAnim = useRef(new Animated.Value(0)).current;
-  const lockSlideAnim = useRef(new Animated.Value(50)).current;
-  const lockOpacityAnim = useRef(new Animated.Value(0)).current;
-  const cancelSlideAnim = useRef(new Animated.Value(0)).current;
-  const isCancellingRef = useRef(false);
+  // --- Grabación de notas de voz (estado, animaciones, gestos y envío) ---
+  // Todo lo relacionado a grabar audio vive ahora en este hook; acá solo
+  // desestructuramos con los MISMOS nombres que usaba el código original
+  // para no tener que tocar el JSX de más abajo.
+  const {
+    isLocked,
+    isRecording,
+    isPaused,
+    recordSeconds,
+    waveBarAnims,
+    lockBounceAnim,
+    lockSlideAnim,
+    lockOpacityAnim,
+    cancelSlideAnim,
+    togglePauseRecording,
+    stopAndSendRecording,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useVoiceRecorder(chatId);
 
-  const touchStartY = useRef(0);
-  const touchStartX = useRef(0);
-
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const animateWaveFromDB = (db) => {
-  const normalized = Math.min(1, Math.max(0, (db + 60) / 55));
-    waveBarAnims.forEach((anim) => {
-      const variation = 0.75 + Math.random() * 0.5;
-      const target = Math.max(0.1, Math.min(1, normalized * variation));
-      Animated.timing(anim, {
-        toValue: target,
-        duration: 80,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
   const handleToggleSelect = useCallback((id) => {
     setSelectedIds(prev => {
       if (prev.includes(id)) return prev.filter(i => i !== id);
@@ -661,256 +108,6 @@ export default function ChatDetailScreen({ route, navigation }) {
     });
   }, []);
   const clearSelection = useCallback(() => setSelectedIds([]), []);
-
-  // Cronómetro sincronizado con el grabador real (vía addRecordBackListener).
-  // El listener deja de emitir mientras la grabación está en pausa, así que
-  // recordSeconds se congela solo, sin necesidad de chequear isPaused a mano.
-  useEffect(() => {
-    if (!isRecording) {
-      setRecordSeconds(0);
-      return;
-    }
-
-    Sound.addRecordBackListener((e) => {
-      setRecordSeconds(Math.floor(e.currentPosition / 1000));
-      if (e.currentMetering != null) {
-        animateWaveFromDB(e.currentMetering);
-      }
-    });
-
-    return () => {
-      Sound.removeRecordBackListener();
-    };
-  }, [isRecording]);
-
-  // useEffect 2 — resetear barras al pausar/detener
-  useEffect(() => {
-    const isActive = isRecording && !isPaused;
-
-    if (!isActive) {
-      waveBarAnims.forEach((anim) => {
-        anim.stopAnimation();
-        Animated.timing(anim, { toValue: 0.1, duration: 200, useNativeDriver: true }).start();
-      });
-    }
-  }, [isRecording, isPaused]);
-
-  // Animación de "rebote" del indicador de bloqueo (sugiere deslizar hacia arriba)
-  useEffect(() => {
-    let loopAnim;
-    if (isRecording && !isLocked) {
-      loopAnim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(lockBounceAnim, { toValue: -6, duration: 550, useNativeDriver: true }),
-          Animated.timing(lockBounceAnim, { toValue: 0, duration: 550, useNativeDriver: true }),
-        ])
-      );
-      loopAnim.start();
-    } else {
-      lockBounceAnim.setValue(0);
-    }
-    return () => loopAnim && loopAnim.stop();
-  }, [isRecording, isLocked]);
-
-  useEffect(() => {
-    if (isLocked) {
-      Animated.parallel([
-        Animated.spring(lockSlideAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 80,
-          friction: 8,
-        }),
-        Animated.timing(lockOpacityAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      lockSlideAnim.setValue(50);
-      lockOpacityAnim.setValue(0);
-    }
-  }, [isLocked]);
-
-  // --- Permisos y modo de audio (esto sigue siendo de expo-audio) ---
-  useEffect(() => {
-    (async () => {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      if (!status.granted) {
-        Alert.alert('Permiso Denegado', 'Se necesita permiso de micrófono para enviar notas de voz.');
-      }
-      setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: true,
-      });
-    })();
-  }, []);
-
-  const startRecording = async () => {
-    try {
-      setIsPaused(false);
-      setIsLocked(false);
-      const uri = await Sound.startRecorder(
-        undefined,  // path por defecto
-        undefined,  // audioSet por defecto
-        true        //  meteringEnabled
-      );
-      if (!uri) throw new Error('No se obtuvo URI');
-      setIsRecording(true);
-    } catch (err) {
-      console.log('Error iniciando grabación:', err);
-      setIsRecording(false);
-    }
-  };
-
-  const stopAndSendRecording = async (discard = false) => {
-    try {
-      const duration = recordSeconds;
-      const uri = await Sound.stopRecorder();
-      Sound.removeRecordBackListener();
-      console.log('URI del audio grabado:', uri);
-      console.log('Duración total:', duration, 'segundos');
-
-      setIsRecording(false);
-      setIsPaused(false);
-      setIsLocked(false);
-
-      if (discard || !uri || duration < 1) {
-        console.log("Grabación descartada o muy corta");
-        return;
-      }
-
-      // Subir archivo de audio a Cloudinary a través del Backend
-      const user = auth.currentUser;
-      const token = await user.getIdToken();
-
-      // nitro-sound devuelve .m4a en iOS y .mp4 en Android — usamos la
-      // extensión real del archivo en vez de asumir siempre m4a
-      const extension = uri.split('.').pop() || 'm4a';
-
-      const uploadRes = await new Promise((resolve, reject) => {
-        const formData = new FormData();
-        formData.append('imagen', {
-          uri,
-          type: `audio/${extension}`,
-          name: `voice_${Date.now()}.${extension}`,
-        });
-
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${API_URL}/api/media/upload`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => resolve({ ok: xhr.status === 200, json: () => JSON.parse(xhr.responseText) });
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.send(formData);
-      });
-
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) {
-        Alert.alert('Error', 'No se pudo subir la nota de voz a Cloudinary.');
-        return;
-      }
-
-      const durationText = formatTime(duration);
-      const messagesRef = collection(db, `chats/${chatId}/messages`);
-      await addDoc(messagesRef, {
-        text: 'Nota de voz',
-        type: 'audio',
-        mediaUrl: uploadData.url,
-        audioDuration: durationText,
-        sender: user.uid,
-        createdAt: serverTimestamp(),
-        read: false,
-        isFavorite: false
-      });
-
-      const chatRef = doc(db, `chats/${chatId}`);
-      await updateDoc(chatRef, {
-        lastMessage: `🎙️ Nota de voz (${durationText})`,
-        lastMessageTime: serverTimestamp(),
-        lastSender: user.uid
-      });
-
-    } catch (err) {
-      console.log('Error deteniendo grabación:', err);
-      setIsRecording(false);
-    } finally {
-      setRecordSeconds(0);
-    }
-  };
-
-  const togglePauseRecording = async () => {
-    try {
-      if (isPaused) {
-        await Sound.resumeRecorder();
-        setIsPaused(false);
-      } else {
-        await Sound.pauseRecorder();
-        setIsPaused(true);
-      }
-    } catch (err) {
-      console.log('Error pausando/reanudando grabación:', err);
-    }
-  };
-
-  const handleTouchStart = (e) => {
-    touchStartY.current = e.nativeEvent.pageY;
-    touchStartX.current = e.nativeEvent.pageX;
-    isCancellingRef.current = false; // 👈
-    startRecording();
-  };
-
-  const handleTouchMove = (e) => {
-    if (isLocked || isCancellingRef.current) return; // 👈 agregá isCancellingRef.current
-
-    const currentY = e.nativeEvent.pageY;
-    const currentX = e.nativeEvent.pageX;
-    const deltaY = touchStartY.current - currentY;
-    const deltaX = touchStartX.current - currentX;
-
-    if (deltaY > 60) {
-      setIsLocked(true);
-      cancelSlideAnim.setValue(0);
-      return;
-    }
-
-    if (deltaX > 0) {
-      cancelSlideAnim.setValue(-deltaX);
-    }
-
-    if (deltaX > 80) {
-      isCancellingRef.current = true; // 👈 marcar antes de animar
-      Animated.timing(cancelSlideAnim, {
-        toValue: -300,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        cancelSlideAnim.setValue(0);
-        stopAndSendRecording(true);
-      });
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (isCancellingRef.current) return;
-    if (!isLocked) {
-      const deltaX = touchStartX.current - (cancelSlideAnim._value ? -cancelSlideAnim._value : 0);
-      // Volver a posición original con spring
-      Animated.spring(cancelSlideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 120,
-        friction: 8,
-      }).start();
-      stopAndSendRecording(false);
-    }
-  };
-
-  const formatTime = (secs) => {
-    const minutes = Math.floor(secs / 60);
-    const seconds = secs % 60;
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
 
   const flatListRef = useRef(null);
   const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
@@ -940,6 +137,8 @@ export default function ChatDetailScreen({ route, navigation }) {
           longitude: data.longitude || null,
           locationName: data.locationName || null,
           locationAddress: data.locationAddress || null,
+          mediaItems: data.mediaItems || null,
+          caption: data.caption || null,
           sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
           time: timeString,
           read: data.read || false,
@@ -1012,37 +211,12 @@ export default function ChatDetailScreen({ route, navigation }) {
       Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
       return;
     }
-
-    // Como la cámara nativa solo devuelve una foto/video por vez, armamos una
-    // cola: después de cada toma le preguntamos al usuario si quiere otra o ya
-    // enviar todo lo que acumuló.
-    const capturedAssets = [];
-    let keepShooting = true;
-
-    while (keepShooting) {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images', 'videos'],
-        quality: 0.8,
-      });
-
-      if (result.canceled || !result.assets?.[0]) break;
-      capturedAssets.push(result.assets[0]);
-
-      keepShooting = await new Promise((resolve) => {
-        Alert.alert(
-          `${capturedAssets.length} ${capturedAssets.length > 1 ? 'archivos listos' : 'archivo listo'}`,
-          '¿Querés tomar otra foto o video?',
-          [
-            { text: 'Enviar', onPress: () => resolve(false) },
-            { text: 'Tomar otra', onPress: () => resolve(true) },
-          ],
-          { cancelable: false }
-        );
-      });
-    }
-
-    for (const asset of capturedAssets) {
-      await handleUploadAndSendMedia(asset);
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      setMediaPreview({ assets: result.assets, caption: '' });
     }
   };
 
@@ -1059,11 +233,99 @@ export default function ChatDetailScreen({ route, navigation }) {
       allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets?.length) {
-      for (const asset of result.assets) {
-        await handleUploadAndSendMedia(asset);
-      }
+      setMediaPreview({ assets: result.assets, caption: '' });
     }
   };
+
+  const handleSendMediaPreview = async () => {
+  if (!mediaPreview) return;
+  const { assets, caption } = mediaPreview;
+  setMediaPreview(null);
+
+  const user = auth.currentUser;
+  const token = await user.getIdToken();
+
+  // Subir todos los assets
+  const uploaded = [];
+  for (const asset of assets) {
+    const uri = asset.uri;
+    const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+    const category = getMediaCategory(mimeType);
+    const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const fileName = asset.fileName || asset.name || `media_${Date.now()}.${extension}`;
+
+    const formData = new FormData();
+    formData.append('imagen', { uri, type: mimeType, name: fileName });
+
+    const uploadRes = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/api/media/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.onload = () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        resolve({ ok: xhr.status === 200, data });
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(formData);
+    });
+
+    if (uploadRes.ok) {
+      uploaded.push({ url: uploadRes.data.url, type: category });
+    }
+  }
+
+  if (uploaded.length === 0) {
+    Alert.alert('Error', 'No se pudo subir ningún archivo.');
+    return;
+  }
+
+  const messagesRef = collection(db, `chats/${chatId}/messages`);
+  const chatRef = doc(db, `chats/${chatId}`);
+
+  if (uploaded.length === 1) {
+    // Mensaje individual (igual que antes)
+    const { url, type } = uploaded[0];
+    const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'] };
+    const [text, lastMsg] = labels[type] || ['Archivo', '📎 Archivo'];
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: caption || text,
+        type,
+        mediaUrl: url,
+        caption: caption || null,
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: caption || lastMsg,
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  } else {
+    // Mensaje grupo de medias
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: caption || '📷 Fotos',
+        type: 'media_group',
+        mediaItems: uploaded, // [{ url, type }]
+        caption: caption || null,
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: caption || `📷 ${uploaded.length} fotos`,
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  }
+};
 
   const handleOpenFiles = async () => {
     setShowAttachmentMenu(false);
@@ -1194,6 +456,62 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
+    const handleSendCustomMediaList = async (mediaList) => {
+    setShowCustomCamera(false);
+    for (const item of mediaList) {
+      try {
+        const user = auth.currentUser;
+        const token = await user.getIdToken();
+        const uri = item.uri;
+        
+        // Obtenemos extensión y mimeType correctos
+        const extension = uri.split('.').pop() || (item.type === 'video' ? 'mp4' : 'jpg');
+        const type = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+        const fileName = `media_${Date.now()}.${extension}`;
+        const formData = new FormData();
+        formData.append('imagen', { uri, type, name: fileName });
+        // Subir a Cloudinary
+        const xhr = new XMLHttpRequest();
+        const uploadRes = await new Promise((resolve, reject) => {
+          xhr.open('POST', `${API_URL}/api/media/upload`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.onload = () => {
+            let data = null;
+            try { data = JSON.parse(xhr.responseText); } catch(e) {}
+            resolve({ ok: xhr.status === 200, data });
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(formData);
+        });
+        if (uploadRes.ok && uploadRes.data?.url) {
+          const isVideo = item.type === 'video';
+          const messagesRef = collection(db, `chats/${chatId}/messages`);
+          const chatRef = doc(db, `chats/${chatId}`);
+          
+          // Enviamos la imagen/video con su respectivo comentario en el campo 'text'
+          await Promise.all([
+            addDoc(messagesRef, {
+              text: item.caption || (isVideo ? 'Video' : 'Imagen'),
+              type: isVideo ? 'video' : 'image',
+              mediaUrl: uploadRes.data.url,
+              sender: user.uid,
+              createdAt: serverTimestamp(),
+              read: false,
+              isFavorite: false,
+            }),
+            updateDoc(chatRef, {
+              lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+              lastMessageTime: serverTimestamp(),
+              lastSender: user.uid,
+            }),
+          ]);
+        }
+      } catch (err) {
+        console.log('Error enviando media personalizada:', err);
+      }
+    }
+  };
+
   const handleReply = () => {
     if (!activeMsg) return;
     Alert.alert('Responder', `Respondiendo a: "${activeMsg.text}"`);
@@ -1312,6 +630,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   }, [selectedIds, isDark, colors, chatName, openMediaViewer]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [mediaPreview, setMediaPreview] = useState(null); 
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
@@ -1505,7 +824,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
-              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenCamera}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
                 <Ionicons name="camera" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Cámara</Text>
               </TouchableOpacity>
@@ -1604,7 +923,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </Animated.View>
               ) : (
                 <View style={[styles.textInputWrapper, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
-                  <TouchableOpacity onPress={handleOpenCamera}>
+                  <TouchableOpacity onPress={() => setShowCustomCamera(true)}>
                     <Ionicons name="camera-outline" size={24} color={GREEN_ACCENT} style={{ marginLeft: 8 }} />
                   </TouchableOpacity>
 
@@ -1667,6 +986,12 @@ export default function ChatDetailScreen({ route, navigation }) {
               )}
             </View>
           )}
+          <CustomCameraModal
+          visible={showCustomCamera}
+          onClose={() => setShowCustomCamera(false)}
+          onSend={handleSendCustomMediaList}
+          username={chatName}
+        />
       </View>
     </TouchableWithoutFeedback>
 
@@ -1702,6 +1027,101 @@ export default function ChatDetailScreen({ route, navigation }) {
         </Animated.View>
       )}
 
+      <Modal visible={!!mediaPreview} animationType="slide" transparent={false} onRequestClose={() => setMediaPreview(null)}>
+        <View style={{ flex: 1, backgroundColor: '#111' }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
+            <TouchableOpacity onPress={() => setMediaPreview(null)}>
+              <Ionicons name="close" size={28} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
+              {mediaPreview?.assets?.length > 1 ? `${mediaPreview.assets.length} elementos` : 'Vista previa'}
+            </Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          {/* Preview principal */}
+          <FlatList
+            data={mediaPreview?.assets || []}
+            keyExtractor={(_, i) => String(i)}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item: asset }) => {
+              const isVideo = (asset.mimeType || asset.type || '').startsWith('video');
+              return (
+                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.62, justifyContent: 'center', alignItems: 'center' }}>
+                  <Image
+                    source={{ uri: asset.uri }}
+                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.62 }}
+                    resizeMode="contain"
+                  />
+                  {isVideo && (
+                    <View style={{ position: 'absolute', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.85)" />
+                    </View>
+                  )}
+                </View>
+              );
+            }}
+          />
+
+          {/* Thumbnails si hay más de 1 */}
+          {(mediaPreview?.assets?.length || 0) > 1 && (
+            <FlatList
+              data={mediaPreview?.assets || []}
+              keyExtractor={(_, i) => `th-${i}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 12, gap: 6, paddingVertical: 8 }}
+              renderItem={({ item: asset }) => (
+                <Image
+                  source={{ uri: asset.uri }}
+                  style={{ width: 56, height: 56, borderRadius: 8, borderWidth: 1.5, borderColor: GREEN_ACCENT }}
+                  resizeMode="cover"
+                />
+              )}
+            />
+          )}
+
+          {/* Input de caption + botón enviar */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 12,
+            paddingBottom: Math.max(insets.bottom + 8, 16),
+            paddingTop: 8,
+            gap: 10,
+            backgroundColor: '#1A1A1A',
+          }}>
+            <TextInput
+              placeholder="Agregar un comentario..."
+              placeholderTextColor="#888"
+              value={mediaPreview?.caption || ''}
+              onChangeText={(t) => setMediaPreview(prev => ({ ...prev, caption: t }))}
+              style={{
+                flex: 1,
+                color: '#FFF',
+                fontSize: 15,
+                fontFamily: 'Nunito-Regular',
+                backgroundColor: '#2C2C2C',
+                borderRadius: 24,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                maxHeight: 100,
+              }}
+              multiline
+            />
+            <TouchableOpacity
+              onPress={handleSendMediaPreview}
+              style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: GREEN_ACCENT, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Feather name="arrow-up" size={26} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <MediaViewerModal
         visible={mediaViewerVisible}
         items={mediaMessages}
@@ -1711,92 +1131,3 @@ export default function ChatDetailScreen({ route, navigation }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: '#ccc' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  headerName: { fontSize: 18, fontFamily: 'Nunito-Bold', maxWidth: 150 },
-  headerSubtitle: { fontSize: 12, color: '#888', fontFamily: 'Nunito-Regular' },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  headerIconBtn: { padding: 6 },
-  avatarCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#00A3FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFEE00' },
-  avatarText: { color: '#FFEE00', fontSize: 20, fontWeight: 'bold', fontStyle: 'italic' },
-  toolHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, justifyContent: 'space-between' },
-  toolIcon: { alignItems: 'center', paddingHorizontal: 4 },
-  toolText: { fontSize: 12.5, marginTop: 2, fontFamily: 'Nunito-Regular' },
-  messagesList: { paddingVertical: 20, gap: 3 },
-  myMessageRow: { flexDirection: 'row', alignItems: 'flex-end', width: '100%', paddingHorizontal: 10, paddingVertical: 4 },
-  otherMessageRow: { flexDirection: 'row', alignItems: 'flex-end', width: '100%', paddingHorizontal: 10, paddingVertical: 4 },
-  bubbleAvatarCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#00A3FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFEE00' },
-  bubbleAvatarText: { color: '#FFEE00', fontSize: 15, fontWeight: 'bold' },
-  myMessageBubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 15, maxWidth: '100%', flexShrink: 1, elevation: 1 },
-  otherMessageBubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 15, maxWidth: '100%', flexShrink: 1, elevation: 1 },
-  messageText: { fontSize: 16, fontFamily: 'Nunito-Regular', lineHeight: 20 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, alignSelf: 'flex-end' },
-  messageTime: { fontSize: 13, fontFamily: 'Nunito-Regular' },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  textInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 25, paddingHorizontal: 8, minHeight: 48, maxHeight: 100 },
-  textInput: { flex: 1, fontSize: 16, fontFamily: 'Nunito-Regular', paddingHorizontal: 10, paddingVertical: 8 },
-  actionButton: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-  infoOverlay: {position: 'absolute',top: 100,left: 20,right: 20,padding: 16,borderRadius: 12,borderWidth: 1,shadowColor: '#000',shadowOffset: { width: 0, height: 2 },shadowOpacity: 0.2,shadowRadius: 4,elevation: 5,zIndex: 100,},
-  infoTitle: {fontSize: 16,fontFamily: 'Nunito-Bold',marginBottom: 12,},
-  infoLine: {flexDirection: 'row',alignItems: 'center',marginVertical: 6,},
-  infoLabel: {fontWeight: 'bold',marginLeft: 6,},
-  infoCloseBtn: {marginTop: 14,alignSelf: 'flex-end',},
-  infoCloseText: {color: GREEN_ACCENT,fontWeight: 'bold',},
-  dropdownMenu: {position: 'absolute',top: 90,right: 16,borderRadius: 12,borderWidth: 0.5,shadowColor: '#000',shadowOffset: { width: 0, height: 2 },shadowOpacity: 0.15,shadowRadius: 4,elevation: 4,zIndex: 99,minWidth: 200,paddingVertical: 6,},
-  dropdownItem: {paddingVertical: 12,paddingHorizontal: 16,},
-  dropdownItemText: {fontSize: 14,fontFamily: 'Nunito-Regular',},
-  subDropdownMenu: {borderRadius: 8,borderWidth: 0.5,marginTop: 4,marginHorizontal: 8,paddingVertical: 4,},
-  attachmentTray: {position: 'absolute',bottom: 120,right: 20,left: 20,borderRadius: 15,borderWidth: 0.5,shadowColor: '#000',shadowOffset: { width: 0, height: -2 },shadowOpacity: 0.15,shadowRadius: 4,elevation: 4,zIndex: 98,padding: 16,flexDirection: 'row',justifyContent: 'space-around',},
-  attachmentItem: {alignItems: 'center',width: 65,},
-  attachmentText: {fontSize: 12,marginTop: 4,fontFamily: 'Nunito-Regular',textAlign: 'center',},
-  lockedRecordContainer: {position: 'absolute',left: 12,right: 12,padding: 14,borderRadius: 24,borderWidth: 1,gap: 12,zIndex: 50,elevation: 8,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,},
-  recordTopRow: {flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',paddingHorizontal: 8,},
-  recordSeconds: {fontSize: 16,fontFamily: 'Nunito-Bold',minWidth: 50,},
-  waveformContainer: {flexDirection: 'row',alignItems: 'center',gap: 3,flex: 1,justifyContent: 'center',paddingHorizontal: 12,height: 36,},
-  waveBar: {width: 3,height: 32,borderRadius: 1.5,},
-  recordActionRow: {flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',gap: 10,paddingHorizontal: 4,},
-  recordDiscardButton: {width: 44,height: 44,borderRadius: 22,justifyContent: 'center',alignItems: 'center',},
-  recordSendButton: {width: 44,height: 44,borderRadius: 22,justifyContent: 'center',alignItems: 'center',elevation: 2,},
-  recordPausePill: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 8,height: 48,borderRadius: 24,},
-  recordPauseLabel: {fontSize: 15,fontFamily: 'Nunito-Bold',},
-  recordHintBar: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'space-between',borderRadius: 25,paddingHorizontal: 16,minHeight: 48,},
-  cancelHintRow: {flexDirection: 'row',alignItems: 'center',gap: 4,},
-  cancelHintText: {fontSize: 14,fontFamily: 'Nunito-Regular',},
-  actionButtonRecording: {width: 56,height: 56,borderRadius: 28,marginRight: -4,marginBottom: -4,elevation: 3,},
-  lockIndicator: {position: 'absolute',bottom: 64,right: 4,width: 36,paddingVertical: 8,borderRadius: 18,alignItems: 'center',elevation: 3,shadowColor: '#000',shadowOffset: { width: 0, height: 1 },shadowOpacity: 0.15,shadowRadius: 2,},
-  waContainer: {flexDirection: 'row',alignItems: 'center',paddingVertical: 6,paddingHorizontal: 6,borderRadius: 8,width: 280,},
-  waPlayBtn: {width: 30,height: 30,borderRadius: 15,justifyContent: 'center',alignItems: 'center',marginRight: 6,},
-  waWaveform: {flex: 1,flexDirection: 'row',alignItems: 'center',height: 28,gap: 2,position: 'relative',},
-  waBar: {width: 3,borderRadius: 1.5,},
-  waDuration: {fontSize: 11,fontFamily: 'Nunito-Regular',minWidth: 28,textAlign: 'right',marginLeft: 6,},
-  waDot: {position: 'absolute',top: '50%',marginTop: -4,zIndex: 10,},
-  toast: {position: 'absolute',bottom: 112,left: 20,right: 20,backgroundColor: '#323232',flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 8,paddingVertical: 12,paddingHorizontal: 20,borderRadius: 12,elevation: 6,shadowColor: '#000',shadowOffset: { width: 0, height: 3 },shadowOpacity: 0.3,shadowRadius: 5,zIndex: 999,},
-  toastText: {color: '#FFF',fontSize: 15,fontFamily: 'Nunito-Bold',},
-  deleteConfirm: {position: 'absolute',left: 16,right: 16,padding: 16,borderRadius: 16,borderWidth: 1,gap: 14,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,elevation: 8,zIndex: 100,},
-  deleteConfirmText: {fontSize: 16,fontFamily: 'Nunito-Bold',textAlign: 'center',},
-  deleteConfirmActions: {flexDirection: 'row',gap: 12,},
-  deleteConfirmBtn: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 6,paddingVertical: 12,borderRadius: 12,},
-  deleteConfirmBtnText: {fontSize: 15,fontFamily: 'Nunito-Bold',},
-
-  // --- Miniaturas dentro de la burbuja del chat ---
-  mediaThumb: { width: 200, height: 200, borderRadius: 12, backgroundColor: '#0002' },
-  mediaPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
-  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, maxWidth: 220 },
-  fileName: { fontSize: 14, fontFamily: 'Nunito-Bold', flexShrink: 1 },
-
-  // --- Visor de media a pantalla completa ---
-  mediaViewerContainer: { flex: 1, backgroundColor: '#000' },
-  mediaViewerHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
-  mediaViewerCloseBtn: { padding: 6 },
-  mediaViewerCounter: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
-  mediaViewerPage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: 'center', alignItems: 'center' },
-  mediaViewerImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.85 },
-  mediaViewerVideo: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.6 },
-  mediaViewerFileCard: { alignItems: 'center', gap: 14, paddingHorizontal: 30 },
-  mediaViewerFileName: { color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold', textAlign: 'center' },
-  mediaViewerFileBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN_ACCENT, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, marginTop: 10 },
-  mediaViewerFileBtnText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
-});
