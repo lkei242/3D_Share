@@ -15,12 +15,15 @@ import {
     Keyboard,
     ScrollView,
     Modal,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
+import { blockUser } from '../config/userActions';
 import CommentModal from './CommentModal';
+import PostMenuModal from './PostMenuModal';
 import {
     doc,
     getDoc,
@@ -45,12 +48,13 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // COMPONENTE: PostItem (un post individual, autónomo)
 // ============================================================
 
-const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress }) {
+const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress }) {
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
     const [postViews, setPostViews] = useState(post.views || 0);
     const [selectedImage, setSelectedImage] = useState(null);
+    const moreButtonRef = React.useRef(null);
 
     // Escuchar cambios en tiempo real del post
     // Leer vistas una sola vez (sin listener en tiempo real)
@@ -135,6 +139,17 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                     <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
                     <Text style={[styles.userHandleText, { color: isDark ? '#aaa' : '#666' }]}>{displayHandle}</Text>
                 </View>
+                <TouchableOpacity
+                    ref={moreButtonRef}                                 // ← NUEVO
+                    style={styles.moreButton}
+                    onPress={() => {
+                        moreButtonRef.current?.measureInWindow((x, y, width, height) => {
+                        onMorePress({ x, y, width, height });           // ← pasa la posición
+                        });
+                    }}
+                    >
+                      <Feather name="more-vertical" size={20} color={colors.text} />
+                </TouchableOpacity>
             </TouchableOpacity>
 
             {/* CONTENIDO SCROLLEABLE INTERNO */}
@@ -214,6 +229,8 @@ export default function PostDetailScreen({ route, navigation }) {
     //
     //
     const [commentsPost, setCommentsPost] = useState(null);
+    const [menuPost, setMenuPost] = useState(null);
+    const [menuAnchor, setMenuAnchor] = useState(null);  
     /*
     
     
@@ -306,9 +323,7 @@ export default function PostDetailScreen({ route, navigation }) {
                         <Ionicons name="arrow-back" size={26} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: colors.text }]}>PUBLICACIONES</Text>
-                    <TouchableOpacity style={styles.moreButton}>
-                        <Feather name="more-vertical" size={20} color={colors.text} />
-                    </TouchableOpacity>
+                    <View style={{ width: 28 }} />
                 </View>
 
                 <FlatList
@@ -341,6 +356,10 @@ export default function PostDetailScreen({ route, navigation }) {
                                     });
                                 }
                             }}
+                            onMorePress={(anchor) => {
+                                setMenuAnchor(anchor);   // ← guarda la posición
+                                setMenuPost(item);
+                                }}
                             colors={colors}
                             isDark={isDark}
                             pageHeight={PAGE_HEIGHT}
@@ -364,6 +383,66 @@ export default function PostDetailScreen({ route, navigation }) {
                 onClose={() => setCommentsPost(null)}
                 isDark={isDark}
                 colors={colors}
+            />
+            <PostMenuModal
+                visible={menuPost !== null}
+                onClose={() => setMenuPost(null)}
+                isOwnPost={currentUser && menuPost?.author === currentUser.uid}
+                anchorPosition={menuAnchor}                          // ← NUEVO
+                onOptionPress={(key) => {
+                    if (key === 'block') {
+                        Alert.alert(
+                            'Bloquear usuario',
+                            `¿Querés bloquear a ${menuPost?.authorProfileName || 'este usuario'}? No verás sus publicaciones ni podrán interactuar.`,
+                            [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                    text: 'Bloquear',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        const ok = await blockUser(currentUser.uid, menuPost.author);
+                                        if (ok) {
+                                            setMenuPost(null);
+                                            navigation.goBack();
+                                        }
+                                    },
+                                },
+                            ]
+                        );
+                    }
+                    if (key === 'delete') {
+                        Alert.alert(
+                            'Eliminar publicación',
+                            '¿Querés eliminar esta publicación? Esta acción no se puede deshacer.',
+                            [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                    text: 'Eliminar',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        try {
+                                            const postId = menuPost.id;
+                                            // Eliminar likes, views, saved y comments asociados
+                                            const collections = ['likes', 'views', 'saved', 'comments'];
+                                            for (const col of collections) {
+                                                const q = query(collection(db, col), where('postId', '==', postId));
+                                                const snap = await getDocs(q);
+                                                for (const d of snap.docs) {
+                                                    await deleteDoc(d.ref);
+                                                }
+                                            }
+                                            await deleteDoc(doc(db, 'posts', postId));
+                                            setMenuPost(null);
+                                            navigation.goBack();
+                                        } catch (error) {
+                                            console.log('Error eliminando publicación:', error);
+                                        }
+                                    },
+                                },
+                            ]
+                        );
+                    }
+                }}
             />
         </KeyboardAvoidingView>
     );
@@ -394,6 +473,7 @@ const styles = StyleSheet.create({
     userInfoRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 12,
     },
@@ -405,7 +485,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     avatarImage: { width: '100%', height: '100%' },
-    userNameContainer: { marginLeft: 10 },
+    userNameContainer: { marginLeft: 10, flex: 1 },
     userNameText: { fontSize: 15, fontWeight: '600' },
     userHandleText: { fontSize: 13 },
     imageWrapper: {
