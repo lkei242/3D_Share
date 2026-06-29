@@ -43,10 +43,12 @@ router.post('/upload', checkAuth, upload.single('imagen'), async (req, res) => {
 });
 
 router.post('/delete', async (req, res) => {
-  const { publicId } = req.body;
+  const { publicId, resourceType } = req.body;
   if (!publicId) return res.status(400).json({ error: 'publicId required' });
   try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+    // Si no se envía el tipo, usamos 'video' por compatibilidad con audios
+    const type = resourceType || 'video'; 
+    await cloudinary.uploader.destroy(publicId, { resource_type: type });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -13,13 +13,20 @@ import {
   Animated,
   Pressable,
   ActivityIndicator,
-  Keyboard
+  Keyboard,
+  Image,
+  Modal,
+  Linking,
+  Dimensions
 } from 'react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
 import { API_URL } from '../config/api';
+import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import {
   useAudioPlayer,
   AudioModule,
@@ -42,6 +49,19 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 
 const GREEN_ACCENT = '#546F1C';
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Clasifica el mimeType real en 'image' | 'video' | 'file'
+const getMediaCategory = (mimeType) => {
+  if (!mimeType) return 'file';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'file';
+};
+
+// Cloudinary genera automáticamente un frame del video como thumbnail
+// si pedís la misma URL pero con extensión .jpg
+const getVideoThumbnail = (url) => url.replace(/\.\w+$/, '.jpg');
 
 const AudioPlayer = React.memo(({ url, duration, isMe, colors }) => {
   const player = useAudioPlayer({ uri: url });
@@ -242,6 +262,135 @@ const AudioPlayer = React.memo(({ url, duration, isMe, colors }) => {
   );
 
 }, (prev, next) => prev.url === next.url && prev.isMe === next.isMe && prev.duration === next.duration);
+
+// --- Visor de media a pantalla completa (estilo WhatsApp) ---
+
+// Una sola "página" del visor: imagen con doble-tap para zoom, video con reproductor, o archivo con botón de abrir
+const MediaViewerItem = ({ item, isActive }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isZoomedRef = useRef(false);
+  const lastTapRef = useRef(0);
+
+  // El hook siempre se llama (regla de hooks); si no es video, no le damos source.
+  const player = useVideoPlayer(item.type === 'video' ? item.mediaUrl : null, (p) => {
+    if (p) p.loop = false;
+  });
+
+  useEffect(() => {
+    if (player && item.type === 'video' && !isActive) {
+      player.pause();
+    }
+  }, [isActive]);
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 280) {
+      const target = isZoomedRef.current ? 1 : 2.5;
+      isZoomedRef.current = !isZoomedRef.current;
+      Animated.spring(scaleAnim, { toValue: target, useNativeDriver: true, friction: 6 }).start();
+    }
+    lastTapRef.current = now;
+  };
+
+  if (item.type === 'video') {
+    return (
+      <View style={styles.mediaViewerPage}>
+        <VideoView
+          player={player}
+          style={styles.mediaViewerVideo}
+          nativeControls
+          allowsFullscreen
+          contentFit="contain"
+        />
+      </View>
+    );
+  }
+
+  if (item.type === 'file') {
+    return (
+      <View style={styles.mediaViewerPage}>
+        <View style={styles.mediaViewerFileCard}>
+          <Ionicons name="document-text" size={64} color="#FFF" />
+          <Text style={styles.mediaViewerFileName} numberOfLines={2}>
+            {item.fileName || item.text}
+          </Text>
+          <TouchableOpacity
+            style={styles.mediaViewerFileBtn}
+            onPress={() => Linking.openURL(item.mediaUrl)}
+          >
+            <Ionicons name="download-outline" size={18} color="#FFF" />
+            <Text style={styles.mediaViewerFileBtnText}>Abrir / Descargar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.mediaViewerPage}>
+      <Pressable onPress={handleDoubleTap} style={{ width: '100%', height: '100%' }}>
+        <Animated.Image
+          source={{ uri: item.mediaUrl }}
+          style={[styles.mediaViewerImage, { transform: [{ scale: scaleAnim }] }]}
+          resizeMode="contain"
+        />
+      </Pressable>
+    </View>
+  );
+};
+
+// Modal con swipe horizontal entre todas las fotos/videos/archivos del chat
+const MediaViewerModal = ({ visible, items, initialIndex, onClose }) => {
+  const insets = useSafeAreaInsets();
+  const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
+
+  useEffect(() => {
+    if (visible) setCurrentIndex(initialIndex || 0);
+  }, [visible, initialIndex]);
+
+  const handleScrollEnd = (e) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setCurrentIndex(idx);
+  };
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onClose}>
+      <View style={styles.mediaViewerContainer}>
+        <View style={[styles.mediaViewerHeader, { paddingTop: insets.top + 10 }]}>
+          <TouchableOpacity onPress={onClose} style={styles.mediaViewerCloseBtn}>
+            <Ionicons name="close" size={28} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.mediaViewerCounter}>
+            {items.length > 0 ? `${currentIndex + 1} / ${items.length}` : ''}
+          </Text>
+          <TouchableOpacity
+            onPress={() => items[currentIndex] && Linking.openURL(items[currentIndex].mediaUrl)}
+            style={styles.mediaViewerCloseBtn}
+          >
+            <Ionicons name="share-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+
+        {visible && (
+          <FlatList
+            data={items}
+            keyExtractor={(it) => it.id}
+            horizontal
+            pagingEnabled
+            initialScrollIndex={initialIndex || 0}
+            getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
+            onMomentumScrollEnd={handleScrollEnd}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <MediaViewerItem item={item} isActive={index === currentIndex} />
+            )}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+};
+
 // Componente de burbuja animada adaptado para Firestore
 const MessageItem = React.memo(({
   item, 
@@ -252,7 +401,8 @@ const MessageItem = React.memo(({
   isChecked,
   selectedIds,
   onToggleSelect,
-  setShowMsgInfo 
+  setShowMsgInfo,
+  onOpenMedia
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -303,6 +453,15 @@ const MessageItem = React.memo(({
     setShowMsgInfo(false);
   };
 
+  // En modo selección, tocar la miniatura selecciona el mensaje en vez de abrir el visor
+  const handleMediaPress = () => {
+    if (selectedIds.length > 0) {
+      onToggleSelect(item.id);
+    } else {
+      onOpenMedia(item);
+    }
+  };
+
   return (
     <Pressable
       onPress={handlePress}
@@ -342,6 +501,24 @@ const MessageItem = React.memo(({
         ]}>
           {item.type === 'audio' ? (
             <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
+          ) : item.type === 'image' ? (
+            <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
+              <Image source={{ uri: item.mediaUrl }} style={styles.mediaThumb} resizeMode="cover" />
+            </TouchableOpacity>
+          ) : item.type === 'video' ? (
+            <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
+              <Image source={{ uri: getVideoThumbnail(item.mediaUrl) }} style={styles.mediaThumb} resizeMode="cover" />
+              <View style={styles.mediaPlayOverlay}>
+                <Ionicons name="play-circle" size={42} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+          ) : item.type === 'file' ? (
+            <TouchableOpacity onPress={handleMediaPress} style={styles.fileCard} activeOpacity={0.85}>
+              <Ionicons name="document-text" size={28} color={isMe ? '#FFF' : colors.text} />
+              <Text style={[styles.fileName, { color: isMe ? '#FFF' : colors.text }]} numberOfLines={1}>
+                {item.fileName || item.text}
+              </Text>
+            </TouchableOpacity>
           ) : (
             <Text style={[styles.messageText, { color: isMe ? '#FFF' : colors.text }]}>
               {item.text}
@@ -382,6 +559,20 @@ export default function ChatDetailScreen({ route, navigation }) {
   const { chatId, name: chatName } = route.params;
 
   const [messages, setMessages] = useState([]);
+
+  // --- Visor de media a pantalla completa ---
+  const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
+  const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
+  const mediaMessages = React.useMemo(
+    () => messages.filter(m => ['image', 'video', 'file'].includes(m.type)),
+    [messages]
+  );
+  const openMediaViewer = useCallback((item) => {
+    const idx = mediaMessages.findIndex(m => m.id === item.id);
+    setMediaViewerIndex(idx >= 0 ? idx : 0);
+    setMediaViewerVisible(true);
+  }, [mediaMessages]);
+
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -391,6 +582,11 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showMsgInfo, setShowMsgInfo] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
     // --- Estados de Grabación ---
   const [isLocked, setIsLocked] = useState(false);
@@ -775,12 +971,37 @@ export default function ChatDetailScreen({ route, navigation }) {
       Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      await handleUploadAndSendMedia(result.assets[0]);
+
+    // Como la cámara nativa solo devuelve una foto/video por vez, armamos una
+    // cola: después de cada toma le preguntamos al usuario si quiere otra o ya
+    // enviar todo lo que acumuló.
+    const capturedAssets = [];
+    let keepShooting = true;
+
+    while (keepShooting) {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.[0]) break;
+      capturedAssets.push(result.assets[0]);
+
+      keepShooting = await new Promise((resolve) => {
+        Alert.alert(
+          `${capturedAssets.length} ${capturedAssets.length > 1 ? 'archivos listos' : 'archivo listo'}`,
+          '¿Querés tomar otra foto o video?',
+          [
+            { text: 'Enviar', onPress: () => resolve(false) },
+            { text: 'Tomar otra', onPress: () => resolve(true) },
+          ],
+          { cancelable: false }
+        );
+      });
+    }
+
+    for (const asset of capturedAssets) {
+      await handleUploadAndSendMedia(asset);
     }
   };
 
@@ -792,12 +1013,14 @@ export default function ChatDetailScreen({ route, navigation }) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ['images', 'videos'],
       quality: 0.8,
-      allowsMultipleSelection: false,
+      allowsMultipleSelection: true,
     });
-    if (!result.canceled && result.assets?.[0]) {
-      await handleUploadAndSendMedia(result.assets[0]);
+    if (!result.canceled && result.assets?.length) {
+      for (const asset of result.assets) {
+        await handleUploadAndSendMedia(asset);
+      }
     }
   };
 
@@ -855,43 +1078,57 @@ export default function ChatDetailScreen({ route, navigation }) {
       const user = auth.currentUser;
       const token = await user.getIdToken();
       const uri = asset.uri;
-      const type = asset.type || asset.mimeType || 'image/jpeg';
-      const extension = uri.split('.').pop() || 'jpg';
-      const fileName = asset.fileName || `media_${Date.now()}.${extension}`;
+
+      // asset.type del ImagePicker solo trae la categoría ("image"/"video"), no
+      // un MIME real. Priorizamos mimeType (ImagePicker y DocumentPicker lo traen).
+      const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+      const category = getMediaCategory(mimeType);
+      const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+      const fileName = asset.fileName || asset.name || `media_${Date.now()}.${extension}`;
 
       const formData = new FormData();
-      formData.append('imagen', { uri, type, name: fileName });
+      formData.append('imagen', { uri, type: mimeType, name: fileName });
 
       const xhr = new XMLHttpRequest();
       const uploadRes = await new Promise((resolve, reject) => {
         xhr.open('POST', `${API_URL}/api/media/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => resolve({ ok: xhr.status === 200, json: () => JSON.parse(xhr.responseText) });
+        xhr.onload = () => {
+          let data = null;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch (e) {}
+          resolve({ ok: xhr.status === 200, data });
+        };
         xhr.onerror = () => reject(new Error('Network error'));
         xhr.send(formData);
       });
 
-      const uploadData = await uploadRes.json();
       if (!uploadRes.ok) {
         Alert.alert('Error', 'No se pudo subir el archivo.');
         return;
       }
 
-      const isVideo = type.startsWith('video');
+      const uploadData = uploadRes.data;
+
+      const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'], file: [fileName, `📎 ${fileName}`] };
+      const [text, lastMessage] = labels[category];
+
       const messagesRef = collection(db, `chats/${chatId}/messages`);
       const chatRef = doc(db, `chats/${chatId}`);
       await Promise.all([
         addDoc(messagesRef, {
-          text: isVideo ? 'Video' : 'Imagen',
-          type: isVideo ? 'video' : 'image',
+          text,
+          type: category,
           mediaUrl: uploadData.url,
+          fileName: category === 'file' ? fileName : null,
           sender: user.uid,
           createdAt: serverTimestamp(),
           read: false,
           isFavorite: false,
         }),
         updateDoc(chatRef, {
-          lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+          lastMessage,
           lastMessageTime: serverTimestamp(),
           lastSender: user.uid,
         }),
@@ -926,42 +1163,39 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const handleDelete = () => {
     if (selectedIds.length === 0) return;
+    setShowDeleteConfirm(true);
+    Animated.timing(deleteConfirmOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  };
 
-    Alert.alert(
-      `Eliminar ${selectedIds.length > 1 ? 'mensajes' : 'mensaje'}`,
-      `¿Deseas eliminar ${selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
-              const deletions = msgsToDelete.map(async (msg) => {
-                if (msg?.type === 'audio' && msg?.mediaUrl) {
-                  const match = msg.mediaUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);
-                  if (match) {
-                    const publicId = match[1];
-                    await fetch(`${API_URL}/api/media/delete`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ publicId }),
-                    });
-                  }
-                }
-                const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
-                await deleteDoc(msgRef);
-              });
-              await Promise.all(deletions);
-            } catch (error) {
-              console.log("Error al borrar mensajes:", error);
-            }
-            clearSelection();
+  const closeDeleteConfirm = (onClosed) => {
+    Animated.timing(deleteConfirmOpacity, { toValue: 0, duration: 150, useNativeDriver: true })
+      .start(() => {
+        setShowDeleteConfirm(false);
+        if (onClosed) onClosed();
+      });
+  };
+
+  const handleConfirmDelete = () => {
+    closeDeleteConfirm(async () => {
+      try {
+        const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
+        const deletions = msgsToDelete.map(async (msg) => {
+          if (msg?.mediaUrl) {
+            await deleteMediaFromCloudinary(msg.mediaUrl);
           }
-        }
-      ]
-    );
+          const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
+          await deleteDoc(msgRef);
+        });
+        await Promise.all(deletions);
+      } catch (error) {
+        console.log("Error al borrar mensajes:", error);
+      }
+      clearSelection();
+    });
+  };
+
+  const handleCancelDelete = () => {
+    closeDeleteConfirm();
   };
 
   const handleForward = () => {
@@ -972,10 +1206,28 @@ export default function ChatDetailScreen({ route, navigation }) {
     clearSelection();
   };
 
-  const handleCopy = () => {
-    if (!activeMsg) return;
-    Alert.alert('Copiado', 'El mensaje se ha copiado al portapapeles');
-    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
+  const handleCopy = async () => {
+    if (!activeMsg.text) return;
+    clearSelection();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage('Mensaje copiado al portapapeles');
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      // Escribir al clipboard después de que el toast de la app ya se vea
+      setTimeout(() => {
+        Clipboard.setStringAsync(activeMsg.text);
+      }, 1000);
+    });
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(null));
+    }, 900);
   };
 
   const handleStartEdit = () => {
@@ -999,9 +1251,10 @@ export default function ChatDetailScreen({ route, navigation }) {
         selectedIds={selectedIds}
         onToggleSelect={handleToggleSelect}
         setShowMsgInfo={setShowMsgInfo}
+        onOpenMedia={openMediaViewer}
       />
     );
-  }, [selectedIds, isDark, colors, chatName]);
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -1016,8 +1269,9 @@ export default function ChatDetailScreen({ route, navigation }) {
   }, []);
   
   return (
-    <TouchableWithoutFeedback onPress={closeAllMenus}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={{ flex: 1 }}>
+      <TouchableWithoutFeedback onPress={closeAllMenus}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
         
         {/* HEADER MULTI-SELECCIÓN O NORMAL */}
         {selectedIds.length > 0 ? (
@@ -1062,10 +1316,12 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Text style={[styles.toolText, { color: '#a70d0d', fontWeight: 'bold' }]}>Eliminar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
-                <Ionicons name="copy" size={24} color={colors.text} />
-                <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
-              </TouchableOpacity>
+              {selectedIds.length === 1 && activeMsg?.text ? (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
+                  <Ionicons name="copy" size={24} color={colors.text} />
+                  <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
                 <Ionicons name="arrow-redo" size={24} color={colors.text} />
@@ -1358,6 +1614,46 @@ export default function ChatDetailScreen({ route, navigation }) {
           )}
       </View>
     </TouchableWithoutFeedback>
+
+      {toastMessage && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, { opacity: toastOpacity }]}
+        >
+          <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
+
+      {showDeleteConfirm && (
+        <Animated.View style={[styles.deleteConfirm, {
+          opacity: deleteConfirmOpacity,
+            backgroundColor: isDark ? '#1C1C1C' : '#FFF',
+            borderColor: colors.border,
+            bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 100,
+          }]}>
+          <Text style={[styles.deleteConfirmText, { color: colors.text }]}>
+            ¿Deseas eliminar {selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?
+          </Text>
+          <View style={styles.deleteConfirmActions}>
+            <TouchableOpacity onPress={handleCancelDelete} style={[styles.deleteConfirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}>
+              <Text style={[styles.deleteConfirmBtnText, { color: colors.text }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleConfirmDelete} style={[styles.deleteConfirmBtn, { backgroundColor: '#a70d0d' }]}>
+              <Ionicons name="trash" size={18} color="#FFF" />
+              <Text style={[styles.deleteConfirmBtnText, { color: '#FFF', fontWeight: 'bold' }]}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
+      <MediaViewerModal
+        visible={mediaViewerVisible}
+        items={mediaMessages}
+        initialIndex={mediaViewerIndex}
+        onClose={() => setMediaViewerVisible(false)}
+      />
+    </View>
   );
 }
 
@@ -1422,4 +1718,30 @@ const styles = StyleSheet.create({
   waBar: {width: 3,borderRadius: 1.5,},
   waDuration: {fontSize: 11,fontFamily: 'Nunito-Regular',minWidth: 28,textAlign: 'right',marginLeft: 6,},
   waDot: {position: 'absolute',top: '50%',marginTop: -4,zIndex: 10,},
+  toast: {position: 'absolute',bottom: 112,left: 20,right: 20,backgroundColor: '#323232',flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 8,paddingVertical: 12,paddingHorizontal: 20,borderRadius: 12,elevation: 6,shadowColor: '#000',shadowOffset: { width: 0, height: 3 },shadowOpacity: 0.3,shadowRadius: 5,zIndex: 999,},
+  toastText: {color: '#FFF',fontSize: 15,fontFamily: 'Nunito-Bold',},
+  deleteConfirm: {position: 'absolute',left: 16,right: 16,padding: 16,borderRadius: 16,borderWidth: 1,gap: 14,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,elevation: 8,zIndex: 100,},
+  deleteConfirmText: {fontSize: 16,fontFamily: 'Nunito-Bold',textAlign: 'center',},
+  deleteConfirmActions: {flexDirection: 'row',gap: 12,},
+  deleteConfirmBtn: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 6,paddingVertical: 12,borderRadius: 12,},
+  deleteConfirmBtnText: {fontSize: 15,fontFamily: 'Nunito-Bold',},
+
+  // --- Miniaturas dentro de la burbuja del chat ---
+  mediaThumb: { width: 200, height: 200, borderRadius: 12, backgroundColor: '#0002' },
+  mediaPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, maxWidth: 220 },
+  fileName: { fontSize: 14, fontFamily: 'Nunito-Bold', flexShrink: 1 },
+
+  // --- Visor de media a pantalla completa ---
+  mediaViewerContainer: { flex: 1, backgroundColor: '#000' },
+  mediaViewerHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
+  mediaViewerCloseBtn: { padding: 6 },
+  mediaViewerCounter: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
+  mediaViewerPage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: 'center', alignItems: 'center' },
+  mediaViewerImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.85 },
+  mediaViewerVideo: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.6 },
+  mediaViewerFileCard: { alignItems: 'center', gap: 14, paddingHorizontal: 30 },
+  mediaViewerFileName: { color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold', textAlign: 'center' },
+  mediaViewerFileBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN_ACCENT, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, marginTop: 10 },
+  mediaViewerFileBtnText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
 });
