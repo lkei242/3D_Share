@@ -29,7 +29,7 @@
       "translucent": true,
       "backgroundColor": "#00000000"
     },
-"plugins": [
+    "plugins": [
       "@react-native-community/datetimepicker",
       [
         "expo-audio",
@@ -59,7 +59,8 @@
           "locationWhenInUsePermission": "Permite que $(PRODUCT_NAME) acceda a tu ubicación mientras usas la app."
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-font"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

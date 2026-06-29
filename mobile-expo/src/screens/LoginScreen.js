@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '@react-navigation/native';
-import { auth } from './config/firebase';
+import { auth, db } from './config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import {
   View,
@@ -16,12 +18,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen({ navigation, route }) {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
+  // Prellenar email si viene del AccountSwitcher
+  useEffect(() => {
+    if (route?.params?.email) {
+      setEmail(route.params.email);
+    }
+  }, [route?.params?.email]);
 
   useEffect(() => {
     const showListener = Keyboard.addListener('keyboardDidShow', () => {
@@ -36,22 +44,47 @@ export default function LoginScreen({ navigation }) {
     };
   }, []);
 
-  const handleLogin = async () => {
-    try {
-      // 1. Loguearse en Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      // 2. Obtener el Token JWT generado por Firebase
-      const token = await user.getIdToken();
-      // 3. Guardar el token en almacenamiento local o enviarlo en headers
-      console.log("Token JWT listo para enviar al backend:", token);
-      
-      // Redirigir a la app principal
-      navigation.replace('MainTabs');
-    } catch (error) {
-      alert(error.message);
+const handleLogin = async () => {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // ✅ Navegar de inmediato, sin esperar nada más
+    navigation.replace('MainTabs');
+
+    // ✅ Guardar en AsyncStorage en segundo plano (sin await)
+    saveAccountToStorage(user, password);
+
+  } catch (error) {
+    alert(error.message);
+  }
+};
+
+// Función separada, se ejecuta después de navegar
+const saveAccountToStorage = async (user, password) => {
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    const userData = snap.exists() ? snap.data() : null;
+    const raw = await AsyncStorage.getItem('stored_accounts');
+    let accounts = raw ? JSON.parse(raw) : [];
+    const existingIndex = accounts.findIndex((a) => a.uid === user.uid);
+    if (existingIndex === -1) {
+      accounts.push({
+        uid: user.uid,
+        profileName: userData?.profileName || 'Usuario',
+        username: userData?.username || 'usuario',
+        email: user.email,
+        profilePicture: userData?.profilePicture || null,
+        password: password,
+      });
+    } else if (!accounts[existingIndex].password) {
+      accounts[existingIndex].password = password;
     }
-  };
+    await AsyncStorage.setItem('stored_accounts', JSON.stringify(accounts));
+  } catch (e) {
+    console.log('Error guardando cuenta:', e);
+  }
+};
 
   return (
     <KeyboardAvoidingView

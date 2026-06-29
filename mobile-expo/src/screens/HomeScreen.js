@@ -205,7 +205,7 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (!hasFetched.current) {
-        fetchBlockedUsers().then(() => fetchPosts(true));
+        Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
         hasFetched.current = true;
       }
     });

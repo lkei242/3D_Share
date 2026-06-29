@@ -5,6 +5,7 @@ import { auth, db } from './config/firebase';
 import { API_URL } from './config/api';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -313,7 +314,25 @@ export default function RegisterScreen({ navigation }) {
         createdAt: new Date(),
       });
 
-      // 4. Cerrar sesión DESPUÉS de guardar todo
+      // 4. Guardar cuenta en AsyncStorage y cerrar sesión
+      try {
+        const raw = await AsyncStorage.getItem('stored_accounts');
+        let accounts = raw ? JSON.parse(raw) : [];
+        if (!accounts.some((a) => a.uid === user.uid)) {
+          accounts.push({
+            uid: user.uid,
+            profileName: sanitizeInput(profileName.trim()),
+            username: username.trim().toLowerCase(),
+            email: email.trim(),
+            profilePicture: profilePictureUrl || null,
+            password: password,
+          });
+          await AsyncStorage.setItem('stored_accounts', JSON.stringify(accounts));
+        }
+      } catch (e) {
+        console.log('Error guardando cuenta:', e);
+      }
+
       await signOut(auth);
 
       showToast('¡Cuenta creada con éxito!', 'success');

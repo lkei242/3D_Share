@@ -1,5 +1,5 @@
 // src/screens/profile_screens/AccountSwitcherScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   Alert,
 } from 'react-native';
 import { useTheme } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
-import { signOut } from 'firebase/auth';
+import { signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AccountSwitcherScreen({ navigation }) {
   const { colors } = useTheme();
@@ -21,40 +23,188 @@ export default function AccountSwitcherScreen({ navigation }) {
   const [userData, setUserData] = useState(null);
   const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 });
   const [loading, setLoading] = useState(true);
+  const [storedAccounts, setStoredAccounts] = useState([]);
+
+  // --- Multi-select state ---
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedUids, setSelectedUids] = useState([]);
 
   const currentUser = auth.currentUser;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!currentUser) { setLoading(false); return; }
-      try {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
+  const loadStoredAccounts = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('stored_accounts');
+      if (raw) setStoredAccounts(JSON.parse(raw));
+    } catch (e) {
+      console.log('Error loading stored accounts:', e);
+    }
+  };
 
-        const postsQ = query(collection(db, 'posts'), where('autor', '==', currentUser.uid));
-        const postsSnap = await getDocs(postsQ);
-
-        const followersQ = query(collection(db, 'followers'), where('userId', '==', currentUser.uid));
-        const followersSnap = await getDocs(followersQ);
-
-        const followingQ = query(collection(db, 'followers'), where('followerId', '==', currentUser.uid));
-        const followingSnap = await getDocs(followingQ);
-
-        setStats({
-          posts: postsSnap.size,
-          followers: followersSnap.size,
-          following: followingSnap.size,
+  const saveCurrentAccount = async (userDataMap) => {
+    try {
+      const raw = await AsyncStorage.getItem('stored_accounts');
+      let accounts = raw ? JSON.parse(raw) : [];
+      const exists = accounts.some((a) => a.uid === currentUser.uid);
+      if (!exists) {
+        accounts.push({
+          uid: currentUser.uid,
+          profileName: userDataMap?.profileName || 'Usuario',
+          username: userDataMap?.username || 'usuario',
+          email: currentUser.email,
+          profilePicture: userDataMap?.profilePicture || null,
         });
-      } catch (error) {
-        console.log('Error fetching account data:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        accounts = accounts.map((a) =>
+          a.uid === currentUser.uid
+            ? { ...a, profileName: userDataMap?.profileName, username: userDataMap?.username, profilePicture: userDataMap?.profilePicture }
+            : a
+        );
       }
-    };
-    fetchData();
-  }, []);
+      await AsyncStorage.setItem('stored_accounts', JSON.stringify(accounts));
+      setStoredAccounts(accounts);
+    } catch (e) {
+      console.log('Error saving account:', e);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const fetchData = async () => {
+        if (!currentUser) { setLoading(false); return; }
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          let dataMap = null;
+          if (userDoc.exists()) {
+            dataMap = userDoc.data();
+            setUserData(dataMap);
+          }
+
+          const postsQ = query(collection(db, 'posts'), where('autor', '==', currentUser.uid));
+          const postsSnap = await getDocs(postsQ);
+
+          const followersQ = query(collection(db, 'followers'), where('userId', '==', currentUser.uid));
+          const followersSnap = await getDocs(followersQ);
+
+          const followingQ = query(collection(db, 'followers'), where('followerId', '==', currentUser.uid));
+          const followingSnap = await getDocs(followingQ);
+
+          setStats({
+            posts: postsSnap.size,
+            followers: followersSnap.size,
+            following: followingSnap.size,
+          });
+
+          await saveCurrentAccount(dataMap);
+          await loadStoredAccounts();
+        } catch (error) {
+          console.log('Error fetching account data:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchData();
+    }, [])
+  );
+
+  const handleAddAccount = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.log('Error al cerrar sesión:', error);
+    }
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
+  const handleSwitchAccount = (account) => {
+    if (currentUser && account.uid === currentUser.uid) return;
+    Alert.alert(
+      'Cambiar cuenta',
+      `¿Querés cambiar a @${account.username}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cambiar',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              if (account.password) {
+                await signInWithEmailAndPassword(auth, account.email, account.password);
+                navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+              } else {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login', params: { email: account.email } }],
+                });
+              }
+            } catch (error) {
+              console.log('Error al cambiar cuenta:', error);
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login', params: { email: account.email } }],
+              });
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Entra en modo selección y selecciona la cuenta presionada
+  const handleLongPress = (account) => {
+    setSelectMode(true);
+    setSelectedUids([account.uid]);
+  };
+
+  // Tap en modo selección: toggle del uid
+  const handleSelectToggle = (account) => {
+    setSelectedUids((prev) => {
+      const next = prev.includes(account.uid)
+        ? prev.filter((uid) => uid !== account.uid)
+        : [...prev, account.uid];
+      if (next.length === 0) {
+        setSelectMode(false);
+      }
+      return next;
+    });
+  };
+
+  const handleCancelSelect = () => {
+    setSelectMode(false);
+    setSelectedUids([]);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedUids.length === 0) return;
+    const deletingCurrentAccount = selectedUids.includes(currentUser?.uid);
+    const count = selectedUids.length;
+    const mensaje = deletingCurrentAccount
+      ? `Vas a eliminar ${count} cuenta${count > 1 ? 's' : ''}. Como eliminás la cuenta activa, se cerrará sesión.`
+      : `¿Querés eliminar ${count} cuenta${count > 1 ? 's' : ''} guardada${count > 1 ? 's' : ''}?`;
+
+    Alert.alert('Eliminar cuentas', mensaje, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const updated = storedAccounts.filter((a) => !selectedUids.includes(a.uid));
+            await AsyncStorage.setItem('stored_accounts', JSON.stringify(updated));
+            if (deletingCurrentAccount) {
+              await signOut(auth);
+              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+            } else {
+              setStoredAccounts(updated);
+              setSelectMode(false);
+              setSelectedUids([]);
+            }
+          } catch (e) {
+            console.log('Error removing accounts:', e);
+          }
+        },
+      },
+    ]);
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -82,11 +232,24 @@ export default function AccountSwitcherScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: isDark ? '#222' : '#E5E5E5' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={selectMode ? handleCancelSelect : () => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.textnegrita }]}>Cambiar cuenta</Text>
-        <View style={{ width: 26 }} />
+        <Text style={[styles.title, { color: colors.textnegrita }]}>
+          {selectMode ? `${selectedUids.length} seleccionada${selectedUids.length !== 1 ? 's' : ''}` : 'Cambiar cuenta'}
+        </Text>
+        {/* Botón eliminar en modo selección */}
+        {selectMode ? (
+          <TouchableOpacity onPress={handleDeleteSelected} disabled={selectedUids.length === 0}>
+            <Ionicons
+              name="trash-outline"
+              size={24}
+              color={selectedUids.length > 0 ? '#E74C3C' : isDark ? '#444' : '#CCC'}
+            />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       {loading ? (
@@ -137,46 +300,92 @@ export default function AccountSwitcherScreen({ navigation }) {
           <View style={styles.accountsSection}>
             <Text style={[styles.sectionTitle, { color: isDark ? '#888' : '#666' }]}>Cuentas</Text>
 
-            {/* Cuenta actual */}
-            <View style={[styles.accountCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', borderColor: isDark ? '#333' : '#E0E0E0' }]}>
-              <View style={styles.accountInfo}>
-                {userData?.profilePicture ? (
-                  <Image source={{ uri: userData.profilePicture }} style={styles.accountAvatar} />
-                ) : (
-                  <View style={[styles.accountAvatar, styles.accountAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
-                    <Ionicons name="person-circle-outline" size={36} color="#94BA46" />
+            {storedAccounts.map((account) => {
+              const isCurrent = account.uid === currentUser?.uid;
+              const isSelected = selectedUids.includes(account.uid);
+              return (
+                <TouchableOpacity
+                  key={account.uid}
+                  style={[
+                    styles.accountCard,
+                    {
+                      backgroundColor: isSelected
+                        ? (isDark ? '#2A1A1A' : '#FDECEA')
+                        : (isDark ? '#1C1C1C' : '#F5F5F5'),
+                      borderColor: isSelected
+                        ? '#E74C3C'
+                        : (isDark ? '#333' : '#E0E0E0'),
+                    },
+                  ]}
+                  onPress={() => {
+                    if (selectMode) {
+                      handleSelectToggle(account);
+                    } else if (!isCurrent) {
+                      handleSwitchAccount(account);
+                    }
+                  }}
+                  onLongPress={() => handleLongPress(account)}
+                  delayLongPress={350}
+                  activeOpacity={!selectMode && isCurrent ? 1 : 0.7}
+                >
+                  <View style={styles.accountInfo}>
+                    {account.profilePicture ? (
+                      <Image source={{ uri: account.profilePicture }} style={styles.accountAvatar} />
+                    ) : (
+                      <View style={[styles.accountAvatar, styles.accountAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+                        <Ionicons name="person-circle-outline" size={36} color="#94BA46" />
+                      </View>
+                    )}
+                    <View style={styles.accountTextContainer}>
+                      <Text style={[styles.accountName, { color: colors.text }]}>
+                        {isCurrent ? (userData?.profileName || 'Usuario') : account.profileName}
+                      </Text>
+                      <Text style={[styles.accountHandle, { color: isDark ? '#888' : '#666' }]}>
+                        @{isCurrent ? (userData?.username || 'usuario') : account.username}
+                      </Text>
+                    </View>
                   </View>
-                )}
-                <View style={styles.accountTextContainer}>
-                  <Text style={[styles.accountName, { color: colors.text }]}>{userData?.profileName || 'Usuario'}</Text>
-                  <Text style={[styles.accountHandle, { color: isDark ? '#888' : '#666' }]}>@{userData?.username || 'usuario'}</Text>
+                  {selectMode ? (
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={isSelected ? '#E74C3C' : (isDark ? '#555' : '#BBB')}
+                    />
+                  ) : isCurrent ? (
+                    <Ionicons name="checkmark-circle" size={24} color="#9DBD3F" />
+                  ) : (
+                    <Ionicons name="swap-horizontal" size={20} color={isDark ? '#888' : '#666'} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Agregar cuenta — oculto en modo selección */}
+            {!selectMode && (
+              <TouchableOpacity
+                style={[styles.accountButton, { backgroundColor: colors.card, borderColor: isDark ? '#333' : '#E0E0E0' }]}
+                onPress={handleAddAccount}
+              >
+                <View style={[styles.accountIconCircle, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+                  <Ionicons name="person-add-outline" size={20} color="#9DBD3F" />
                 </View>
-              </View>
-              <Ionicons name="checkmark-circle" size={24} color="#9DBD3F" />
+                <Text style={[styles.accountButtonText, { color: colors.text }]}>Agregar cuenta</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Cerrar sesión — oculto en modo selección */}
+          {!selectMode && (
+            <View style={styles.logoutSection}>
+              <TouchableOpacity
+                style={[styles.logoutButton, { backgroundColor: colors.botonrojo }]}
+                onPress={handleLogout}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.logoutText}>Cerrar sesión</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Agregar cuenta */}
-            <TouchableOpacity
-              style={[styles.accountButton, { backgroundColor: colors.card, borderColor: isDark ? '#333' : '#E0E0E0' }]}
-              onPress={() => navigation.navigate('Register')}
-            >
-              <View style={[styles.accountIconCircle, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
-                <Ionicons name="person-add-outline" size={20} color="#9DBD3F" />
-              </View>
-              <Text style={[styles.accountButtonText, { color: colors.text }]}>Agregar cuenta</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Cerrar sesión */}
-          <View style={styles.logoutSection}>
-            <TouchableOpacity
-              style={[styles.logoutButton, { backgroundColor: colors.botonrojo }]}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </>
       )}
     </View>
@@ -231,7 +440,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    gap: 18,
+    marginRight: 25,
   },
   statItem: {
     alignItems: 'center',
@@ -263,6 +473,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginLeft: 10,
   },
   accountCard: {
     flexDirection: 'row',
