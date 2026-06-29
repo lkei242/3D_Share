@@ -2,9 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Pressable, Animated, Image, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { GREEN_ACCENT, getVideoThumbnail } from './chatConstants';
-import styles from './chatStyles';
-import AudioPlayer from './AudioPlayer';
+import { GREEN_ACCENT, getVideoThumbnail } from './Chatconstants';
+import styles from './Chatstyles';
+import AudioPlayer from './Audioplayer';
 
 // Burbuja de mensaje individual: texto, audio, ubicación, imagen, video,
 // archivo o grupo de medias. Memoizado porque la lista puede tener muchos mensajes.
