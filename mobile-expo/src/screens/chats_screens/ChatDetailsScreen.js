@@ -19,7 +19,7 @@ import {
   Linking,
   Dimensions
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@react-navigation/native';
@@ -506,30 +506,23 @@ const MessageItem = React.memo(({
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}
-            style={{ borderRadius: 12, overflow: 'hidden', width: 220 }}
+            style={{ borderRadius: 12, overflow: 'hidden', width: 240 }}
           >
-            <MapView
-              style={{ width: 220, height: 140 }}
-              region={{
-                latitude: item.latitude,
-                longitude: item.longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-              }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              pitchEnabled={false}
-              rotateEnabled={false}
-              pointerEvents="none"
-            >
-              <Marker coordinate={{ latitude: item.latitude, longitude: item.longitude }} />
-            </MapView>
+            <View style={{ width: 240, height: 140, overflow: 'hidden' }} pointerEvents="none">
+              <WebView
+                style={{ flex: 1 }}
+                scrollEnabled={false}
+                pointerEvents="none"
+                source={{ html: `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%;overflow:hidden}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false,keyboard:false}).setView([${item.latitude},${item.longitude}],15);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);L.marker([${item.latitude},${item.longitude}]).addTo(map);</script></body></html>` }}
+              />
+            </View>
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
               paddingVertical: 8,
               paddingHorizontal: 10,
               gap: 6,
+              backgroundColor: isMe ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.06)',
             }}>
               <Ionicons name="location" size={16} color={isMe ? '#FFF' : GREEN_ACCENT} />
               <View style={{ flex: 1 }}>
@@ -542,6 +535,7 @@ const MessageItem = React.memo(({
                   </Text>
                 )}
               </View>
+              <Ionicons name="open-outline" size={13} color={isMe ? 'rgba(255,255,255,0.6)' : '#AAA'} />
             </View>
           </TouchableOpacity>
         ) : item.type === 'image' ? (
