@@ -21,6 +21,7 @@ export default function AdvancedInfoScreen({ navigation }) {
   const [presentation, setPresentation] = useState('');
   const [profilePicture, setProfilePicture] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
@@ -39,6 +40,8 @@ export default function AdvancedInfoScreen({ navigation }) {
           }
         } catch (error) {
           console.log('Error fetching advanced info:', error);
+        } finally {
+          setLoadingProfile(false);
         }
       };
       fetchData();
@@ -173,15 +176,26 @@ export default function AdvancedInfoScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity style={styles.avatarContainer} onPress={() => setShowOptions(true)} disabled={uploading}>
-          {uploading ? (
+          {loadingProfile ? (
             <View style={[styles.avatar, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5' }]}>
               <ActivityIndicator size="small" color="#546F1C" />
             </View>
           ) : profilePicture ? (
-            <Image
-              source={{ uri: profilePicture }}
-              style={[styles.avatar, { borderColor: isDark ? '#333' : '#DCDCDC' }]}
-            />
+            <View>
+              <Image
+                source={{ uri: profilePicture }}
+                style={[styles.avatar, { borderColor: isDark ? '#333' : '#DCDCDC' }]}
+              />
+              {uploading && (
+                <View style={[styles.avatar, { position: 'absolute', backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                  <ActivityIndicator size="small" color="#FFF" />
+                </View>
+              )}
+            </View>
+          ) : uploading ? (
+            <View style={[styles.avatar, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5' }]}>
+              <ActivityIndicator size="small" color="#546F1C" />
+            </View>
           ) : (
             <View
               style={[
@@ -203,7 +217,7 @@ export default function AdvancedInfoScreen({ navigation }) {
               { color: colors.text }
             ]}
           >
-            {uploading ? 'Subiendo...' : 'Cambiar foto de perfil'}
+            {loadingProfile ? '' : uploading ? 'Subiendo...' : 'Cambiar foto de perfil'}
           </Text>
         </TouchableOpacity>
 
