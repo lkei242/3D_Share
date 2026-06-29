@@ -1720,7 +1720,7 @@ const styles = StyleSheet.create({
   waDot: {position: 'absolute',top: '50%',marginTop: -4,zIndex: 10,},
   toast: {position: 'absolute',bottom: 112,left: 20,right: 20,backgroundColor: '#323232',flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 8,paddingVertical: 12,paddingHorizontal: 20,borderRadius: 12,elevation: 6,shadowColor: '#000',shadowOffset: { width: 0, height: 3 },shadowOpacity: 0.3,shadowRadius: 5,zIndex: 999,},
   toastText: {color: '#FFF',fontSize: 15,fontFamily: 'Nunito-Bold',},
-  deleteConfirm: {position: 'absolute',left: 16,right: 10,padding: 16,borderRadius: 16,borderWidth: 1,gap: 14,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,elevation: 8,zIndex: 100,},
+  deleteConfirm: {position: 'absolute',left: 16,right: 16,padding: 16,borderRadius: 16,borderWidth: 1,gap: 14,shadowColor: '#000',shadowOffset: { width: 0, height: 4 },shadowOpacity: 0.2,shadowRadius: 6,elevation: 8,zIndex: 100,},
   deleteConfirmText: {fontSize: 16,fontFamily: 'Nunito-Bold',textAlign: 'center',},
   deleteConfirmActions: {flexDirection: 'row',gap: 12,},
   deleteConfirmBtn: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 6,paddingVertical: 12,borderRadius: 12,},
