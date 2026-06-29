@@ -156,7 +156,7 @@ const saveAccountToStorage = async (user, password) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.navigate('Welcome')}>
           <Text style={[styles.link, { color: colors.text }]}>
             Volver
           </Text>
