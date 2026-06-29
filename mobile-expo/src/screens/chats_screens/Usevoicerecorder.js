@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { API_URL } from '../config/api';
-import { formatTime } from './chatConstants';
+import { formatTime } from './Chatconstants';
 
 // Encapsula TODO el estado y la lógica de grabación de notas de voz:
 // estados de UI (bloqueado/pausado/grabando), animaciones (waveform, bounce

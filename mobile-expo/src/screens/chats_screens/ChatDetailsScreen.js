@@ -35,11 +35,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 
-import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './chatConstants';
-import styles from './chatStyles';
-import MessageItem from './MessageItem';
-import MediaViewerModal from './MediaViewer';
-import useVoiceRecorder from './useVoiceRecorder';
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './Chatconstants';
+import styles from './Chatstyles';
+import MessageItem from './Messageitem';
+import MediaViewerModal from './Mediaviewer';
+import useVoiceRecorder from './Usevoicerecorder';
 import CustomCameraModal from '../components/CustomCameraModal';
 
 export default function ChatDetailScreen({ route, navigation }) {

@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT } from './chatConstants';
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT } from './Chatconstants';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

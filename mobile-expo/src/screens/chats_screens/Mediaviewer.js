@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity, Pressable, Animated, Modal, FlatList, Lin
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SCREEN_WIDTH } from './chatConstants';
-import styles from './chatStyles';
+import { SCREEN_WIDTH } from './Chatconstants';
+import styles from './Chatstyles';
 
 // Visor de media a pantalla completa (estilo WhatsApp): swipe horizontal
 // entre fotos/videos/archivos del chat, con zoom por doble-tap en imágenes.

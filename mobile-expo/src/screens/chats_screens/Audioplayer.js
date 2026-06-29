@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
-import styles from './chatStyles';
+import styles from './Chatstyles';
 
 // Reproductor de notas de voz con forma de onda falsa (determinística por URL)
 // y barra de progreso arrastrable. Se usa dentro de MessageItem.
