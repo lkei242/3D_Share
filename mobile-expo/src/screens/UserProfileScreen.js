@@ -5,7 +5,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  SectionList,
   Image,
   ActivityIndicator,
   Dimensions,
@@ -507,129 +507,133 @@ export default function UserProfileScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        {/* SECCIÓN PERFIL */}
-        <View style={styles.profileSection}>
-          {/* Fila: avatar + stats */}
-          <View style={styles.avatarStatsRow}>
-            <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
-              {profilePicture ? (
-                <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
-              ) : (
-                <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={90}
-                    color="#94BA46"
-                    style={{
-                      marginLeft: -3,
-                      marginTop: -4,
-                    }}
-                  />
+      <SectionList
+        sections={[{ data: [1], key: 'content' }]}
+        stickySectionHeadersEnabled
+        removeClippedSubviews={false}
+        keyExtractor={(_, i) => String(i)}
+        ListHeaderComponent={() => (
+          <View style={styles.profileSection}>
+            {/* Fila: avatar + stats */}
+            <View style={styles.avatarStatsRow}>
+              <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
+                {profilePicture ? (
+                  <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+                ) : (
+                  <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={90}
+                      color="#94BA46"
+                      style={{
+                        marginLeft: -3,
+                        marginTop: -4,
+                      }}
+                    />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.statsRow}>
+                <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]}>@{username}</Text>
+                <View style={styles.statsNumbers}>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Publicaciones</Text>
+                  </View>
+                  <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 1 })}>
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidores</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 2 })}>
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidos</Text>
+                  </TouchableOpacity>
                 </View>
-              )}
+              </View>
             </View>
 
-            <View style={styles.statsRow}>
-              <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]}>@{username}</Text>
-              <View style={styles.statsNumbers}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Publicaciones</Text>
+            {/* Nombre y Bio (solo si hay presentación) */}
+            {presentation && presentation.trim().length > 0 ? (
+              <>
+                <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
+                  {presentation}
+                </Text>
+              </>
+            ) : null}
+
+            {/* Botones acción */}
+            {currentUser?.uid !== userId ? (
+              isBlocked ? (
+                <View style={styles.buttonsRow}>
+                  <View style={[styles.btnBlocked, { backgroundColor: isDark ? '#3A2020' : '#FFE0E0' }]}>
+                    <Ionicons name="ban-outline" size={16} color="#E53935" style={{ marginRight: 6 }} />
+                    <Text style={[styles.btnBlockedText, { color: '#E53935' }]}>
+                      Bloqueado
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 1 })}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidores</Text>
+              ) : (
+              <View style={styles.buttonsRow}>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, isFollowing && styles.btnFollowing]}
+                  onPress={handleFollow}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={isFollowing ? 'checkmark' : 'person-add-outline'}
+                    size={16}
+                    color="#FFF"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.btnPrimaryText}>
+                    {isFollowing ? 'Siguiendo' : 'Seguir'}
+                  </Text>
                 </TouchableOpacity>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('UserProfileContacts', { userId, profileName, initialTab: 2 })}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>Seguidos</Text>
+
+                <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
+                  <Feather name="message-circle" size={16} color={isDark ? '#FFF' : '#333'} style={{ marginRight: 6 }} />
+                  <Text style={[styles.btnSecondaryText, { color: isDark ? '#FFF' : '#333' }]}>
+                    Mensaje
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.btnIcon, { backgroundColor: isDark ? '#2A2A2A' : '#EFEFEF' }]} activeOpacity={0.8}>
+                  <Feather name="share-2" size={18} color={isDark ? '#FFF' : '#333'} />
                 </TouchableOpacity>
               </View>
+              )
+            ) : null}
+          </View>
+        )}
+        renderSectionHeader={() => (
+          <View style={{ backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0', paddingTop: 5 }}>
+            <View style={styles.tabsContainer}>
+              {TABS.map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
+                  onPress={() => setActiveTab(tab)}
+                >
+                  <Text style={[
+                    styles.tabText,
+                    { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') }
+                  ]}>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
-
-          {/* Nombre y Bio (solo si hay presentación) */}
-          {presentation && presentation.trim().length > 0 ? (
-            <>
-              <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
-                {presentation}
-              </Text>
-            </>
-          ) : null}
-
-          {/* Botones acción */}
-          {currentUser?.uid !== userId ? (
-            isBlocked ? (
-              <View style={styles.buttonsRow}>
-                <View style={[styles.btnBlocked, { backgroundColor: isDark ? '#3A2020' : '#FFE0E0' }]}>
-                  <Ionicons name="ban-outline" size={16} color="#E53935" style={{ marginRight: 6 }} />
-                  <Text style={[styles.btnBlockedText, { color: '#E53935' }]}>
-                    Bloqueado
-                  </Text>
-                </View>
-              </View>
-            ) : (
-            <View style={styles.buttonsRow}>
-              <TouchableOpacity
-                style={[styles.btnPrimary, isFollowing && styles.btnFollowing]}
-                onPress={handleFollow}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={isFollowing ? 'checkmark' : 'person-add-outline'}
-                  size={16}
-                  color="#FFF"
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.btnPrimaryText}>
-                  {isFollowing ? 'Siguiendo' : 'Seguir'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
-                <Feather name="message-circle" size={16} color={isDark ? '#FFF' : '#333'} style={{ marginRight: 6 }} />
-                <Text style={[styles.btnSecondaryText, { color: isDark ? '#FFF' : '#333' }]}>
-                  Mensaje
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.btnIcon, { backgroundColor: isDark ? '#2A2A2A' : '#EFEFEF' }]} activeOpacity={0.8}>
-                <Feather name="share-2" size={18} color={isDark ? '#FFF' : '#333'} />
-              </TouchableOpacity>
-            </View>
-            )
-          ) : null}
-        </View>
-
-        {/* TABS */}
-        <View style={[styles.tabsContainer, { borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0' }]}>
-          {TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[
-                styles.tabText,
-                { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') }
-              ]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* CONTENIDO DEL TAB */}
-        <View style={styles.tabContent}>
-          {renderTabContent()}
-        </View>
-      </ScrollView>
+        )}
+        renderItem={() => (
+          <View style={styles.tabContent}>{renderTabContent()}</View>
+        )}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -798,8 +802,6 @@ const styles = StyleSheet.create({
   // TABS
   tabsContainer: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    marginTop: 12,
   },
   tab: {
     flex: 1,

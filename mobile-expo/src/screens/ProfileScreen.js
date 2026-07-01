@@ -394,38 +394,47 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* HEADER FIJO */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + 6,
-            backgroundColor: colors.card,
-            borderBottomColor: isDark ? '#222' : '#E8E8E8',
-          },
-        ]}
+  {/* HEADER FIJO */}
+  <View
+    style={[
+      styles.header,
+      {
+        paddingTop: insets.top + 6,
+        backgroundColor: colors.background,
+        borderBottomColor: isDark ? '#222' : '#E8E8E8',
+      },
+    ]}
+  >
+    <TouchableOpacity
+      onPress={() => navigation.navigate('AccountSwitcher')}
+      style={styles.headerCenter}
+    >
+      <Text
+        style={[styles.headerUsername, { color: colors.text }]}
+        numberOfLines={1}
       >
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AccountSwitcher')}
-          style={styles.headerCenter}
-        >
-          <Text style={[styles.headerUsername, { color: colors.text }]} numberOfLines={1}>
-            {userName}
-          </Text>
-          <Text style={[styles.headerHandle, { color: isDark ? '#888' : '#666' }]}>
-            @{userUsername}
-          </Text>
-        </TouchableOpacity>
+        {userName}
+      </Text>
+      <Text
+        style={[styles.headerHandle, { color: isDark ? '#888' : '#666' }]}
+      >
+        @{userUsername}
+      </Text>
+    </TouchableOpacity>
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={styles.headerActions}>
+      <TouchableOpacity
+        style={styles.headerBtn}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <Ionicons
+          name="settings-outline"
+          size={24}
+          color={colors.text}
+        />
+      </TouchableOpacity>
+    </View>
+  </View>
 
       <SectionList
         sections={[{ data: [1], key: 'content' }]}
@@ -572,7 +581,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   // HEADER
-  // HEADER
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -581,26 +589,26 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
-  headerBtn: {
-    padding: 8,
-  },
-  headerCenter: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  headerUsername: {
-    fontSize: 23,
-    fontFamily: 'Nunito-BoldItalic',
-  },
-  headerHandle: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    marginTop: 1,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+headerBtn: {
+  padding: 6,  // 👈 cambiar de 8 a 6
+},
+headerCenter: {
+  flex: 1,
+  marginHorizontal: 8,
+},
+headerUsername: {
+  fontSize: 16,  // 👈 cambiar de 23 a 16
+  fontFamily: 'Nunito-BoldItalic',
+},
+headerHandle: {
+  fontSize: 12,  // 👈 cambiar de 14 a 12
+  fontFamily: 'Nunito-Regular',
+  marginTop: 1,
+},
+headerActions: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
   // PERFIL
   profileSection: {
     paddingHorizontal: 16,
