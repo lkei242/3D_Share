@@ -257,7 +257,7 @@ export default function SearchScreen({ navigation }) {
       behavior="padding"
     >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: isDark ? '#1A1A1A' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <Image
           source={require('../../assets/logo.png')}
           style={styles.logo}

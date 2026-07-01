@@ -1,5 +1,4 @@
-// Reemplazar todo el contenido de ChatScreen.js por este código:
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
 import { collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
@@ -11,12 +10,16 @@ import {
   FlatList,
   TextInput,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const GREEN_ACCENT = '#546F1C';
+const v1 = '#546F1C';
+const v2 = '#9DBD3F';
 
 export default function ChatScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -25,6 +28,34 @@ export default function ChatScreen({ navigation }) {
 
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const [activeTab, setActiveTab] = useState(0);
+  
+  const caretAnims = [useRef(new Animated.Value(1)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+  const switchTab = (index) => {
+    setActiveTab(index);
+    caretAnims.forEach((anim, i) => {
+      Animated.timing(anim, {
+        toValue: i === index ? 1 : 0,
+        duration: 220,
+        useNativeDriver: false,
+      }).start();
+    });
+  };
+
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, gs) =>
+      Math.abs(gs.dx) > 20 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_, gs) => {
+      if (gs.dx > 50) switchTab(Math.max(0, activeTabRef.current - 1));
+      else if (gs.dx < -50) switchTab(Math.min(2, activeTabRef.current + 1));
+    },
+  }), []);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -106,12 +137,11 @@ export default function ChatScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
           <View style={styles.titleContainer}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Chats</Text>
-            <Ionicons name="caret-down" size={14} color={GREEN_ACCENT} style={styles.caretIcon} />
           </View>
         </View>
         <TouchableOpacity style={styles.solicitudesButton}>
@@ -119,28 +149,79 @@ export default function ChatScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
+      {/* Filtros animados */}
       <View style={styles.filterContainer}>
-        <TouchableOpacity style={styles.filterTabActive}>
-          <Text style={styles.filterTextActive}>Mensajes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <Text style={[styles.filterText, { color: colors.text }]}>Grupos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterTab}>
-          <Text style={[styles.filterText, { color: colors.text }]}>Difusión</Text>
-        </TouchableOpacity>
-      </View>
+        {['Mensajes', 'Grupos', 'Difusión'].map((label, index) => {
+          const isActive = activeTab === index;
+          const textColor = caretAnims[index].interpolate({
+            inputRange: [0, 1],
+            outputRange: [isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)', '#9DBD3F'],
+          });
+          const caretTranslateY = caretAnims[index].interpolate({
+            inputRange: [0, 1],
+            outputRange: [6, 0],   // sube desde abajo al activarse
+          });
+          const caretOpacity = caretAnims[index].interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+          });
+          return (
+            <TouchableOpacity
+              key={label}
+              style={styles.filterTab}
+              activeOpacity={0.7}
+              onPress={() => switchTab(index)}
+            >
+              {/* Caret encima del texto, animado */}
+              <Animated.View style={{
+                alignItems: 'center',
+                opacity: caretOpacity,
+                transform: [{ translateY: caretTranslateY }],
+                marginBottom: 2,
+              }}>
+                <Ionicons name="caret-down" size={22} color="#9DBD3F" />
+              </Animated.View>
 
-      {/* Buscador */}
-      <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1F2611' : '#F0F4E8' }]}>
-        <Feather name="search" size={20} color={GREEN_ACCENT} style={styles.searchIcon} />
-        <TextInput placeholder="Buscar chats" placeholderTextColor={GREEN_ACCENT} style={[styles.searchInput, { color: colors.text }]} />
+              <Animated.Text style={[
+                styles.filterText,
+                { color: textColor, fontFamily: isActive ? 'Nunito-Bold' : 'Nunito-Regular' },
+              ]}>
+                {label}
+              </Animated.Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+      
+    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+      {/* Buscador */}
+      {isDark ? (
+        <LinearGradient
+          colors={[v1, '#121212']}
+          locations={[0, 1]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.searchContainer}
+        >
+          <Feather name="search" size={20} color={'#FFFFFF'} style={styles.searchIcon} />
+          <TextInput placeholder="Buscar chats" placeholderTextColor="#FFFFFF" style={[styles.searchInput, { color: colors.text }]} />
+        </LinearGradient>
+      ) : (
+        <LinearGradient
+          colors={[v2, '#ffffff']}
+          locations={[0, 1]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.searchContainer}
+        >
+          <Feather name="search" size={20} color={'#121212'} style={styles.searchIcon} />
+          <TextInput placeholder="Buscar chats" placeholderTextColor="#121212" style={[styles.searchInput, { color: colors.text }]} />
+        </LinearGradient>
+      )}
 
       {/* Lista de Chats */}
       {loading ? (
-        <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ marginTop: 50 }} />
+        <ActivityIndicator size="large" color={v1} style={{ marginTop: 50 }} />
       ) : (
         <FlatList
           data={chats}
@@ -150,6 +231,7 @@ export default function ChatScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         />
       )}
+    </View>
     </View>
   );
 }
@@ -164,12 +246,10 @@ const styles = StyleSheet.create({
   caretIcon: { position: 'absolute', bottom: -14 },
   solicitudesButton: { paddingVertical: 6 },
   solicitudesText: { fontSize: 16, fontFamily: 'Nunito-Bold' },
-  filterContainer: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 16, gap: 24 },
-  filterTabActive: { paddingBottom: 4 },
-  filterTab: { paddingBottom: 4 },
-  filterTextActive: { color: '#9DBD3F', fontSize: 18, fontFamily: 'Nunito-Bold' },
-  filterText: { fontSize: 18, fontFamily: 'Nunito-Regular', opacity: 0.6 },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 16, marginBottom: 8, borderRadius: 20, paddingHorizontal: 14, height: 40 },
+  filterContainer: { flexDirection: 'row', paddingHorizontal: 32, marginTop: -7 , paddingBottom: 6, gap: 62 },
+  filterTab: { alignItems: 'center' },
+  filterText: { fontSize: 20, fontFamily: 'Nunito-Regular' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 18, marginBottom: 8, marginRight: 0, borderTopLeftRadius: 20, borderBottomLeftRadius: 20, paddingHorizontal: 14, height: 42 },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontFamily: 'Nunito-Regular', fontSize: 16, paddingVertical: 0 },
   listContent: { paddingBottom: 20 },
