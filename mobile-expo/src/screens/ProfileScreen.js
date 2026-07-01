@@ -5,7 +5,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  SectionList,
   Image,
   ActivityIndicator,
   Dimensions,
@@ -427,9 +427,11 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+      <SectionList
+        sections={[{ data: [1], key: 'content' }]}
+        stickySectionHeadersEnabled
+        removeClippedSubviews={false}
+        keyExtractor={(_, i) => String(i)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -438,118 +440,129 @@ export default function ProfileScreen({ navigation }) {
             tintColor="#546F1C"
           />
         }
-      >
-        {/* SECCIÓN PERFIL */}
-        <View style={styles.profileSection}>
-          {/* Fila: avatar + stats */}
-          <View style={styles.avatarStatsRow}>
-            <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
-              {profileLoading ? null : profilePicture ? (
-                <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarFallback,
-                    { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' },
-                  ]}
-                >
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={90}
-                    color="#94BA46"
-                    style={{ marginLeft: -3, marginTop: -4 }}
-                  />
-                </View>
-              )}
-            </View>
+        ListHeaderComponent={() => (
+          <View style={styles.profileSection}>
+            {/* Fila: avatar + stats */}
+            <View style={styles.avatarStatsRow}>
+              <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
+                {profileLoading ? null : profilePicture ? (
+                  <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+                ) : (
+                  <View
+                    style={[
+                      styles.avatarFallback,
+                      { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={90}
+                      color="#94BA46"
+                      style={{ marginLeft: -3, marginTop: -4 }}
+                    />
+                  </View>
+                )}
+              </View>
 
-            <View style={styles.statsRow}>
-              <View style={styles.statsNumbers}>
-                <TouchableOpacity style={styles.statItem} onPress={() => setActiveTab('Publicaciones')}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>
-                    {posts.length}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                    Publicaciones
-                  </Text>
-                </TouchableOpacity>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts', { initialTab: 0 })}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>
-                    {followersCount}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                    Seguidores
-                  </Text>
-                </TouchableOpacity>
-                <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
-                <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Contacts', { initialTab: 1 })}>
-                  <Text style={[styles.statNumber, { color: colors.text }]}>
-                    {followingCount}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                    Seguidos
-                  </Text>
-                </TouchableOpacity>
+              <View style={styles.statsRow}>
+                <View style={styles.statsNumbers}>
+                  <TouchableOpacity style={styles.statItem} onPress={() => setActiveTab('Publicaciones')}>
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
+                      Publicaciones
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => navigation.navigate('Contacts', { initialTab: 0 })}
+                  >
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{followersCount}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
+                      Seguidores
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => navigation.navigate('Contacts', { initialTab: 1 })}
+                  >
+                    <Text style={[styles.statNumber, { color: colors.text }]}>{followingCount}</Text>
+                    <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
+                      Seguidos
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Bio / Presentación */}
-          {presentation && presentation.trim().length > 0 ? (
-            <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
-              {presentation}
-            </Text>
-          ) : null}
-
-          {/* Botones acción */}
-          <View style={styles.buttonsRow}>
-            <TouchableOpacity
-              style={styles.btnPrimary}
-              onPress={() => navigation.navigate('EditProfileInfoScreen')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="create-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
-              <Text style={styles.btnPrimaryText}>Editar perfil</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
-              <Feather
-                name="share-2"
-                size={16}
-                color={isDark ? '#FFF' : '#333'}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.btnSecondaryText, { color: isDark ? '#FFF' : '#333' }]}>
-                Compartir
+            {/* Bio / Presentación */}
+            {presentation && presentation.trim().length > 0 ? (
+              <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
+                {presentation}
               </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            ) : null}
 
-        {/* TABS */}
-        <View style={[styles.tabsContainer, { borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0' }]}>
-          {TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') },
-                ]}
+            {/* Botones acción */}
+            <View style={styles.buttonsRow}>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                onPress={() => navigation.navigate('EditProfileInfoScreen')}
+                activeOpacity={0.8}
               >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Ionicons name="create-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={styles.btnPrimaryText}>Editar perfil</Text>
+              </TouchableOpacity>
 
-        {/* CONTENIDO DEL TAB */}
-        <View style={styles.tabContent}>{renderTabContent()}</View>
-      </ScrollView>
+              <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
+                <Feather
+                  name="share-2"
+                  size={16}
+                  color={isDark ? '#FFF' : '#333'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.btnSecondaryText, { color: isDark ? '#FFF' : '#333' }]}>
+                  Compartir
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        renderSectionHeader={() => (
+        <View
+          style={{
+            backgroundColor: colors.background,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0',
+            paddingTop: 5, // 👈 reemplaza el marginTop de los styles
+          }}
+        >
+          <View style={styles.tabsContainer}>
+            {TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') },
+                  ]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+  renderItem={() => (
+    <View style={styles.tabContent}>{renderTabContent()}</View>
+  )}
+  contentContainerStyle={{ paddingBottom: 120 }}
+  showsVerticalScrollIndicator={false}
+/>
     </View>
   );
 }
@@ -558,6 +571,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // HEADER
   // HEADER
   header: {
     flexDirection: 'row',
@@ -572,7 +586,6 @@ const styles = StyleSheet.create({
   },
   headerCenter: {
     flex: 1,
-    
     marginHorizontal: 8,
   },
   headerUsername: {
