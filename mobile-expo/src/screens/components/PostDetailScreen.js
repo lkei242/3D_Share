@@ -135,7 +135,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
     return (
         <View
             style={{
-                flex: 1,
+                height: pageHeight,
                 backgroundColor: colors.background,
                 position: 'relative',
             }}
@@ -291,14 +291,21 @@ export default function PostDetailScreen({ route, navigation }) {
 
     // Manejar fallo de scroll a índice
     const onScrollToIndexFailed = useCallback((info) => {
-        // Si falla, hacer scroll al índice más cercano
         if (flatListRef.current) {
-            flatListRef.current.scrollToIndex({
-                index: info.index,
+            flatListRef.current.scrollToOffset({
+                offset: info.index * PAGE_HEIGHT,
                 animated: false,
             });
+            setTimeout(() => {
+                if (flatListRef.current) {
+                    flatListRef.current.scrollToIndex({
+                        index: info.index,
+                        animated: false,
+                    });
+                }
+            }, 100);
         }
-    }, []);
+    }, [PAGE_HEIGHT]);
 
     // Ref para trackear posts ya vistos en esta sesión
     const viewedPosts = useRef(new Set());
@@ -367,6 +374,11 @@ export default function PostDetailScreen({ route, navigation }) {
                     }}
                     data={posts}
                     keyExtractor={(item) => item.id}
+                    getItemLayout={(data, index) => ({
+                        length: PAGE_HEIGHT,
+                        offset: PAGE_HEIGHT * index,
+                        index,
+                    })}
                     renderItem={({ item }) => (
                         <PostItem
                             post={item}
@@ -474,6 +486,10 @@ export default function PostDetailScreen({ route, navigation }) {
                                 },
                             ]
                         );
+                    }
+                    if (key === 'edit') {
+                        setMenuPost(null);
+                        navigation.navigate('EditPost', { post: menuPost });
                     }
                 }}
             />

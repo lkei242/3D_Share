@@ -230,7 +230,7 @@ export default function PublishScreen({ navigation }) {
           onChangeText={setTitulo}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>Descripción</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Descripción(Opcional)</Text>
         <TextInput
           style={[
             styles.input, 

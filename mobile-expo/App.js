@@ -52,6 +52,7 @@ import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cue
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 import PostDetailScreen from './src/screens/components/PostDetailScreen';
+import EditPostScreen from './src/screens/EditPostScreen';
 import UserProfileScreen from './src/screens/UserProfileScreen';
 import UserProfileContactsScreen from './src/screens/UserProfileContactsScreen';
 
@@ -176,6 +177,7 @@ function AppContent() {
           <Stack.Screen name="Security" component={SecurityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Publish" component={PublishScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditPost" component={EditPostScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="LikesScreen" component={LikesScreen} options={{ headerShown: false }} />
