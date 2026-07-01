@@ -160,23 +160,29 @@ const MessageItem = React.memo(({
               const maxVisible = Math.min(count, 4);
               const visibleItems = items.slice(0, maxVisible);
               const extraCount = count > 4 ? count - 4 : 0;
-              const thumbSize = count === 1 ? 220 : count === 2 ? 108 : 108;
               const isWide = count >= 3;
 
               return (
-                <TouchableOpacity activeOpacity={0.9} onPress={handleMediaPress} style={{ borderRadius: 10, overflow: 'hidden' }}>
-                  <View style={{
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: 2,
-                    width: isWide ? 222 : count === 2 ? 220 : 220,
-                  }}>
+                <View style={{ borderRadius: 10, overflow: 'hidden', marginHorizontal: -10, marginTop: -6 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, width: 260 }}>
                     {visibleItems.map((mi, idx) => {
                       const isLast = idx === maxVisible - 1 && extraCount > 0;
-                      const w = count === 1 ? 220 : count === 2 ? 109 : idx === 0 && count === 3 ? 220 : 109;
-                      const h = count === 1 ? 220 : count === 2 ? 160 : 109;
+                      const w = count === 1 ? 220 : count === 2 ? 129 : idx === 0 && count === 3 ? 260 : 129;
+                      const h = count === 1 ? 220 : count === 2 ? 160 : 129;
                       return (
-                        <View key={idx} style={{ width: w, height: h, position: 'relative' }}>
+                        <TouchableOpacity
+                          key={idx}
+                          activeOpacity={0.85}
+                          style={{ width: w, height: h, position: 'relative' }}
+                          onPress={() => {
+                            if (selectedIds.length > 0) {
+                              onToggleSelect(item.id);
+                            } else {
+                              // Abre el visor directamente en la foto tocada dentro del grupo
+                              onOpenMedia(item, idx);
+                            }
+                          }}
+                        >
                           <Image
                             source={{ uri: mi.type === 'video' ? getVideoThumbnail(mi.url) : mi.url }}
                             style={{ width: '100%', height: '100%' }}
@@ -192,7 +198,7 @@ const MessageItem = React.memo(({
                               <Text style={{ color: '#FFF', fontSize: 22, fontWeight: 'bold' }}>+{extraCount}</Text>
                             </View>
                           )}
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
@@ -201,12 +207,16 @@ const MessageItem = React.memo(({
                       {item.caption}
                     </Text>
                   )}
-                </TouchableOpacity>
+                </View>
               );
             })()
           ) : item.type === 'image' ? (
             <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
-              <Image source={{ uri: item.mediaUrl }} style={styles.mediaThumb} resizeMode="cover" />
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={[styles.mediaThumb, { marginHorizontal: -10, marginTop: -6 }]}
+                resizeMode="cover"
+              />
               {!!item.caption && (
                 <Text style={{ fontSize: 14, fontFamily: 'Nunito-Regular', color: isMe ? '#FFF' : colors.text, paddingTop: 4 }}>
                   {item.caption}
@@ -215,7 +225,11 @@ const MessageItem = React.memo(({
             </TouchableOpacity>
           ) : item.type === 'video' ? (
             <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
-              <Image source={{ uri: getVideoThumbnail(item.mediaUrl) }} style={styles.mediaThumb} resizeMode="cover" />
+              <Image
+                source={{ uri: getVideoThumbnail(item.mediaUrl) }}
+                style={[styles.mediaThumb, { marginHorizontal: -10, marginTop: -6 }]}
+                resizeMode="cover"
+              />
               <View style={styles.mediaPlayOverlay}>
                 <Ionicons name="play-circle" size={42} color="#FFF" />
               </View>
@@ -259,6 +273,7 @@ const MessageItem = React.memo(({
   prev.item.text === next.item.text && 
   prev.item.read === next.item.read && 
   prev.item.isFavorite === next.item.isFavorite && 
+  prev.item.time === next.item.time && 
   prev.isChecked === next.isChecked && 
   prev.isDark === next.isDark &&
   (prev.selectedIds.length > 0) === (next.selectedIds.length > 0)

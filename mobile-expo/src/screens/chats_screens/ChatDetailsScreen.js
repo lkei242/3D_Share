@@ -55,15 +55,38 @@ export default function ChatDetailScreen({ route, navigation }) {
   // --- Visor de media a pantalla completa ---
   const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
-  const mediaMessages = React.useMemo(
-    () => messages.filter(m => ['image', 'video', 'file', 'media_group'].includes(m.type)),
-    [messages]
-  );
-  const openMediaViewer = useCallback((item) => {
-    const idx = mediaMessages.findIndex(m => m.id === item.id);
-    setMediaViewerIndex(idx >= 0 ? idx : 0);
+  // Lista plana de todos los items de media para el visor (expande media_group)
+  const flatMediaItems = React.useMemo(() => {
+    const result = [];
+    messages.forEach(m => {
+      if (m.type === 'image' || m.type === 'video' || m.type === 'file') {
+        result.push(m);
+      } else if (m.type === 'media_group') {
+        (m.mediaItems || []).forEach((mi, idx) => {
+          result.push({
+            id: `${m.id}_${idx}`,
+            type: mi.type || 'image',
+            mediaUrl: mi.url,
+            text: mi.type === 'video' ? 'Video' : 'Imagen',
+          });
+        });
+      }
+    });
+    return result;
+  }, [messages]);
+
+  const openMediaViewer = useCallback((item, groupIdx = 0) => {
+    if (item.type === 'media_group') {
+      // Buscar el índice de la primera foto de este grupo en flatMediaItems
+      const firstId = `${item.id}_0`;
+      const baseIdx = flatMediaItems.findIndex(m => m.id === firstId);
+      setMediaViewerIndex(baseIdx >= 0 ? baseIdx + groupIdx : 0);
+    } else {
+      const idx = flatMediaItems.findIndex(m => m.id === item.id);
+      setMediaViewerIndex(idx >= 0 ? idx : 0);
+    }
     setMediaViewerVisible(true);
-  }, [mediaMessages]);
+  }, [flatMediaItems]);
 
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
@@ -122,11 +145,8 @@ export default function ChatDetailScreen({ route, navigation }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
-        let timeString = '';
-        if (data.createdAt) {
-          const date = data.createdAt.toDate();
-          timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+        const date = data.createdAt ? data.createdAt.toDate() : new Date();
+        const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return {
           id: docSnapshot.id,
           text: data.text,
@@ -456,59 +476,100 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
-    const handleSendCustomMediaList = async (mediaList) => {
+  const handleSendCustomMediaList = async (mediaList) => {
     setShowCustomCamera(false);
-    for (const item of mediaList) {
-      try {
-        const user = auth.currentUser;
-        const token = await user.getIdToken();
-        const uri = item.uri;
-        
-        // Obtenemos extensión y mimeType correctos
-        const extension = uri.split('.').pop() || (item.type === 'video' ? 'mp4' : 'jpg');
-        const type = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
-        const fileName = `media_${Date.now()}.${extension}`;
-        const formData = new FormData();
-        formData.append('imagen', { uri, type, name: fileName });
-        // Subir a Cloudinary
-        const xhr = new XMLHttpRequest();
-        const uploadRes = await new Promise((resolve, reject) => {
-          xhr.open('POST', `${API_URL}/api/media/upload`);
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.onload = () => {
-            let data = null;
-            try { data = JSON.parse(xhr.responseText); } catch(e) {}
-            resolve({ ok: xhr.status === 200, data });
+    if (!mediaList || mediaList.length === 0) return;
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+
+      // 1. Subir TODOS los archivos a Cloudinary en paralelo
+      const uploadedItems = await Promise.all(
+        mediaList.map(async (item) => {
+          const uri = item.uri;
+          const extension = uri.split('.').pop()?.split('?')[0] || (item.type === 'video' ? 'mp4' : 'jpg');
+          const type = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+          const fileName = `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+
+          const formData = new FormData();
+          formData.append('imagen', { uri, type, name: fileName });
+
+          const xhr = new XMLHttpRequest();
+          const uploadRes = await new Promise((resolve, reject) => {
+            xhr.open('POST', `${API_URL}/api/media/upload`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.onload = () => {
+              let data = null;
+              try { data = JSON.parse(xhr.responseText); } catch (e) {}
+              resolve({ ok: xhr.status === 200, data });
+            };
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send(formData);
+          });
+
+          if (!uploadRes.ok || !uploadRes.data?.url) return null;
+
+          return {
+            url: uploadRes.data.url,
+            type: item.type === 'video' ? 'video' : 'image',
           };
-          xhr.onerror = () => reject(new Error('Network error'));
-          xhr.send(formData);
-        });
-        if (uploadRes.ok && uploadRes.data?.url) {
-          const isVideo = item.type === 'video';
-          const messagesRef = collection(db, `chats/${chatId}/messages`);
-          const chatRef = doc(db, `chats/${chatId}`);
-          
-          // Enviamos la imagen/video con su respectivo comentario en el campo 'text'
-          await Promise.all([
-            addDoc(messagesRef, {
-              text: item.caption || (isVideo ? 'Video' : 'Imagen'),
-              type: isVideo ? 'video' : 'image',
-              mediaUrl: uploadRes.data.url,
-              sender: user.uid,
-              createdAt: serverTimestamp(),
-              read: false,
-              isFavorite: false,
-            }),
-            updateDoc(chatRef, {
-              lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
-              lastMessageTime: serverTimestamp(),
-              lastSender: user.uid,
-            }),
-          ]);
-        }
-      } catch (err) {
-        console.log('Error enviando media personalizada:', err);
+        })
+      );
+
+      // Filtrar los que fallaron
+      const validItems = uploadedItems.filter(Boolean);
+      if (validItems.length === 0) return;
+
+      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const chatRef = doc(db, `chats/${chatId}`);
+
+      // 2. Usar el caption del primer item (el campo de comentario del editor)
+      const caption = mediaList[0]?.caption || '';
+
+      if (validItems.length === 1) {
+        // Solo 1 archivo → mensaje normal image/video
+        const single = validItems[0];
+        const isVideo = single.type === 'video';
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: caption || (isVideo ? 'Video' : 'Imagen'),
+            caption: caption || null,
+            type: isVideo ? 'video' : 'image',
+            mediaUrl: single.url,
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false,
+          }),
+          updateDoc(chatRef, {
+            lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid,
+          }),
+        ]);
+      } else {
+        // Más de 1 archivo → un solo mensaje media_group
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: caption || '🖼️ Multimedia',
+            caption: caption || null,
+            type: 'media_group',
+            mediaItems: validItems,  // [{ url, type }]
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false,
+          }),
+          updateDoc(chatRef, {
+            lastMessage: `🖼️ ${validItems.length} archivos`,
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid,
+          }),
+        ]);
       }
+    } catch (err) {
+      console.log('Error enviando media personalizada:', err);
+      Alert.alert('Error', 'No se pudo enviar el archivo.');
     }
   };
 
@@ -1124,7 +1185,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
       <MediaViewerModal
         visible={mediaViewerVisible}
-        items={mediaMessages}
+        items={flatMediaItems}
         initialIndex={mediaViewerIndex}
         onClose={() => setMediaViewerVisible(false)}
       />
