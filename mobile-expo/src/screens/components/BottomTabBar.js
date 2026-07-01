@@ -3,9 +3,11 @@ import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Feather, Ionicons, Octicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const GREEN = '#546F1C', BLACK = '#0B0F03';
+
+const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 
 function TabButton({ active, onPress, children }) {
   const scale = useRef(new Animated.Value(active ? 1.25 : 1)).current;
@@ -33,18 +35,11 @@ function TabButton({ active, onPress, children }) {
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20 }]}>
-        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-          <Defs>
-            <LinearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
-              <Stop offset="0%"   stopColor={GREEN} />
-              <Stop offset="94%"  stopColor={BLACK} />
-              <Stop offset="100%" stopColor="#0B0F03" />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#grad)" />
-        </Svg>
-      </Animated.View>
+      <AnimatedGradient
+        colors={[GREEN, BLACK, '#0B0F03']}
+        locations={[0, 0.94, 1]}
+        style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20 }]}
+      />
 
       <Animated.View style={[styles.iconContainer, { transform: [{ scale }] }]}>
         {children}
