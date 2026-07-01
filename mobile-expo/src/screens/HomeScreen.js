@@ -171,6 +171,7 @@ export default function HomeScreen({ navigation }) {
               views: formatViews(data.vistas || 0),
               totalImages: data.imagenes ? data.imagenes.length : 1,
               description: data.descripcion || '',
+              webLink: data.webLink || null,
               author: data.autor,
               authorProfileName: authorInfo.profileName,
               authorUsername: authorInfo.username,

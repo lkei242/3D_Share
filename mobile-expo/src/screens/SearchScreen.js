@@ -95,6 +95,7 @@ export default function SearchScreen({ navigation }) {
           title: data.titulo || '',
           description: data.descripcion || '',
           price: data.precio ? `${data.precio}$` : null,
+          webLink: data.webLink || null,
           views: formatViews(data.vistas || 0),
           author: data.autor,
           authorProfileName: authorInfo.profileName,
@@ -192,7 +193,7 @@ export default function SearchScreen({ navigation }) {
       />
       {item.price && (
         <LinearGradient
-          colors={['rgba(84,111,28,0)', 'rgba(84,111,28,0.6)', '#546F1C']}
+          colors={['#546f1c00', '#546f1c99', '#546F1C']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={styles.priceBadge}
@@ -200,6 +201,16 @@ export default function SearchScreen({ navigation }) {
           <Text style={styles.priceBadgeText}>$</Text>
         </LinearGradient>
       )}
+    {item.webLink && (
+      <LinearGradient
+        colors={['#E8E8E8', '#FFFFFF', '#B8B8B8', '#D0D0D0', '#A0A0A0']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.modelBadge}
+      >
+        <Text style={[styles.priceBadgeText2, { color: '#333' }]}>M</Text>
+      </LinearGradient>
+    )}
     </TouchableOpacity>
   );
   const renderUser = ({ item }) => (
@@ -463,13 +474,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  priceBadge: {
+  modelBadge: {
     position: 'absolute',
     bottom: 4,
-    left: 4,
+    left: 28,
     width: 22,
     height: 22,
     borderRadius: 11,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -479,11 +491,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Bold',
     lineHeight: 14,
   },
-  priceBadgeText: {
+  priceBadgeText2: {
     color: '#FFF',
     fontSize: 13,
     fontFamily: 'Nunito-Bold',
     lineHeight: 14,
-    zIndex: 1,
-  }
+  },
+  modelBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 28,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: '#999',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
+    color: '#FFF',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
+  },
+
 });

@@ -16,6 +16,7 @@ import {
     ScrollView,
     Modal,
     Alert,
+    Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -54,7 +55,23 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
     const [saved, setSaved] = useState(false);
     const [postViews, setPostViews] = useState(post.views || 0);
     const [selectedImage, setSelectedImage] = useState(null);
+    const [descExpanded, setDescExpanded] = useState(false);
     const moreButtonRef = React.useRef(null);
+
+    const DESCRIPTION_LIMIT = 100;
+    const fullDescription = post.description || 'Sin descripción adicional.';
+    const isLongDescription = fullDescription.length > DESCRIPTION_LIMIT;
+    const truncatedDescription = isLongDescription
+        ? fullDescription.slice(0, DESCRIPTION_LIMIT).trimEnd()
+        : fullDescription;
+
+    const handleOpenLink = () => {
+        if (post.webLink) {
+            Linking.openURL(post.webLink).catch(() => {
+                Alert.alert('No se pudo abrir el enlace', 'El enlace parece no ser válido.');
+            });
+        }
+    };
 
     // Escuchar cambios en tiempo real del post
     // Leer vistas una sola vez (sin listener en tiempo real)
@@ -195,8 +212,25 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                 <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
                     <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
                     <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
-                        {post.description || 'Sin descripción adicional.'}
+                        {descExpanded || !isLongDescription ? fullDescription : `${truncatedDescription}... `}
+                        {isLongDescription && (
+                            <Text
+                                style={styles.seeMoreText}
+                                onPress={() => setDescExpanded(!descExpanded)}
+                            >
+                                {descExpanded ? ' ver menos' : 'ver más'}
+                            </Text>
+                        )}
                     </Text>
+
+                    {post.webLink && (
+                        <TouchableOpacity style={styles.webLinkRow} onPress={handleOpenLink} activeOpacity={0.7}>
+                            <Feather name="link" size={14} color="#9DBD3F" />
+                            <Text style={styles.webLinkText} numberOfLines={1}>
+                                {post.webLink}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
             </View>
@@ -523,6 +557,14 @@ const styles = StyleSheet.create({
     },
     descriptionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
     descriptionText: { fontSize: 14, lineHeight: 20 },
+    seeMoreText: { fontSize: 14, fontWeight: '700', color: '#9DBD3F' },
+    webLinkRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+        gap: 6,
+    },
+    webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' },
     // AGREGAR:
   imageModalOverlay: {
     flex: 1,

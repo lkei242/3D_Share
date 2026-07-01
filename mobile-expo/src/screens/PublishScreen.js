@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@react-navigation/native';
 import {
   View,
@@ -9,9 +9,10 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from './config/firebase';
@@ -27,8 +28,33 @@ export default function PublishScreen({ navigation }) {
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
+  const [webLink, setWebLink] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('error');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(''));
+    }, 3000);
+  };
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -49,20 +75,41 @@ export default function PublishScreen({ navigation }) {
     }
   };
 
+  const validateWebLink = (url) => {
+    if (!url.trim()) return null;
+    try {
+      const parsed = new URL(url.trim());
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return 'El enlace debe comenzar con http:// o https://';
+      }
+      if (!parsed.hostname.includes('.')) {
+        return 'El enlace no tiene un formato válido';
+      }
+      return null;
+    } catch {
+      return 'El enlace no tiene un formato válido';
+    }
+  };
+
   const handlePublish = async () => {
     if (!titulo.trim()) {
-      alert('Por favor ingresa un título.');
+      showToast('Por favor ingresa un título.');
       return;
     }
     if (!image) {
-      alert('Por favor selecciona una imagen.');
+      showToast('Por favor selecciona una imagen.');
+      return;
+    }
+    const linkError = validateWebLink(webLink);
+    if (linkError) {
+      showToast(linkError);
       return;
     }
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (!user) {
-        alert('Debes estar autenticado para publicar.');
+        showToast('Debes estar autenticado para publicar.');
         setLoading(false);
         return;
       }
@@ -95,7 +142,7 @@ export default function PublishScreen({ navigation }) {
       });
       const uploadData = await res.json();
       if (!res.ok) {
-        alert(uploadData.error || 'Error al subir la imagen.');
+        showToast(uploadData.error || 'Error al subir la imagen.');
         setLoading(false);
         return;
       }
@@ -104,16 +151,17 @@ export default function PublishScreen({ navigation }) {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         precio: precio.trim() ? parseFloat(precio.trim()) : null,
+        webLink: webLink.trim() || null,
         imagenes: [uploadData.url], // URL de Cloudinary
         autor: user.uid,
         vistas: 0,
         createdAt: serverTimestamp() // Timestamp del servidor
       });
-      alert('¡Publicación creada con éxito!');
-      navigation.goBack();
+      showToast('¡Publicación creada con éxito!', 'success');
+      setTimeout(() => navigation.goBack(), 1500);
     } catch (error) {
       console.log('Error publicando post:', error);
-      alert('Error al conectar con el servidor.');
+      showToast('Error al conectar con el servidor.');
     } finally {
       setLoading(false);
     }
@@ -218,6 +266,25 @@ export default function PublishScreen({ navigation }) {
           keyboardType="numeric"
         />
 
+        <Text style={[styles.label, { color: colors.text }]}>Enlace web al modelo(Opcional)</Text>
+        <TextInput
+          style={[
+            styles.input, 
+            { 
+              backgroundColor: colors.card, 
+              color: colors.text,
+              borderColor: isDark ? '#2C2C2C' : '#E0E0E0'
+            }
+          ]}
+          placeholder="Ej: https://misitio.com/pieza-3d"
+          placeholderTextColor="#707070"
+          value={webLink}
+          onChangeText={setWebLink}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
         <TouchableOpacity
           style={[styles.publishButton, loading && styles.publishButtonDisabled]}
           onPress={handlePublish}
@@ -230,6 +297,31 @@ export default function PublishScreen({ navigation }) {
           )}
         </TouchableOpacity>
       </KeyboardAwareScrollView>
+
+      {toastMessage !== '' && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: toastType === 'success' ? '#27AE60' : '#E74C3C',
+              opacity: toastAnim,
+              transform: [{
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color="#FFF"
+          />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -329,5 +421,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Nunito-Bold',
   },
-  
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+    flex: 1,
+  },
 });
