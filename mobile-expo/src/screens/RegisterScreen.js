@@ -56,6 +56,10 @@ export default function RegisterScreen({ navigation }) {
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const timeoutRef = useRef(null);
   const usernameRef = useRef(null);
+  const profileNameRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
 
   // DatePicker
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -397,6 +401,7 @@ export default function RegisterScreen({ navigation }) {
             <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>Paso 1 de 2: Datos obligatorios</Text>
 
             <TextInput
+              ref={profileNameRef}
               style={[styles.input, errors.profileName && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Nombre de perfil (Ej: Juan Pérez)"
               placeholderTextColor="#707070"
@@ -407,9 +412,12 @@ export default function RegisterScreen({ navigation }) {
               }}
               onBlur={validateProfileNameOnBlur}
               maxLength={50}
+              returnKeyType="next"
+              onSubmitEditing={() => usernameRef.current?.focus()}
             />
 
             <TextInput
+              ref={usernameRef}
               style={[styles.input, errors.username && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Nombre de usuario (Ej: juan_perez)"
               placeholderTextColor="#707070"
@@ -431,9 +439,12 @@ export default function RegisterScreen({ navigation }) {
               autoCorrect={false}
               spellCheck={false}
               maxLength={20}
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
             />
 
             <TextInput
+              ref={emailRef}
               style={[styles.input, errors.email && styles.inputError, { backgroundColor: colors.inputBackground }]}
               placeholder="Email"
               placeholderTextColor="#707070"
@@ -446,10 +457,13 @@ export default function RegisterScreen({ navigation }) {
               keyboardType="email-address"
               autoCapitalize="none"
               maxLength={100}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
 
             <View style={styles.passwordContainer}>
               <TextInput
+                ref={passwordRef}
                 style={[styles.input, errors.password && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1}]}
                 placeholder="Contraseña (mínimo 6 caracteres)"
                 placeholderTextColor="#707070"
@@ -461,6 +475,8 @@ export default function RegisterScreen({ navigation }) {
                 }}
                 onBlur={validatePasswordOnBlur}
                 maxLength={64}
+                returnKeyType="next"
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
               />
               <TouchableOpacity
                 style={styles.eyeButton}
@@ -476,6 +492,7 @@ export default function RegisterScreen({ navigation }) {
 
             <View style={[styles.passwordContainer, { marginBottom: 15 }]}>
               <TextInput
+                ref={confirmPasswordRef}
                 style={[styles.input, errors.confirmPassword && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1, marginBottom: 0 }]}
                 placeholder="Repetí tu contraseña"
                 placeholderTextColor="#707070"
@@ -486,6 +503,8 @@ export default function RegisterScreen({ navigation }) {
                   if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: null }));
                 }}
                 maxLength={64}
+                returnKeyType="done"
+                onSubmitEditing={handleContinue}
               />
               <TouchableOpacity
                 style={styles.eyeButton}

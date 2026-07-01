@@ -21,6 +21,7 @@ import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { auth } from './config/firebase';
 import { getBlockedUids } from './config/userActions';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -189,6 +190,16 @@ export default function SearchScreen({ navigation }) {
         source={{ uri: item.image }}
         style={styles.image}
       />
+      {item.price && (
+        <LinearGradient
+          colors={['rgba(84,111,28,0)', 'rgba(84,111,28,0.6)', '#546F1C']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.priceBadge}
+        >
+          <Text style={styles.priceBadgeText}>$</Text>
+        </LinearGradient>
+      )}
     </TouchableOpacity>
   );
   const renderUser = ({ item }) => (
@@ -441,4 +452,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  priceBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priceBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priceBadgeText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: 'Nunito-Bold',
+    lineHeight: 14,
+  },
+  priceBadgeText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: 'Nunito-Bold',
+    lineHeight: 14,
+    zIndex: 1,
+  }
 });

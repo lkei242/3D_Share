@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -24,6 +24,7 @@ export default function LoginScreen({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
+  const passwordRef = useRef(null);
   // Prellenar email si viene del AccountSwitcher
   useEffect(() => {
     if (route?.params?.email) {
@@ -116,16 +117,21 @@ const saveAccountToStorage = async (user, password) => {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
 
         <View style={styles.passwordContainer}>
           <TextInput
+            ref={passwordRef}
             style={[styles.input, { backgroundColor: colors.inputBackground, flex: 1 }]}
             placeholder="Contraseña"
             placeholderTextColor="#707070"
             secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
           />
           <TouchableOpacity
             style={styles.eyeButton}
