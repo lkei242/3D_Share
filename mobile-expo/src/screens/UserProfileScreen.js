@@ -38,6 +38,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [followingCount, setFollowingCount] = useState(0);
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [isBlocked, setIsBlocked] = useState(false);
+  const [pinnedPosts, setPinnedPosts] = useState([]);
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
     email: null,
@@ -65,6 +66,7 @@ export default function UserProfileScreen({ route, navigation }) {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setPresentation(data.presentation || '');
+        setPinnedPosts(data.pinnedPosts || []);
         
         // Cargar contactos del usuario
         if (data.contacts) {
@@ -282,23 +284,34 @@ export default function UserProfileScreen({ route, navigation }) {
         </Text>
       );
     }
+    const pinned = posts.filter(p => pinnedPosts.includes(p.id));
+    const unpinned = posts.filter(p => !pinnedPosts.includes(p.id));
+    const sorted = [...pinned, ...unpinned];
     return (
       <View style={styles.gridContainer}>
-        {posts.map((post) => (
-          <TouchableOpacity
-            key={post.id}
-            style={styles.gridItem}
-            activeOpacity={0.85}
-            onPress={() => handlePostPress(post)}
-          >
-            <Image source={{ uri: post.image }} style={styles.gridImage} />
-            {post.price && (
-              <View style={styles.gridPriceTag}>
-                <Text style={styles.gridPriceText}>{post.price}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+        {sorted.map((post) => {
+          const isPinned = pinnedPosts.includes(post.id);
+          return (
+            <TouchableOpacity
+              key={post.id}
+              style={styles.gridItem}
+              activeOpacity={0.85}
+              onPress={() => handlePostPress(post)}
+            >
+              <Image source={{ uri: post.image }} style={styles.gridImage} />
+              {isPinned && (
+                <View style={styles.pinBadge}>
+                  <MaterialCommunityIcons name="pin" size={12} color="#FFF" />
+                </View>
+              )}
+              {post.price && (
+                <View style={styles.gridPriceTag}>
+                  <Text style={styles.gridPriceText}>{post.price}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
@@ -820,6 +833,17 @@ const styles = StyleSheet.create({
   gridImage: {
     width: '100%',
     height: '100%',
+  },
+  pinBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#546F1C',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gridPriceTag: {
     position: 'absolute',

@@ -143,14 +143,13 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             {/* USER INFO */}
             <TouchableOpacity style={styles.userInfoRow} onPress={onAuthorPress} activeOpacity={0.7}>
                 <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
-                    <Image
-                        source={
-                            authorProfilePicture
-                                ? { uri: authorProfilePicture }
-                                : require('../../../assets/profile_picture.jpg')
-                        }
-                        style={styles.avatarImage}
-                    />
+                    {authorProfilePicture ? (
+                        <Image source={{ uri: authorProfilePicture }} style={styles.avatarImage} />
+                    ) : (
+                        <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                            <Ionicons name="person-circle-outline" size={38} color="#94BA46" />
+                        </View>
+                    )}
                 </View>
                 <View style={styles.userNameContainer}>
                     <Text style={[styles.userNameText, { color: colors.text }]}>{displayName}</Text>
@@ -518,7 +517,17 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         overflow: 'hidden',
     },
-    avatarImage: { width: '100%', height: '100%' },
+    avatarImage: { 
+        width: '100%', 
+        height: '100%',
+    },
+    avatarFallback: {
+        width: 40.7, // Ajustado para compensar el border del contenedor
+        height: 40.7,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     userNameContainer: { marginLeft: 10, flex: 1 },
     userNameText: { fontSize: 15, fontWeight: '600' },
     userHandleText: { fontSize: 13 },
@@ -576,4 +585,5 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: screenWidth,
   },
+  
 });

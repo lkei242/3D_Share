@@ -10,13 +10,14 @@ import {
   ActivityIndicator,
   Dimensions,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
-import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 18) / 3;
@@ -40,6 +41,7 @@ export default function ProfileScreen({ navigation }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Publicaciones');
 
+  const [pinnedPosts, setPinnedPosts] = useState([]);
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
     email: null,
@@ -72,6 +74,7 @@ export default function ProfileScreen({ navigation }) {
         setUserEmail(data.email || user.email);
         setProfilePicture(data.profilePicture || '');
         setPresentation(data.presentation || '');
+        setPinnedPosts(data.pinnedPosts || []);
 
         if (data.contacts) {
           setUserContacts({
@@ -130,6 +133,7 @@ export default function ProfileScreen({ navigation }) {
         views: formatViews(doc.data().vistas || 0),
         totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
         description: doc.data().descripcion || '',
+        webLink: doc.data().webLink || '',
         author: doc.data().autor,
         authorProfileName: authorName,
         authorUsername: authorUsername,
@@ -166,15 +170,33 @@ export default function ProfileScreen({ navigation }) {
     }
   }, []);
 
-  const hasFetched = React.useRef(false);
   useFocusEffect(
       useCallback(() => {
-        if (!hasFetched.current) {
-          Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
-          hasFetched.current = true;
-        }
+        Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
       }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
   );
+
+  const handleTogglePin = async (postId) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const isPinned = pinnedPosts.includes(postId);
+    let newPinned;
+    if (isPinned) {
+      newPinned = pinnedPosts.filter(id => id !== postId);
+    } else {
+      if (pinnedPosts.length >= 3) {
+        Alert.alert('Límite alcanzado', 'Solo podés fijar hasta 3 publicaciones.');
+        return;
+      }
+      newPinned = [...pinnedPosts, postId];
+    }
+    try {
+      await setDoc(doc(db, 'users', user.uid), { pinnedPosts: newPinned }, { merge: true });
+      setPinnedPosts(newPinned);
+    } catch (error) {
+      console.log('Error al fijar publicación:', error);
+    }
+  };
 
   // Renderizar grid de publicaciones
   const renderGrid = () => {
@@ -188,23 +210,49 @@ export default function ProfileScreen({ navigation }) {
         </Text>
       );
     }
+    const pinned = posts.filter(p => pinnedPosts.includes(p.id));
+    const unpinned = posts.filter(p => !pinnedPosts.includes(p.id));
+    const sorted = [...pinned, ...unpinned];
     return (
       <View style={styles.gridContainer}>
-        {posts.map((post) => (
-          <TouchableOpacity
-            key={post.id}
-            style={styles.gridItem}
-            activeOpacity={0.85}
-            onPress={() => handlePostPress(post)}
-          >
-            <Image source={{ uri: post.image }} style={styles.gridImage} />
-            {post.price && (
-              <View style={styles.gridPriceTag}>
-                <Text style={styles.gridPriceText}>{post.price}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+        {sorted.map((post) => {
+          const isPinned = pinnedPosts.includes(post.id);
+          return (
+            <TouchableOpacity
+              key={post.id}
+              style={styles.gridItem}
+              activeOpacity={0.85}
+              onPress={() => handlePostPress(post)}
+              onLongPress={() => {
+                Alert.alert(
+                  isPinned ? 'Desfijar publicación' : 'Fijar publicación',
+                  isPinned
+                    ? '¿Querés sacar esta publicación de las fijadas?'
+                    : '¿Querés fijar esta publicación en tu perfil?',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: isPinned ? 'Desfijar' : 'Fijar',
+                      onPress: () => handleTogglePin(post.id),
+                    },
+                  ]
+                );
+              }}
+            >
+              <Image source={{ uri: post.image }} style={styles.gridImage} />
+              {isPinned && (
+                <View style={styles.pinBadge}>
+                  <MaterialCommunityIcons name="pin" size={12} color="#FFF" />
+                </View>
+              )}
+              {post.price && (
+                <View style={styles.gridPriceTag}>
+                  <Text style={styles.gridPriceText}>{post.price}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
@@ -681,6 +729,17 @@ const styles = StyleSheet.create({
   gridImage: {
     width: '100%',
     height: '100%',
+  },
+  pinBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#546F1C',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gridPriceTag: {
     position: 'absolute',
