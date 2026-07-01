@@ -8,7 +8,7 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT } from './Chatconstants';
 import styles from './Chatstyles';
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 10;
+const MAX_SCALE = 4;
 
 // Una sola "página" del visor: imagen o video con pinch-to-zoom + pan,
 // y doble-tap como atajo rápido para alternar zoom.
@@ -23,6 +23,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   const lastOffset = useRef({ x: 0, y: 0 });
 
   const [zoomed, setZoomed] = useState(false);
+  const [naturalSize, setNaturalSize] = useState(null);
   const lastTapRef = useRef(0);
   const pinchRef = useRef(null);
   const panRef = useRef(null);
@@ -33,6 +34,13 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
 
   // Altura real usable, descontando status bar y barra de navegación del sistema
   const mediaHeight = (SCREEN_HEIGHT - (insets?.top || 0) - (insets?.bottom || 0)) * 0.85;
+
+  // Si el aspect ratio de la imagen coincide con el de la pantalla (ej: una captura
+  // de pantalla), la mostramos a pantalla completa en vez de con margen arriba/abajo.
+  const screenRatio = SCREEN_WIDTH / SCREEN_HEIGHT;
+  const imageRatio = naturalSize ? naturalSize.width / naturalSize.height : null;
+  const isScreenFormat = imageRatio !== null && Math.abs(imageRatio - screenRatio) < 0.03;
+  const imageHeight = isScreenFormat ? SCREEN_HEIGHT : mediaHeight;
 
   useEffect(() => {
     if (player && item.type === 'video' && !isActive) {
@@ -62,10 +70,13 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
 
   // Calcula cuánto se puede mover la imagen en cada eje sin dejar ver "el borde"
   // (la mitad del extra de tamaño que agrega el zoom respecto al tamaño original).
-  const getMaxOffset = (scaleValue) => ({
-    maxX: Math.max(0, (SCREEN_WIDTH * (scaleValue - 1)) / 2),
-    maxY: Math.max(0, (mediaHeight * (scaleValue - 1)) / 2),
-  });
+  const getMaxOffset = (scaleValue) => {
+    const currentHeight = item.type === 'image' && isScreenFormat ? SCREEN_HEIGHT : mediaHeight;
+    return {
+      maxX: Math.max(0, (SCREEN_WIDTH * (scaleValue - 1)) / 2),
+      maxY: Math.max(0, (currentHeight * (scaleValue - 1)) / 2),
+    };
+  };
 
   // Recorta lastOffset dentro de los límites válidos para el scale actual
   // y aplica el resultado a los Animated.Value (sin animación, es instantáneo).
@@ -203,8 +214,12 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
               <Pressable onPress={handleDoubleTap}>
                 <Animated.Image
                   source={{ uri: item.mediaUrl }}
-                  style={[{ width: SCREEN_WIDTH, height: mediaHeight }, zoomStyle]}
-                  resizeMode="contain"
+                  style={[{ width: SCREEN_WIDTH, height: imageHeight }, zoomStyle]}
+                  resizeMode={isScreenFormat ? 'cover' : 'contain'}
+                  onLoad={(e) => {
+                    const { width, height } = e.nativeEvent.source;
+                    setNaturalSize({ width, height });
+                  }}
                 />
               </Pressable>
             </Animated.View>

@@ -400,7 +400,7 @@ export default function ProfileScreen({ navigation }) {
           styles.header,
           {
             paddingTop: insets.top + 6,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
             borderBottomColor: isDark ? '#222' : '#E8E8E8',
           },
         ]}
@@ -582,18 +582,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerBtn: {
-    padding: 6,
+    padding: 8,
   },
   headerCenter: {
     flex: 1,
     marginHorizontal: 8,
   },
   headerUsername: {
-    fontSize: 16,
+    fontSize: 23,
     fontFamily: 'Nunito-BoldItalic',
   },
   headerHandle: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Nunito-Regular',
     marginTop: 1,
   },
