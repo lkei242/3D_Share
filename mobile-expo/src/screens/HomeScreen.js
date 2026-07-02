@@ -202,13 +202,9 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const hasFetched = React.useRef(false);
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      if (!hasFetched.current) {
-        Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
-        hasFetched.current = true;
-      }
+      Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
     });
     return unsubscribe;
   }, [navigation]);

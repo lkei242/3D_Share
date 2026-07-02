@@ -75,12 +75,22 @@ export default function EditPostScreen({ route, navigation }) {
     }
     setSaving(true);
     try {
+      const precioTrim = precio.trim();
       await updateDoc(doc(db, 'posts', post.id), {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
-        precio: precio.trim() ? parseFloat(precio.trim()) : null,
+        precio: precioTrim ? parseFloat(precioTrim) : null,
         webLink: webLink.trim() || null,
       });
+
+      // Avisar a la pantalla anterior para que se actualice de inmediato, sin esperar un refetch
+      route.params?.onSave?.(post.id, {
+        title: titulo.trim(),
+        description: descripcion.trim(),
+        price: precioTrim ? `${precioTrim}$` : null,
+        webLink: webLink.trim() || null,
+      });
+
       showToast('Cambios guardados con éxito.', 'success');
       setTimeout(() => navigation.goBack(), 1500);
     } catch (error) {

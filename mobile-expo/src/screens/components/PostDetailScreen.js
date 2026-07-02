@@ -23,6 +23,7 @@ import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
 import { blockUser } from '../config/userActions';
+import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
 import MediaViewerModal from '../chats_screens/Mediaviewer';
@@ -250,7 +251,8 @@ export default function PostDetailScreen({ route, navigation }) {
     const HEADER_HEIGHT = 50;
     const PAGE_HEIGHT = screenHeight - insets.top - HEADER_HEIGHT;
 
-    const initialIndex = posts.findIndex((p) => p.id === post.id);
+    const [postsList, setPostsList] = useState(posts);
+    const initialIndex = postsList.findIndex((p) => p.id === post.id);
     const validIndex = initialIndex >= 0 ? initialIndex : 0;
     const [mediaViewerPost, setMediaViewerPost] = useState(null);
     const [commentsPost, setCommentsPost] = useState(null);
@@ -337,12 +339,17 @@ export default function PostDetailScreen({ route, navigation }) {
 
     const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 });
 
+    // Actualiza un post en la lista local al instante (llamado desde EditPostScreen al guardar)
+    const handlePostUpdated = useCallback((postId, updatedFields) => {
+        setPostsList((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updatedFields } : p)));
+    }, []);
+
     // onScroll como respaldo: detecta el post visible según la posición del scroll
     const onScroll = useRef((e) => {
         const offsetY = e.nativeEvent.contentOffset.y;
         const index = Math.round(offsetY / PAGE_HEIGHT);
-        if (posts[index]?.id) {
-            incrementView(posts[index].id);
+        if (postsList[index]?.id) {
+            incrementView(postsList[index].id);
         }
     });
 
@@ -364,7 +371,7 @@ export default function PostDetailScreen({ route, navigation }) {
                     contentContainerStyle={{
                         paddingBottom: 20,
                     }}
-                    data={posts}
+                    data={postsList}
                     keyExtractor={(item) => item.id}
                     getItemLayout={(data, index) => ({
                         length: PAGE_HEIGHT,
@@ -460,8 +467,10 @@ export default function PostDetailScreen({ route, navigation }) {
                                     onPress: async () => {
                                         try {
                                             const postId = menuPost.id;
-                                            // Eliminar el post primero (lo más importante)
+                                            // Eliminar el post primero (lo más importante, así el usuario ve el resultado al instante)
                                             await deleteDoc(doc(db, 'posts', postId));
+                                            // Eliminar la imagen de Cloudinary en segundo plano (no bloqueante, no se espera)
+                                            deleteMediaFromCloudinary(menuPost.image).catch(() => {});
                                             // Luego intentar limpiar colecciones relacionadas (falla si las reglas de seguridad lo bloquean)
                                             const collections = ['likes', 'views', 'saved', 'comments'];
                                             for (const col of collections) {
@@ -486,7 +495,7 @@ export default function PostDetailScreen({ route, navigation }) {
                     }
                     if (key === 'edit') {
                         setMenuPost(null);
-                        navigation.navigate('EditPost', { post: menuPost });
+                        navigation.navigate('EditPost', { post: menuPost, onSave: handlePostUpdated });
                     }
                 }}
             />
