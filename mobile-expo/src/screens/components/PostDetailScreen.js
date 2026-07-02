@@ -348,7 +348,7 @@ export default function PostDetailScreen({ route, navigation }) {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+            <View style={[styles.container, { backgroundColor: colors.card, paddingTop: insets.top }]}>
                 {/* HEADER */}
                 <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
