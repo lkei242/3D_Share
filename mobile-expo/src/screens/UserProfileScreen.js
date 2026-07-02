@@ -485,7 +485,7 @@ export default function UserProfileScreen({ route, navigation }) {
         styles.header,
         {
           paddingTop: insets.top + 6,
-          backgroundColor: colors.background,
+          backgroundColor: colors.card,
           borderBottomColor: isDark ? '#222' : '#E8E8E8',
         }
       ]}>
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   headerUsername: {
     flex: 1,
     marginLeft: 18,
-    fontSize: 16,
+    fontSize: 22,
     fontFamily: 'Nunito-BoldItalic',
   },
   headerActions: {
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   userHandle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'Nunito-Bold',
     marginBottom: 2,
     marginLeft: 10,

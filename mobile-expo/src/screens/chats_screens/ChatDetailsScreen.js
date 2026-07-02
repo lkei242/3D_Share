@@ -614,9 +614,28 @@ export default function ChatDetailScreen({ route, navigation }) {
       try {
         const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
         const deletions = msgsToDelete.map(async (msg) => {
-          if (msg?.mediaUrl) {
-            await deleteMediaFromCloudinary(msg.mediaUrl);
+          // Intentar borrar de Cloudinary de forma segura (sin bloquear el borrado de Firestore)
+          try {
+            if (msg?.mediaUrl) {
+              await deleteMediaFromCloudinary(msg.mediaUrl);
+            }
+            if (msg?.type === 'media_group' && msg.mediaItems) {
+              await Promise.all(
+                msg.mediaItems.map(item => {
+                  if (item.url) {
+                    return deleteMediaFromCloudinary(item.url).catch(err =>
+                      console.log('Error borrando item de media_group de Cloudinary:', err)
+                    );
+                  }
+                  return Promise.resolve();
+                })
+              );
+            }
+          } catch (cloudinaryError) {
+            console.log("Error al borrar media de Cloudinary (se procederá a borrar el mensaje igualmente):", cloudinaryError);
           }
+
+          // Borrar de Firestore (se ejecutará siempre)
           const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
           await deleteDoc(msgRef);
         });
