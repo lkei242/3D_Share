@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // ← agregado useRef
 import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
@@ -7,6 +7,7 @@ import { getBlockedUids } from './config/userActions';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video'; // ← NUEVO
 import {
   View,
   Text,
@@ -23,7 +24,39 @@ const GREEN = '#9DBD3F';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
 
-const PostCard = React.memo(function PostCard({ item, onPress }) {
+// ============================================================
+// 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
+// ============================================================
+const VideoPreview = React.memo(function VideoPreview({ uri, isVisible }) {
+  const player = useVideoPlayer(uri, (playerInstance) => {
+    playerInstance.loop = true;
+    playerInstance.muted = true; // 🔇 Sin audio (como Instagram)
+  });
+
+  // Reproducir cuando es visible, pausar cuando no
+  useEffect(() => {
+    if (isVisible) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isVisible]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.cardImage}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      nativeControls={false} // Ocultar controles nativos
+    />
+  );
+});
+
+// ============================================================
+// COMPONENTE: PostCard
+// ============================================================
+const PostCard = React.memo(function PostCard({ item, onPress, isVisible }) { // ← agregado isVisible
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
   const [saved, setSaved] = useState(false);
@@ -58,18 +91,42 @@ const PostCard = React.memo(function PostCard({ item, onPress }) {
     }
   };
 
+  // 🆕 Detectar si hay video y obtener su URI
+  const firstMedia = item.media[0];
+const isFirstMediaVideo = firstMedia?.type === 'video';
+
   return (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: colors.card }]}
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* Imagen del post */}
-      <Image
-        source={{ uri: item.image }}
-        style={styles.cardImage}
-        resizeMode="cover"
-      />
+      {/* Imagen o Video del post */}
+      <View style={{ position: 'relative' }}>
+        {/* 🆕 Si es video, reproducirlo; si no, mostrar imagen */}
+        {isFirstMediaVideo ? (
+          <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
+        ) : (
+          <Image
+            source={{ uri: item.image }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Badge de video solo si el PRIMER elemento es video */}
+        {isFirstMediaVideo && (
+          <View style={{ position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialCommunityIcons name="video" size={14} color="#FFF" />
+          </View>
+        )}
+
+        {item.totalImages > 1 && (
+          <View style={{ position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 }}>
+            <Text style={{ color: '#FFF', fontSize: 11, fontFamily: 'Nunito-Bold' }}>1/{item.totalImages}</Text>
+          </View>
+        )}
+      </View>
 
       {/* Footer con título y botón de guardado */}
       <View style={[styles.cardFooter, { backgroundColor: isDark ? '#2C2C2C' : '#F9F9F9' }]}>
@@ -104,6 +161,8 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [blockedUids, setBlockedUids] = useState([]);
+  const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
+
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', {
       post,
@@ -137,10 +196,8 @@ export default function HomeScreen({ navigation }) {
       }
       const documentSnapshots = await getDocs(q);
 
-            // Obtener UIDs únicos de autores
       const authorUids = [...new Set(documentSnapshots.docs.map(d => d.data().autor).filter(Boolean))];
 
-      // Cargar info de autores por document ID
       const authorsMap = {};
       if (authorUids.length > 0) {
           for (let i = 0; i < authorUids.length; i += 10) {
@@ -163,13 +220,16 @@ export default function HomeScreen({ navigation }) {
       const newPosts = documentSnapshots.docs.map(d => {
           const data = d.data();
           const authorInfo = authorsMap[data.autor] || { profileName: 'Usuario', username: 'usuario', profilePicture: '' };
+          const mediaArray = data.media || (data.imagenes || []).map(url => ({ url, type: 'image' }));
           return {
               id: d.id,
               title: data.titulo || 'Sin título',
-              image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+              image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
               price: data.precio ? `${data.precio}$` : null,
               views: formatViews(data.vistas || 0),
-              totalImages: data.imagenes ? data.imagenes.length : 1,
+              totalImages: mediaArray.length,
+              media: mediaArray,
+              hasVideo: mediaArray.some(m => m.type === 'video'),
               description: data.descripcion || '',
               webLink: data.webLink || null,
               author: data.autor,
@@ -209,12 +269,23 @@ export default function HomeScreen({ navigation }) {
     return unsubscribe;
   }, [navigation]);
 
+  // 🆕 Detectar qué items son visibles (para autoplay)
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    const visibleIds = new Set(viewableItems.map(item => item.item.id));
+    setVisibleItems(visibleIds);
+  });
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50 // Al menos 50% visible para considerarlo "visible"
+  });
+
   const renderItem = React.useCallback(({ item }) => (
     <PostCard
       item={item}
       onPress={() => handlePostPress(item)}
+      isVisible={visibleItems.has(item.id)} // 🆕 Pasar si es visible
     />
-  ), [posts]);
+  ), [posts, visibleItems]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -252,6 +323,9 @@ export default function HomeScreen({ navigation }) {
         maxToRenderPerBatch={10}
         windowSize={7}
         initialNumToRender={10}
+        // 🆕 Detectar items visibles
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={viewabilityConfig.current}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

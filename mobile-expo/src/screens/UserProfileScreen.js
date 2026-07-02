@@ -103,21 +103,25 @@ export default function UserProfileScreen({ route, navigation }) {
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      const postsFormateados = snapshot.docs.map(d => ({
-        id: d.id,
-        title: d.data().titulo || 'Sin título',
-        image: d.data().imagenes && d.data().imagenes.length > 0
-          ? d.data().imagenes[0]
-          : 'https://picsum.photos/seed/placeholder/400/300',
-        price: d.data().precio ? `${d.data().precio}$` : null,
-        views: formatViews(d.data().vistas || 0),
-        totalImages: d.data().imagenes ? d.data().imagenes.length : 1,
-        description: d.data().descripcion || '',
-        author: d.data().autor,
-        authorProfileName: userData.profileName || userData.username || 'Usuario',
-        authorUsername: userData.username || 'usuario',
-        authorProfilePicture: userData.profilePicture || '',
-      }));
+      const postsFormateados = snapshot.docs.map(d => {
+        const data = d.data();
+        const mediaArray = data.media || (data.imagenes || []).map(url => ({ url, type: 'image' }));
+        return {
+          id: d.id,
+          title: data.titulo || 'Sin título',
+          image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
+          price: data.precio ? `${data.precio}$` : null,
+          views: formatViews(data.vistas || 0),
+          totalImages: mediaArray.length,
+          media: mediaArray,
+          hasVideo: mediaArray.some(m => m.type === 'video'),
+          description: data.descripcion || '',
+          author: data.autor,
+          authorProfileName: userData.profileName || userData.username || 'Usuario',
+          authorUsername: userData.username || 'usuario',
+          authorProfilePicture: userData.profilePicture || '',
+        };
+      });
       setPosts(postsFormateados);
     } catch (error) {
       console.log('Error al cargar publicaciones:', error);

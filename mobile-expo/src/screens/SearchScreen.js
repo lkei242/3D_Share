@@ -1,5 +1,5 @@
-// mobile-expo/src/screens/SearchScreen.js
-import React, { useState, useEffect } from 'react';
+// src/screens/SearchScreen.js
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   TextInput,
@@ -16,28 +16,59 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { collection, query, orderBy, getDocs, limit, startAfter, where, documentId } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { auth } from './config/firebase';
 import { getBlockedUids } from './config/userActions';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
+
+// ============================================================
+// 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
+// ============================================================
+const VideoPreview = React.memo(function VideoPreview({ uri, isVisible }) {
+  const player = useVideoPlayer(uri, (playerInstance) => {
+    playerInstance.loop = true;
+    playerInstance.muted = true;
+  });
+
+  useEffect(() => {
+    if (isVisible) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isVisible]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.image}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      nativeControls={false}
+    />
+  );
+});
 
 export default function SearchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-
+  
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastVisible, setLastVisible] = useState(null);
-  const [activeTab, setActiveTab] = useState('posts'); // 'posts' o 'users'
+  const [activeTab, setActiveTab] = useState('posts');
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [blockedUids, setBlockedUids] = useState([]);
+  const [visibleItems, setVisibleItems] = useState(new Set());
 
   const fetchBlockedUsers = async () => {
     const user = auth.currentUser;
@@ -49,7 +80,6 @@ export default function SearchScreen({ navigation }) {
   const fetchPosts = async (reset = false) => {
     if (loading) return;
     if (!reset && !hasMore) return;
-
     setLoading(true);
 
     try {
@@ -89,14 +119,18 @@ export default function SearchScreen({ navigation }) {
       const list = querySnapshot.docs.map(doc => {
         const data = doc.data();
         const authorInfo = authorsMap[data.autor] || { profileName: 'Usuario', username: 'usuario', profilePicture: '' };
+        const mediaArray = data.media || (data.imagenes || []).map(url => ({ url, type: 'image' }));
         return {
           id: doc.id,
-          image: data.imagenes && data.imagenes.length > 0 ? data.imagenes[0] : 'https://picsum.photos/seed/placeholder/400/300',
+          image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
           title: data.titulo || '',
           description: data.descripcion || '',
-          price: data.precio ? `${data.precio}$` : null,
+          price: data.precio ? `$${data.precio}` : null,
           webLink: data.webLink || null,
           views: formatViews(data.vistas || 0),
+          totalImages: mediaArray.length,
+          media: mediaArray,
+          hasVideo: mediaArray.some(m => m.type === 'video'),
           author: data.autor,
           authorProfileName: authorInfo.profileName,
           authorUsername: authorInfo.username,
@@ -115,34 +149,35 @@ export default function SearchScreen({ navigation }) {
 
       setHasMore(querySnapshot.docs.length === 30);
     } catch (error) {
-      console.log("Error buscando posts en Firestore:", error);
+      console.log("Error buscando posts en Firestore: ", error);
     } finally {
       setLoading(false);
     }
   };
+
   const fetchUsers = async () => {
-      if (usersLoading) return;
-      setUsersLoading(true);
-      try {
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, limit(100));
-          const snapshot = await getDocs(q);
-          const currentUid = auth.currentUser?.uid;
-          const usersList = snapshot.docs
-              .map(doc => ({
-                  id: doc.id,
-                  uid: doc.id,
-                  profileName: doc.data().profileName || doc.data().username || 'Usuario',
-                  username: doc.data().username || 'usuario',
-                  profilePicture: doc.data().profilePicture || '',
-              }))
-              .filter(user => user.uid !== currentUid);
-          setUsers(usersList);
-      } catch (error) {
-          console.log("Error buscando usuarios:", error);
-      } finally {
-          setUsersLoading(false);
-      }
+    if (usersLoading) return;
+    setUsersLoading(true);
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, limit(100));
+      const snapshot = await getDocs(q);
+      const currentUid = auth.currentUser?.uid;
+      const usersList = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          uid: doc.id,
+          profileName: doc.data().profileName || doc.data().username || 'Usuario',
+          username: doc.data().username || 'usuario',
+          profilePicture: doc.data().profilePicture || '',
+        }))
+        .filter(user => user.uid !== currentUid);
+      setUsers(usersList);
+    } catch (error) {
+      console.log("Error buscando usuarios:", error);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   const onRefresh = async () => {
@@ -156,98 +191,133 @@ export default function SearchScreen({ navigation }) {
 
   const hasFetched = React.useRef(false);
   useEffect(() => {
-      const unsubscribe = navigation.addListener('focus', () => {
-        if (!hasFetched.current) {
-          fetchBlockedUsers().then(() => {
-            fetchPosts(true);
-            fetchUsers();
-          });
-          hasFetched.current = true;
-        }
-      });
-      return unsubscribe;
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (!hasFetched.current) {
+        fetchBlockedUsers().then(() => {
+          fetchPosts(true);
+          fetchUsers();
+        });
+        hasFetched.current = true;
+      }
+    });
+    return unsubscribe;
   }, [navigation]);
 
-  // Filtrado reactivo en memoria según el título escrito
-  const filteredPosts = posts.filter(post => 
-      !blockedUids.includes(post.author) && (
+  const filteredPosts = posts.filter(post =>
+    !blockedUids.includes(post.author) && (
       post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (post.authorProfileName && post.authorProfileName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (post.authorUsername && post.authorUsername.toLowerCase().includes(searchQuery.toLowerCase()))
-  ));
+    )
+  );
 
-  const filteredUsers = users.filter(user => 
-      !blockedUids.includes(user.uid) && (
+  const filteredUsers = users.filter(user =>
+    !blockedUids.includes(user.uid) && (
       user.profileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.username.toLowerCase().includes(searchQuery.toLowerCase())
-  ));
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('PostDetail', { post: item, posts: filteredPosts })}
-    >
-      <Image
-        source={{ uri: item.image }}
-        style={styles.image}
-      />
-      {item.price && (
-        <LinearGradient
-          colors={['#546f1c00', '#546f1c99', '#546F1C']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.priceBadge}
-        >
-          <Text style={styles.priceBadgeText}>$</Text>
-        </LinearGradient>
-      )}
-    {item.webLink && (
-      <LinearGradient
-        colors={['#E8E8E8', '#FFFFFF', '#B8B8B8', '#D0D0D0', '#A0A0A0']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.modelBadge}
-      >
-        <Text style={[styles.priceBadgeText2, { color: '#333' }]}>M</Text>
-      </LinearGradient>
-    )}
-    </TouchableOpacity>
+    )
   );
+
+  // 🆕 Detectar qué items son visibles (para autoplay)
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    const visibleIds = new Set(viewableItems.map(item => item.item.id));
+    setVisibleItems(visibleIds);
+  });
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50
+  });
+
+  const renderItem = ({ item }) => {
+    const firstMedia = item.media[0];
+    const isFirstMediaVideo = firstMedia?.type === 'video';
+    const isVisible = visibleItems.has(item.id);
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('PostDetail', { post: item, posts: filteredPosts })}
+      >
+        <View style={{ position: 'relative', width: '100%', height: '100%' }}>
+          {/* 🆕 Si el primer elemento es video, reproducirlo; si no, mostrar imagen */}
+          {isFirstMediaVideo ? (
+            <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
+          ) : (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          )}
+
+          {/* 🆕 Badge de video solo si el primer elemento es video */}
+          {isFirstMediaVideo && (
+            <View style={styles.videoBadge}>
+              <MaterialCommunityIcons name="video" size={12} color="#FFF" />
+            </View>
+          )}
+
+          {item.price && (
+            <LinearGradient
+              colors={['#546f1c00', '#546f1c99', '#546F1C']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.priceBadge}
+            >
+              <Text style={styles.priceBadgeText}>$</Text>
+            </LinearGradient>
+          )}
+
+          {item.webLink && (
+            <LinearGradient
+              colors={['#E8E8E8', '#FFFFFF', '#B8B8B8', '#D0D0D0', '#A0A0A0']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modelBadge}
+            >
+              <Text style={[styles.priceBadgeText2, { color: '#333' }]}>M</Text>
+            </LinearGradient>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderUser = ({ item }) => (
     <TouchableOpacity
-        style={[styles.userCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}
-        onPress={() => {
-            if (item.uid === auth.currentUser?.uid) {
-                navigation.navigate('MainTabs', { screen: 'Profile' });
-            } else {
-                navigation.navigate('UserProfile', {
-                    userId: item.uid,
-                    profileName: item.profileName,
-                    username: item.username,
-                    profilePicture: item.profilePicture,
-                });
-            }
-        }}
+      style={[styles.userCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}
+      onPress={() => {
+        if (item.uid === auth.currentUser?.uid) {
+          navigation.navigate('MainTabs', { screen: 'Profile' });
+        } else {
+          navigation.navigate('UserProfile', {
+            userId: item.uid,
+            profileName: item.profileName,
+            username: item.username,
+            profilePicture: item.profilePicture,
+          });
+        }
+      }}
     >
-        {item.profilePicture ? (
-          <Image source={{ uri: item.profilePicture }} style={styles.userAvatar} />
-        ) : (
-          <View style={[styles.userAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
-            <Ionicons
-              name="person-circle-outline"
-              size={50}
-              color="#94BA46"
-            />
-          </View>
-        )}
-        <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
-                {item.profileName}
-            </Text>
-            <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]} numberOfLines={1}>
-                @{item.username}
-            </Text>
+      {item.profilePicture ? (
+        <Image source={{ uri: item.profilePicture }} style={styles.userAvatar} />
+      ) : (
+        <View style={[styles.userAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+          <Ionicons
+            name="person-circle-outline"
+            size={50}
+            color="#94BA46"
+          />
         </View>
+      )}
+      <View style={styles.userInfo}>
+        <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
+          {item.profileName}
+        </Text>
+        <Text style={[styles.userHandle, { color: isDark ? '#888' : '#666' }]} numberOfLines={1}>
+          @{item.username}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 
@@ -262,14 +332,12 @@ export default function SearchScreen({ navigation }) {
           source={require('../../assets/logo.png')}
           style={styles.logo}
         />
-
         <View style={[styles.searchBar, { backgroundColor: isDark ? '#273500' : '#E8E8E8' }]}>
           <Ionicons
             name="search"
             size={20}
             color={isDark ? '#FFF' : '#666'}
           />
-
           <TextInput
             placeholder="Buscar publicaciones o usuarios..."
             placeholderTextColor={isDark ? '#AAA' : '#888'}
@@ -316,6 +384,9 @@ export default function SearchScreen({ navigation }) {
           maxToRenderPerBatch={15}
           windowSize={7}
           initialNumToRender={18}
+          // 🆕 Detectar items visibles
+          onViewableItemsChanged={onViewableItemsChanged.current}
+          viewabilityConfig={viewabilityConfig.current}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -424,6 +495,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  // 🆕 Badge de video
+  videoBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -484,6 +567,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: '#999',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
   },
   priceBadgeText: {
     color: '#FFF',
@@ -497,28 +587,4 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Bold',
     lineHeight: 14,
   },
-  modelBadge: {
-    position: 'absolute',
-    bottom: 4,
-    left: 28,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 0.5,
-    borderColor: '#999',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 1,
-    elevation: 2,
-    color: '#FFF',
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
-  },
-
 });

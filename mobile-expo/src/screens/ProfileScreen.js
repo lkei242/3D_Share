@@ -1,5 +1,5 @@
 // src/screens/ProfileScreen.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Dimensions,
   RefreshControl,
   Alert,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
@@ -18,16 +19,45 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 18) / 3;
 const TABS = ['Publicaciones', 'Etiquetas', 'Contactos'];
 
+// ============================================================
+// 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
+// ============================================================
+const VideoPreview = React.memo(function VideoPreview({ uri, isVisible }) {
+  const player = useVideoPlayer(uri, (playerInstance) => {
+    playerInstance.loop = true;
+    playerInstance.muted = true;
+  });
+
+  useEffect(() => {
+    if (isVisible) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isVisible]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.gridImage}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      nativeControls={false}
+    />
+  );
+});
+
 export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-
+  
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,8 +70,9 @@ export default function ProfileScreen({ navigation }) {
   const [followingCount, setFollowingCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Publicaciones');
-
   const [pinnedPosts, setPinnedPosts] = useState([]);
+  const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
+  
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
     email: null,
@@ -123,22 +154,26 @@ export default function ProfileScreen({ navigation }) {
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
-      const postsFormateados = snapshot.docs.map(doc => ({
-        id: doc.id,
-        title: doc.data().titulo || 'Sin título',
-        image: doc.data().imagenes && doc.data().imagenes.length > 0
-          ? doc.data().imagenes[0]
-          : 'https://picsum.photos/seed/placeholder/400/300',
-        price: doc.data().precio ? `${doc.data().precio}$` : null,
-        views: formatViews(doc.data().vistas || 0),
-        totalImages: doc.data().imagenes ? doc.data().imagenes.length : 1,
-        description: doc.data().descripcion || '',
-        webLink: doc.data().webLink || '',
-        author: doc.data().autor,
-        authorProfileName: authorName,
-        authorUsername: authorUsername,
-        authorProfilePicture: authorPicture,
-      }));
+      const postsFormateados = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const mediaArray = data.media || (data.imagenes || []).map(url => ({ url, type: 'image' }));
+        return {
+          id: doc.id,
+          title: data.titulo || 'Sin título',
+          image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
+          price: data.precio ? `${data.precio}$` : null,
+          views: formatViews(data.vistas || 0),
+          totalImages: mediaArray.length,
+          media: mediaArray,
+          hasVideo: mediaArray.some(m => m.type === 'video'),
+          description: data.descripcion || '',
+          webLink: data.webLink || '',
+          author: data.autor,
+          authorProfileName: authorName,
+          authorUsername: authorUsername,
+          authorProfilePicture: authorPicture,
+        };
+      });
       setPosts(postsFormateados);
     } catch (error) {
       console.log('Error al cargar publicaciones de usuario:', error);
@@ -171,9 +206,9 @@ export default function ProfileScreen({ navigation }) {
   }, []);
 
   useFocusEffect(
-      useCallback(() => {
-        Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
-      }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
+    useCallback(() => {
+      Promise.all([fetchUserProfile(), fetchUserPosts(), fetchFollowCounts()]);
+    }, [fetchUserProfile, fetchUserPosts, fetchFollowCounts])
   );
 
   const handleTogglePin = async (postId) => {
@@ -198,6 +233,16 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  // 🆕 Detectar qué items son visibles (para autoplay)
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    const visibleIds = new Set(viewableItems.map(item => item.item.id));
+    setVisibleItems(visibleIds);
+  });
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50
+  });
+
   // Renderizar grid de publicaciones
   const renderGrid = () => {
     if (loading) {
@@ -210,19 +255,28 @@ export default function ProfileScreen({ navigation }) {
         </Text>
       );
     }
+
     const pinned = posts.filter(p => pinnedPosts.includes(p.id));
     const unpinned = posts.filter(p => !pinnedPosts.includes(p.id));
     const sorted = [...pinned, ...unpinned];
+
+    // 🆕 Convertir a FlatList para usar onViewableItemsChanged
     return (
-      <View style={styles.gridContainer}>
-        {sorted.map((post) => {
-          const isPinned = pinnedPosts.includes(post.id);
+      <FlatList
+        data={sorted}
+        keyExtractor={(item) => item.id}
+        numColumns={3}
+        renderItem={({ item }) => {
+          const isPinned = pinnedPosts.includes(item.id);
+          const firstMedia = item.media[0];
+          const isFirstMediaVideo = firstMedia?.type === 'video';
+          const isVisible = visibleItems.has(item.id);
+
           return (
             <TouchableOpacity
-              key={post.id}
               style={styles.gridItem}
               activeOpacity={0.85}
-              onPress={() => handlePostPress(post)}
+              onPress={() => handlePostPress(item)}
               onLongPress={() => {
                 Alert.alert(
                   isPinned ? 'Desfijar publicación' : 'Fijar publicación',
@@ -233,27 +287,46 @@ export default function ProfileScreen({ navigation }) {
                     { text: 'Cancelar', style: 'cancel' },
                     {
                       text: isPinned ? 'Desfijar' : 'Fijar',
-                      onPress: () => handleTogglePin(post.id),
+                      onPress: () => handleTogglePin(item.id),
                     },
                   ]
                 );
               }}
             >
-              <Image source={{ uri: post.image }} style={styles.gridImage} />
+              {/* 🆕 Si el primer elemento es video, reproducirlo; si no, mostrar imagen */}
+              {isFirstMediaVideo ? (
+                <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
+              ) : (
+                <Image source={{ uri: item.image }} style={styles.gridImage} />
+              )}
+
+              {/* 🆕 Badge de video solo si el primer elemento es video */}
+              {isFirstMediaVideo && (
+                <View style={styles.videoBadge}>
+                  <MaterialCommunityIcons name="video" size={12} color="#FFF" />
+                </View>
+              )}
+
               {isPinned && (
                 <View style={styles.pinBadge}>
                   <MaterialCommunityIcons name="pin" size={12} color="#FFF" />
                 </View>
               )}
-              {post.price && (
+
+              {item.price && (
                 <View style={styles.gridPriceTag}>
-                  <Text style={styles.gridPriceText}>{post.price}</Text>
+                  <Text style={styles.gridPriceText}>{item.price}</Text>
                 </View>
               )}
             </TouchableOpacity>
           );
-        })}
-      </View>
+        }}
+        // 🆕 Detectar items visibles
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        viewabilityConfig={viewabilityConfig.current}
+        scrollEnabled={false}
+        showsVerticalScrollIndicator={false}
+      />
     );
   };
 
@@ -297,7 +370,6 @@ export default function ProfileScreen({ navigation }) {
       : userContacts.socialMedia[platform];
     const hasValue = url !== null && url !== '';
     const IconComponent = iconType === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
-
     return (
       <TouchableOpacity
         key={platform}
@@ -394,49 +466,49 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-  {/* HEADER FIJO */}
-  <View
-    style={[
-      styles.header,
-      {
-        paddingTop: insets.top + 0,
-        backgroundColor: colors.card,
-        borderBottomColor: isDark ? '#222' : '#E8E8E8',
-      },
-    ]}
-  >
-    <TouchableOpacity
-      onPress={() => navigation.navigate('AccountSwitcher')}
-      style={[styles.headerCenter, { marginLeft: 8 }, { marginTop: 10}]}
-    >
-      <Text
-        style={[styles.headerUsername, { color: colors.text }]}
-        numberOfLines={1}
+      {/* HEADER FIJO */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 0,
+            backgroundColor: colors.card,
+            borderBottomColor: isDark ? '#222' : '#E8E8E8',
+          },
+        ]}
       >
-        {userName}
-      </Text>
-      <View style={[styles.headerDivider, { backgroundColor: isDark ? '#444' : '#DDD' }]} />
-      <Text
-        style={[styles.headerHandle, { color: isDark ? '#888' : '#666' }]}
-        numberOfLines={1}
-      >
-        @{userUsername}
-      </Text>
-    </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('AccountSwitcher')}
+          style={[styles.headerCenter, { marginLeft: 8 }, { marginTop: 10 }]}
+        >
+          <Text
+            style={[styles.headerUsername, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {userName}
+          </Text>
+          <View style={[styles.headerDivider, { backgroundColor: isDark ? '#444' : '#DDD' }]} />
+          <Text
+            style={[styles.headerHandle, { color: isDark ? '#888' : '#666' }]}
+            numberOfLines={1}
+          >
+            @{userUsername}
+          </Text>
+        </TouchableOpacity>
 
-    <View style={styles.headerActions}>
-      <TouchableOpacity
-        style={styles.headerBtn}
-        onPress={() => navigation.navigate('Settings')}
-      >
-        <Ionicons
-          name="settings-outline"
-          size={24}
-          color={colors.text}
-        />
-      </TouchableOpacity>
-    </View>
-  </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={24}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <SectionList
         sections={[{ data: [1], key: 'content' }]}
@@ -540,40 +612,40 @@ export default function ProfileScreen({ navigation }) {
           </View>
         )}
         renderSectionHeader={() => (
-        <View
-          style={{
-            backgroundColor: colors.background,
-            borderBottomWidth: 1,
-            borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0',
-            paddingTop: 5, // 👈 reemplaza el marginTop de los styles
-          }}
-        >
-          <View style={styles.tabsContainer}>
-            {TABS.map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') },
-                  ]}
+          <View
+            style={{
+              backgroundColor: colors.background,
+              borderBottomWidth: 1,
+              borderBottomColor: isDark ? '#2A2A2A' : '#E0E0E0',
+              paddingTop: 5,
+            }}
+          >
+            <View style={styles.tabsContainer}>
+              {TABS.map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, activeTab === tab && { borderBottomColor: '#9DBD3F' }]}
+                  onPress={() => setActiveTab(tab)}
                 >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.tabText,
+                      { color: activeTab === tab ? '#9DBD3F' : (isDark ? '#666' : '#999') },
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
-      )}
-  renderItem={() => (
-    <View style={styles.tabContent}>{renderTabContent()}</View>
-  )}
-  contentContainerStyle={{ paddingBottom: 120 }}
-  showsVerticalScrollIndicator={false}
-/>
+        )}
+        renderItem={() => (
+          <View style={styles.tabContent}>{renderTabContent()}</View>
+        )}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -591,32 +663,32 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
   },
-headerBtn: {
-  padding: 8,
-},
-headerCenter: {
-  flex: 1,
-  flexDirection: 'row',
-  marginHorizontal: 8,
-},
-headerUsername: {
-  fontSize: 22,
-  fontFamily: 'Nunito-BoldItalic',
-},
-headerDivider: {
-  width: 1.2,
-  height: 32,
-  marginHorizontal: 8,
-},
-headerHandle: {
-  fontSize: 14,
-  fontFamily: 'Nunito-Regular',
-  marginTop: 6,
-},
-headerActions: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
+  headerBtn: {
+    padding: 8,
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    marginHorizontal: 8,
+  },
+  headerUsername: {
+    fontSize: 22,
+    fontFamily: 'Nunito-BoldItalic',
+  },
+  headerDivider: {
+    width: 1.2,
+    height: 32,
+    marginHorizontal: 8,
+  },
+  headerHandle: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    marginTop: 6,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   // PERFIL
   profileSection: {
     paddingHorizontal: 16,
@@ -745,7 +817,7 @@ headerActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 3.5,
-    marginLeft:0.5,
+    marginLeft: 0.5,
     marginTop: 2,
   },
   gridItem: {
@@ -754,10 +826,23 @@ headerActions: {
     borderRadius: 6,
     overflow: 'hidden',
     backgroundColor: '#333',
+    position: 'relative',
   },
   gridImage: {
     width: '100%',
     height: '100%',
+  },
+  // 🆕 Badge de video
+  videoBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pinBadge: {
     position: 'absolute',
