@@ -878,7 +878,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                   ) : (
                     <Ionicons
                       name="person-circle-outline"
-                      size={40}
+                      size={36}
                       color="#94BA46"
                     />
                   )}
