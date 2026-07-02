@@ -9,7 +9,7 @@ const GREEN = '#546F1C', BLACK = '#0B0F03';
 
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 
-function TabButton({ active, onPress, children }) {
+function TabButton({ active, onPress, children, isDark }) {
   const scale = useRef(new Animated.Value(active ? 1.25 : 1)).current;
   const bgOpacity = useRef(new Animated.Value(active ? 1 : 0)).current;
 
@@ -23,7 +23,7 @@ function TabButton({ active, onPress, children }) {
       }),
       Animated.timing(bgOpacity, {
         toValue: active ? 1 : 0,
-        duration: 200,
+        duration: active ? 140 : 10,
         useNativeDriver: true,
       }),
     ]).start();
@@ -35,11 +35,22 @@ function TabButton({ active, onPress, children }) {
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <AnimatedGradient
-        colors={[GREEN, BLACK, '#0B0F03']}
-        locations={[0, 0.94, 1]}
-        style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20 }]}
-      />
+      {/* Contenedor animable estándar para evitar fallos del driver nativo en LinearGradient */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20, overflow: 'hidden' }]}>
+        {isDark ? (
+          <LinearGradient
+            colors={['#546F1C', '#121212']}
+            locations={[0, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <LinearGradient
+            colors={['#9DBD3F', '#F5F5F5']}
+            locations={[0, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+      </Animated.View>
 
       <Animated.View style={[styles.iconContainer, { transform: [{ scale }] }]}>
         {children}
@@ -51,6 +62,7 @@ function TabButton({ active, onPress, children }) {
 export default function BottomTabBar({ state, navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const isDark = colors.background === '#121212';
 
   return (
     <View style={[
@@ -76,9 +88,9 @@ export default function BottomTabBar({ state, navigation }) {
 
         // Si está seleccionado, el icono es blanco (sobre el gradiente verde).
         // Si no está seleccionado, usa el color de texto del tema con opacidad.
-        const iconColor = isFocused 
-          ? "#FFF" 
-          : (colors.text === '#FFFFFF' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)');
+        const iconColor = isFocused
+          ? (isDark ? '#FFFFFF' : '#2C2C2C')
+          : (isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.6)');
 
         const icon = () => {
           switch (route.name) {
@@ -91,7 +103,7 @@ export default function BottomTabBar({ state, navigation }) {
         };
 
         return (
-          <TabButton key={route.key} active={isFocused} onPress={onPress}>
+          <TabButton key={route.key} active={isFocused} onPress={onPress} isDark={isDark}>
             {icon()}
           </TabButton>
         );

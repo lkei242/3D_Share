@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
-import { collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc } from 'firebase/firestore';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Animated,
   PanResponder,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -43,6 +45,77 @@ export default function ChatScreen({ navigation }) {
     });
   };
 
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState([]);
+  const [fetchingUsers, setFetchingUsers] = useState(false);
+
+  // Cargar usuarios a los que sigue
+  const handleOpenNewChat = async () => {
+    setShowNewChatModal(true);
+    setFetchingUsers(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Consultar la colección 'followers' donde soy el seguidor
+      const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      const followingIds = snapshot.docs.map(doc => doc.data().userId);
+
+      const usersData = [];
+      for (const uid of followingIds) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          usersData.push({
+            id: uid,
+            uid: uid,
+            name: data.profileName || data.username || 'Usuario',
+            username: data.username || 'usuario',
+            email: data.email || '',
+          });
+        }
+      }
+      setFollowingUsers(usersData);
+    } catch (err) {
+      console.log('Error al cargar seguidos para chat:', err);
+    } finally {
+      setFetchingUsers(false);
+    }
+  };
+
+  // Al seleccionar un usuario para chatear
+  const handleSelectUser = async (targetUser) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // 1. Verificar si ya tenemos un chat abierto con este usuario
+      const existingChat = chats.find(c => c.participants && c.participants.includes(targetUser.uid));
+      if (existingChat) {
+        setShowNewChatModal(false);
+        navigation.navigate('ChatDetail', { chatId: existingChat.id, name: existingChat.name });
+        return;
+      }
+
+      // 2. Si no existe, crear un nuevo chat
+      const chatsRef = collection(db, 'chats');
+      const newChatRef = await addDoc(chatsRef, {
+        participants: [user.uid, targetUser.uid],
+        participantNames: [user.email, targetUser.name],
+        lastMessage: 'Sin mensajes aún',
+        lastMessageTime: new Date(),
+        lastSender: user.uid,
+      });
+
+      setShowNewChatModal(false);
+      navigation.navigate('ChatDetail', { chatId: newChatRef.id, name: targetUser.name });
+    } catch (err) {
+      console.log('Error al crear nuevo chat:', err);
+      Alert.alert('Error', 'No se pudo iniciar el chat.');
+    }
+  };
+
   const activeTabRef = useRef(activeTab);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
 
@@ -66,10 +139,34 @@ export default function ChatScreen({ navigation }) {
     const q = query(chatsRef, where('participants', 'array-contains', user.uid));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      let chatList = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const otherParticipantName = data.participantNames?.find(name => name !== user.email) || 'Usuario';
+      const chatPromises = snapshot.docs.map(async (docSnapshot) => {
+        const data = docSnapshot.data();
+        const otherParticipantUid = data.participants?.find(uid => uid !== user.uid);
         
+        let otherParticipantName = 'Usuario';
+        let otherProfilePicture = '';
+        let otherUsername = '';
+
+        if (otherParticipantUid) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', otherParticipantUid));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              otherParticipantName = userData.profileName || userData.username || 'Usuario';
+              otherProfilePicture = userData.profilePicture || '';
+              otherUsername = userData.username || '';
+            } else {
+              // Si no existe el documento de usuario, usamos el fallback de participantNames
+              otherParticipantName = data.participantNames?.find(name => name !== user.email) || 'Usuario';
+            }
+          } catch (err) {
+            console.log('Error cargando perfil en chat:', err);
+            otherParticipantName = data.participantNames?.find(name => name !== user.email) || 'Usuario';
+          }
+        } else {
+          otherParticipantName = data.participantNames?.find(name => name !== user.email) || 'Usuario';
+        }
+
         let lastMsgTime = '';
         if (data.lastMessageTime) {
           const date = data.lastMessageTime.toDate();
@@ -77,32 +174,17 @@ export default function ChatScreen({ navigation }) {
         }
 
         return {
-          id: doc.id,
+          id: docSnapshot.id,
           name: otherParticipantName,
+          username: otherUsername,
+          profilePicture: otherProfilePicture,
           message: data.lastMessage || 'Sin mensajes aún',
           time: lastMsgTime,
+          participants: data.participants || [],
         };
       });
 
-      // Crear chat inicial si la base de datos está totalmente vacía
-      if (chatList.length === 0) {
-        const newChatRef = await addDoc(chatsRef, {
-          participants: [user.uid, 'flexi-jimga-id'],
-          participantNames: [user.email, 'Flexi JIMGA'],
-          lastMessage: '¡Hola! Bienvenido a 3D_Share',
-          lastMessageTime: new Date(),
-          lastSender: 'flexi-jimga-id',
-        });
-
-        await addDoc(collection(db, `chats/${newChatRef.id}/messages`), {
-          text: '¡Hola! Bienvenido a 3D_Share',
-          sender: 'flexi-jimga-id',
-          createdAt: new Date(),
-          read: true,
-          isFavorite: false
-        });
-      }
-
+      const chatList = await Promise.all(chatPromises);
       setChats(chatList);
       setLoading(false);
     });
@@ -117,14 +199,32 @@ export default function ChatScreen({ navigation }) {
       onPress={() => navigation.navigate('ChatDetail', { chatId: item.id, name: item.name })}
     >
       <View style={styles.avatarContainer}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
-        </View>
+        {item.profilePicture ? (
+          <Image source={{ uri: item.profilePicture }} style={[styles.avatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} />
+        ) : (
+          <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', borderColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden', justifyContent: 'center', alignItems: 'center',  }]}>
+            <Ionicons
+              name="person-circle-outline"
+              size={53.5}
+              color="#94BA46"
+              style={{ marginLeft: -2.7, marginTop: -3.2 }}
+            />
+          </View>
+        )}
       </View>
 
       <View style={styles.chatDetails}>
         <View style={styles.chatHeaderRow}>
-          <Text style={[styles.chatName, { color: colors.text }]}>{item.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+            <Text style={[styles.chatName, { color: colors.text }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {!!item.username && (
+              <Text style={{ fontSize: 13, color: isDark ? '#888' : '#777', fontFamily: 'Nunito-Regular' }} numberOfLines={1}>
+                @{item.username}
+              </Text>
+            )}
+          </View>
           <Text style={styles.chatTime}>{item.time}</Text>
         </View>
         <Text style={[styles.chatMessage, { color: isDark ? '#aaa' : '#666' }]} numberOfLines={1}>
@@ -232,6 +332,77 @@ export default function ChatScreen({ navigation }) {
         />
       )}
     </View>
+
+      {/* Botón flotante verde para nuevo chat */}
+      <TouchableOpacity
+        style={[styles.fabButton, { backgroundColor: v1 }]}
+        activeOpacity={0.8}
+        onPress={handleOpenNewChat}
+      >
+        <Ionicons name="chatbubble-ellipses" size={26} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* Modal para iniciar chat con seguidos */}
+      <Modal
+        visible={showNewChatModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNewChatModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1C' : '#FFF' }]}>
+            {/* Cabecera del modal */}
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Iniciar chat</Text>
+              <TouchableOpacity onPress={() => setShowNewChatModal(false)}>
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Listado */}
+            {fetchingUsers ? (
+              <ActivityIndicator size="large" color={v1} style={{ marginTop: 40 }} />
+            ) : followingUsers.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
+                  No sigues a ningún usuario aún. Sigue a otros usuarios desde el buscador para chatear con ellos.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={followingUsers}
+                keyExtractor={(item) => item.uid}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.userRow}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectUser(item)}
+                  >
+                    {item.profilePicture ? (
+                      <Image source={{ uri: item.profilePicture }} style={[styles.avatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.userAvatar, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden',  borderColor: isDark ? '#2A2A2A' : '#F0F0F0', }]}>
+                        <Ionicons
+                          name="person-circle-outline"
+                          size={40}
+                          color="#94BA46"
+                          style={{ marginLeft: -3, marginTop: -3 }}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.userInfo}>
+                      <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
+                      <Text style={styles.userUsername}>@{item.username}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={isDark ? '#888' : '#ccc'} />
+                  </TouchableOpacity>
+                )}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -255,11 +426,91 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 20 },
   chatRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center' },
   avatarContainer: { marginRight: 12 },
-  avatarCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#00A3FF', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFEE00' },
-  avatarText: { color: '#FFEE00', fontSize: 28, fontWeight: 'bold', fontStyle: 'italic' },
+  avatarCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
+  avatarImage: { width: 52, height: 52, borderRadius: 26, borderWidth: 2 },
   chatDetails: { flex: 1, justifyContent: 'center' },
   chatHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
   chatName: { fontSize: 16, fontFamily: 'Nunito-Bold' },
   chatTime: { color: '#888', fontSize: 13, fontFamily: 'Nunito-Regular' },
-  chatMessage: { fontSize: 14, fontFamily: 'Nunito-Regular' }
+  chatMessage: { fontSize: 14, fontFamily: 'Nunito-Regular' },
+  fabButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '70%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#88888844',
+    paddingBottom: 12,
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Nunito-Bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontFamily: 'Nunito-Regular',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#88888822',
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#9DBD3F',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontFamily: 'Nunito-Bold',
+  },
+  userUsername: {
+    fontSize: 14,
+    color: '#888',
+    fontFamily: 'Nunito-Regular',
+  },
 });
