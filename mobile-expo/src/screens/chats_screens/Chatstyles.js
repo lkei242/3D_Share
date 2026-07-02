@@ -9,7 +9,7 @@ const styles = StyleSheet.create({
   headerSubtitle: { fontSize: 12, color: '#888', fontFamily: 'Nunito-Regular' },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   headerIconBtn: { padding: 6 },
-  avatarCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#00A3FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFEE00' },
+  avatarCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#00A3FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, },
   avatarText: { color: '#FFEE00', fontSize: 20, fontWeight: 'bold', fontStyle: 'italic' },
   toolHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, justifyContent: 'space-between' },
   toolIcon: { alignItems: 'center', paddingHorizontal: 4 },
@@ -87,22 +87,8 @@ const styles = StyleSheet.create({
   mediaViewerFileBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN_ACCENT, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, marginTop: 10 },
   mediaViewerFileBtnText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
 
-  mediaTimeBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  mediaTimeBadgeText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontFamily: 'Nunito-Regular',
-  },
+  mediaTimeBadge: {position: 'absolute',bottom: 6,right: 6,flexDirection: 'row',alignItems: 'center',backgroundColor: 'rgba(0,0,0,0.45)',borderRadius: 10,paddingHorizontal: 6,paddingVertical: 2,},
+  mediaTimeBadgeText: {color: '#FFF',fontSize: 11,fontFamily: 'Nunito-Regular',},
 });
 
 export default styles;

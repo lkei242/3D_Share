@@ -23,6 +23,7 @@ import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import {
   collection,
   doc,
+  getDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -47,9 +48,64 @@ export default function ChatDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isDark = colors.text === '#FFFFFF';
   
-  const { chatId, name: chatName } = route.params;
+  // Recuperar los datos pasados desde ChatScreen
+  const { 
+    chatId, 
+    name: chatName, 
+    username: initialUsername, 
+    profilePicture: initialProfilePicture,
+    otherUid
+  } = route.params;
 
   const [messages, setMessages] = useState([]);
+  
+  // Inicializamos el estado directamente con lo que viene del listado anterior (instantáneo)
+  const [otherUser, setOtherUser] = useState({
+    uid: otherUid || '',
+    name: chatName,
+    username: initialUsername || '',
+    profilePicture: initialProfilePicture || '',
+  });
+
+  useEffect(() => {
+    if (!chatId) return;
+    const fetchOtherParticipantDetails = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+        const chatDocRef = doc(db, 'chats', chatId);
+        const chatDoc = await getDoc(chatDocRef);
+        if (chatDoc.exists()) {
+          const chatData = chatDoc.data();
+          const otherUid = chatData.participants?.find(uid => uid !== currentUser.uid);
+          
+          if (otherUid) {
+            const userDocRef = doc(db, 'users', otherUid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              
+              // Forzar https:// para evitar bloqueos de seguridad en imágenes
+              let picUrl = userData.profilePicture || '';
+              if (picUrl.startsWith('http://')) {
+                picUrl = picUrl.replace('http://', 'https://');
+              }
+              setOtherUser({
+                uid: otherUid,
+                name: userData.profileName || userData.username || chatName,
+                username: userData.username || '',
+                profilePicture: picUrl
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.log('Error cargando cabecera del chat:', err);
+      }
+    };
+    fetchOtherParticipantDetails();
+  }, [chatId, chatName]);
+
   const [showCustomCamera, setShowCustomCamera] = useState(false);
 
   // --- Visor de media a pantalla completa ---
@@ -721,6 +777,16 @@ export default function ChatDetailScreen({ route, navigation }) {
     });
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
+
+  const handleGoToUserProfile = () => {
+    if (!otherUser.uid) return; // Validación por seguridad
+    navigation.navigate('UserProfile', {
+      userId: otherUser.uid,
+      profileName: otherUser.name,
+      username: otherUser.username,
+      profilePicture: otherUser.profilePicture,
+    });
+  };
   
   return (
     <View style={{ flex: 1 }}>
@@ -790,15 +856,48 @@ export default function ChatDetailScreen({ route, navigation }) {
               <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 8 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{chatName.charAt(0)}</Text>
-              </View>
-              <View style={{ marginLeft: 8 }}>
-                <Text style={[styles.headerName, { color: colors.text }]} numberOfLines={1}>
-                  {chatName}
-                </Text>
-                <Text style={styles.headerSubtitle}>en línea</Text>
-              </View>
+              
+              {/* Envoltura táctil que redirige al perfil del usuario */}
+              <TouchableOpacity 
+                activeOpacity={0.7} 
+                onPress={handleGoToUserProfile} 
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+              >
+                {/* Foto de perfil o silueta Ionicons centrada */}
+                <View style={[
+                  styles.avatarCircle, 
+                  { 
+                    backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    overflow: 'hidden' 
+                  }
+                ]}>
+                  {otherUser.profilePicture ? (
+                    <Image source={{ uri: otherUser.profilePicture }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={40}
+                      color="#94BA46"
+                    />
+                  )}
+                </View>
+
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={[styles.headerName, { color: colors.text }]} numberOfLines={1}>
+                      {otherUser.name}
+                    </Text>
+                    {!!otherUser.username && (
+                      <Text style={{ fontSize: 13, color: isDark ? '#888' : '#777', fontFamily: 'Nunito-Regular' }} numberOfLines={1}>
+                        @{otherUser.username}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.headerSubtitle}>en línea</Text>
+                </View>
+              </TouchableOpacity>
             </View>
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.headerIconBtn} onPress={() => { setShowHeaderMenu(!showHeaderMenu); }}>

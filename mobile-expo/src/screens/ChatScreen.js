@@ -64,15 +64,25 @@ export default function ChatScreen({ navigation }) {
 
       const usersData = [];
       for (const uid of followingIds) {
+        // 1. Verificar si ya tenemos una sala de chat con este usuario
+        const hasExistingChat = chats.some(c => c.participants && c.participants.includes(uid));
+        if (hasExistingChat) continue; // Si ya existe el chat, salta al siguiente seguidor (no lo muestra)
         const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
+
+          let picUrl = data.profilePicture || '';
+          if (picUrl.startsWith('http://')) {
+            picUrl = picUrl.replace('http://', 'https://');
+          }
+
           usersData.push({
             id: uid,
             uid: uid,
             name: data.profileName || data.username || 'Usuario',
             username: data.username || 'usuario',
             email: data.email || '',
+            profilePicture: picUrl,
           });
         }
       }
@@ -94,7 +104,7 @@ export default function ChatScreen({ navigation }) {
       const existingChat = chats.find(c => c.participants && c.participants.includes(targetUser.uid));
       if (existingChat) {
         setShowNewChatModal(false);
-        navigation.navigate('ChatDetail', { chatId: existingChat.id, name: existingChat.name });
+        navigation.navigate('ChatDetail', { chatId: existingChat.id, name: existingChat.name,username: existingChat.username,profilePicture: existingChat.profilePicture,otherUid: targetUser.uid});
         return;
       }
 
@@ -109,7 +119,7 @@ export default function ChatScreen({ navigation }) {
       });
 
       setShowNewChatModal(false);
-      navigation.navigate('ChatDetail', { chatId: newChatRef.id, name: targetUser.name });
+      navigation.navigate('ChatDetail', { chatId: newChatRef.id, name: targetUser.name,username: targetUser.username,profilePicture: targetUser.profilePicture || '', otherUid: targetUser.uid});
     } catch (err) {
       console.log('Error al crear nuevo chat:', err);
       Alert.alert('Error', 'No se pudo iniciar el chat.');
@@ -181,6 +191,7 @@ export default function ChatScreen({ navigation }) {
           message: data.lastMessage || 'Sin mensajes aún',
           time: lastMsgTime,
           participants: data.participants || [],
+          otherUid: otherParticipantUid,
         };
       });
 
@@ -196,7 +207,13 @@ export default function ChatScreen({ navigation }) {
     <TouchableOpacity 
       style={styles.chatRow} 
       activeOpacity={0.7} 
-      onPress={() => navigation.navigate('ChatDetail', { chatId: item.id, name: item.name })}
+      onPress={() => navigation.navigate('ChatDetail', { 
+        chatId: item.id, 
+        name: item.name,
+        username: item.username,
+        profilePicture: item.profilePicture,
+        otherUid: item.otherUid
+      })}
     >
       <View style={styles.avatarContainer}>
         {item.profilePicture ? (
@@ -365,7 +382,7 @@ export default function ChatScreen({ navigation }) {
             ) : followingUsers.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
-                  No sigues a ningún usuario aún. Sigue a otros usuarios desde el buscador para chatear con ellos.
+                  Sigue a otros usuarios desde el buscador para chatear con ellos.
                 </Text>
               </View>
             ) : (
@@ -379,14 +396,14 @@ export default function ChatScreen({ navigation }) {
                     onPress={() => handleSelectUser(item)}
                   >
                     {item.profilePicture ? (
-                      <Image source={{ uri: item.profilePicture }} style={[styles.avatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} resizeMode="cover" />
+                      <Image source={{ uri: item.profilePicture }} style={[styles.modalAvatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} resizeMode="cover" />
                     ) : (
                       <View style={[styles.userAvatar, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden',  borderColor: isDark ? '#2A2A2A' : '#F0F0F0', }]}>
                         <Ionicons
                           name="person-circle-outline"
-                          size={40}
+                          size={46}
                           color="#94BA46"
-                          style={{ marginLeft: -3, marginTop: -3 }}
+                          style={{ marginLeft: -1, marginTop: -2 }}
                         />
                       </View>
                     )}
@@ -428,89 +445,22 @@ const styles = StyleSheet.create({
   avatarContainer: { marginRight: 12 },
   avatarCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
   avatarImage: { width: 52, height: 52, borderRadius: 26, borderWidth: 2 },
+  modalAvatarImage: {width: 44,height: 44,borderRadius: 22,borderWidth: 1.5,marginRight: 12},
   chatDetails: { flex: 1, justifyContent: 'center' },
   chatHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
   chatName: { fontSize: 16, fontFamily: 'Nunito-Bold' },
   chatTime: { color: '#888', fontSize: 13, fontFamily: 'Nunito-Regular' },
   chatMessage: { fontSize: 14, fontFamily: 'Nunito-Regular' },
-  fabButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: '70%',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#88888844',
-    paddingBottom: 12,
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: 'Nunito-Bold',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontFamily: 'Nunito-Regular',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#88888822',
-  },
-  userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#9DBD3F',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontFamily: 'Nunito-Bold',
-  },
-  userUsername: {
-    fontSize: 14,
-    color: '#888',
-    fontFamily: 'Nunito-Regular',
-  },
+  fabButton: {position: 'absolute',bottom: 24,right: 24,width: 60,height: 60,borderRadius: 30,justifyContent: 'center',alignItems: 'center',elevation: 6,shadowColor: '#000',shadowOpacity: 0.25,shadowRadius: 3.84,shadowOffset: { width: 0, height: 2 },},
+  modalOverlay: {flex: 1,backgroundColor: 'rgba(0, 0, 0, 0.5)',justifyContent: 'flex-end',},
+  modalContent: {borderTopLeftRadius: 20,borderTopRightRadius: 20,height: '70%',paddingHorizontal: 16,paddingTop: 16,},
+  modalHeader: {flexDirection: 'row',justifyContent: 'space-between',alignItems: 'center',borderBottomWidth: 0.5,borderBottomColor: '#88888844',paddingBottom: 12,marginBottom: 8,},
+  modalTitle: {fontSize: 20,fontFamily: 'Nunito-Bold',},
+  emptyContainer: {flex: 1,justifyContent: 'center',alignItems: 'center',paddingHorizontal: 32,},
+  emptyText: {fontSize: 16,fontFamily: 'Nunito-Regular',textAlign: 'center',lineHeight: 22,},
+  userRow: {flexDirection: 'row',alignItems: 'center',paddingVertical: 12,borderBottomWidth: 0.5,borderBottomColor: '#88888822',},
+  userAvatar: {width: 44,height: 44,borderRadius: 22,backgroundColor: '#9DBD3F',justifyContent: 'center',alignItems: 'center',marginRight: 12,},
+  userInfo: {flex: 1,},
+  userName: {fontSize: 16,fontFamily: 'Nunito-Bold',},
+  userUsername: {fontSize: 14,color: '#888',fontFamily: 'Nunito-Regular',},
 });
