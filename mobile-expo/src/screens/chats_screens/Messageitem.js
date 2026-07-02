@@ -121,9 +121,9 @@ const MessageItem = React.memo(({
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => Linking.openURL(`https://maps.google.com/?q=${item.latitude},${item.longitude}`)}
-            style={{ borderRadius: 12, overflow: 'hidden', width: 240 }}
+            style={{ borderRadius: 12, overflow: 'hidden', width: 260, marginHorizontal: -10, marginTop: -6 }}
           >
-            <View style={{ width: 240, height: 140, overflow: 'hidden' }} pointerEvents="none">
+            <View style={{ width: 260, height: 190, overflow: 'hidden' }} pointerEvents="none">
               <WebView
                 style={{ flex: 1 }}
                 scrollEnabled={false}
@@ -134,7 +134,7 @@ const MessageItem = React.memo(({
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
-              paddingVertical: 8,
+              paddingVertical: 4,
               paddingHorizontal: 10,
               gap: 6,
               backgroundColor: isMe ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.06)',

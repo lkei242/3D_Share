@@ -224,7 +224,7 @@ export default function HomeScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Publish')}>
           <View style={styles.publishButtonContainer}>
             <MaterialCommunityIcons name="plus-circle-outline" size={22} color={colors.text} />

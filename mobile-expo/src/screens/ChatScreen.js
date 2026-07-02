@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerLogo: { width: 46, height: 46 },
   titleContainer: { alignItems: 'center', position: 'relative' },
-  headerTitle: { fontSize: 24, fontFamily: 'Nunito-Bold' },
+  headerTitle: { marginLeft: 8,fontSize: 24, fontFamily: 'Nunito-Bold' },
   caretIcon: { position: 'absolute', bottom: -14 },
   solicitudesButton: { paddingVertical: 6 },
   solicitudesText: { fontSize: 16, fontFamily: 'Nunito-Bold' },

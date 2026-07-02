@@ -399,15 +399,15 @@ export default function ProfileScreen({ navigation }) {
     style={[
       styles.header,
       {
-        paddingTop: insets.top + 6,
-        backgroundColor: colors.background,
+        paddingTop: insets.top + 0,
+        backgroundColor: colors.card,
         borderBottomColor: isDark ? '#222' : '#E8E8E8',
       },
     ]}
   >
     <TouchableOpacity
       onPress={() => navigation.navigate('AccountSwitcher')}
-      style={styles.headerCenter}
+      style={[styles.headerCenter, { marginLeft: 8 }, { marginTop: 10}]}
     >
       <Text
         style={[styles.headerUsername, { color: colors.text }]}
@@ -415,8 +415,10 @@ export default function ProfileScreen({ navigation }) {
       >
         {userName}
       </Text>
+      <View style={[styles.headerDivider, { backgroundColor: isDark ? '#444' : '#DDD' }]} />
       <Text
         style={[styles.headerHandle, { color: isDark ? '#888' : '#666' }]}
+        numberOfLines={1}
       >
         @{userUsername}
       </Text>
@@ -590,20 +592,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
 headerBtn: {
-  padding: 6,  // 👈 cambiar de 8 a 6
+  padding: 8,
 },
 headerCenter: {
   flex: 1,
+  flexDirection: 'row',
   marginHorizontal: 8,
 },
 headerUsername: {
-  fontSize: 16,  // 👈 cambiar de 23 a 16
+  fontSize: 22,
   fontFamily: 'Nunito-BoldItalic',
 },
+headerDivider: {
+  width: 1.2,
+  height: 32,
+  marginHorizontal: 8,
+},
 headerHandle: {
-  fontSize: 12,  // 👈 cambiar de 14 a 12
+  fontSize: 14,
   fontFamily: 'Nunito-Regular',
-  marginTop: 1,
+  marginTop: 6,
 },
 headerActions: {
   flexDirection: 'row',
