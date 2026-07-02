@@ -460,20 +460,24 @@ export default function PostDetailScreen({ route, navigation }) {
                                     onPress: async () => {
                                         try {
                                             const postId = menuPost.id;
-                                            // Eliminar likes, views, saved y comments asociados
+                                            // Eliminar el post primero (lo más importante)
+                                            await deleteDoc(doc(db, 'posts', postId));
+                                            // Luego intentar limpiar colecciones relacionadas (falla si las reglas de seguridad lo bloquean)
                                             const collections = ['likes', 'views', 'saved', 'comments'];
                                             for (const col of collections) {
-                                                const q = query(collection(db, col), where('postId', '==', postId));
-                                                const snap = await getDocs(q);
-                                                for (const d of snap.docs) {
-                                                    await deleteDoc(d.ref);
-                                                }
+                                                try {
+                                                    const q = query(collection(db, col), where('postId', '==', postId));
+                                                    const snap = await getDocs(q);
+                                                    for (const d of snap.docs) {
+                                                        try { await deleteDoc(d.ref); } catch (e) {}
+                                                    }
+                                                } catch (e) {}
                                             }
-                                            await deleteDoc(doc(db, 'posts', postId));
                                             setMenuPost(null);
                                             navigation.goBack();
                                         } catch (error) {
                                             console.log('Error eliminando publicación:', error);
+                                            Alert.alert('Error', 'No se pudo eliminar la publicación. Revisá tu conexión o intentá de nuevo.');
                                         }
                                     },
                                 },
