@@ -25,6 +25,7 @@ import { auth, db } from '../config/firebase';
 import { blockUser } from '../config/userActions';
 import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
+import MediaViewerModal from '../chats_screens/Mediaviewer';
 import {
     doc,
     getDoc,
@@ -49,12 +50,11 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // COMPONENTE: PostItem (un post individual, autónomo)
 // ============================================================
 
-const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress }) {
+const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress, onOpenMediaViewer }) {
     const currentUser = auth.currentUser;
     const [liked, setLiked] = useState(false);
     const [saved, setSaved] = useState(false);
     const [postViews, setPostViews] = useState(post.views || 0);
-    const [selectedImage, setSelectedImage] = useState(null);
     const [descExpanded, setDescExpanded] = useState(false);
     const moreButtonRef = React.useRef(null);
 
@@ -177,7 +177,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             >
                 {/* POST IMAGE */}
                 <View style={styles.imageWrapper}>
-                    <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedImage(post.image)}>
+                    <TouchableOpacity activeOpacity={0.9} onPress={() => onOpenMediaViewer?.(post)}>
                         <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="cover" />
                     </TouchableOpacity>
                 </View>
@@ -233,11 +233,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                 </View>
 
             </View>
-            <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
-                <TouchableOpacity style={styles.imageModalOverlay} activeOpacity={1} onPress={() => setSelectedImage(null)}>
-                    <Image source={{ uri: selectedImage }} style={styles.imageModalImage} resizeMode="contain" />
-                </TouchableOpacity>
-            </Modal>
+            
         </View>
     );
 });
@@ -256,11 +252,7 @@ export default function PostDetailScreen({ route, navigation }) {
 
     const initialIndex = posts.findIndex((p) => p.id === post.id);
     const validIndex = initialIndex >= 0 ? initialIndex : 0;
-    //
-    //
-    //
-    //
-    //
+    const [mediaViewerPost, setMediaViewerPost] = useState(null);
     const [commentsPost, setCommentsPost] = useState(null);
     const [menuPost, setMenuPost] = useState(null);
     const [menuAnchor, setMenuAnchor] = useState(null);  
@@ -386,6 +378,7 @@ export default function PostDetailScreen({ route, navigation }) {
                             displayName={item.authorProfileName || 'Usuario'}
                             displayHandle={'@' + (item.authorUsername || 'usuario')}
                             authorProfilePicture={item.authorProfilePicture || ''}
+                            onOpenMediaViewer={(post) => setMediaViewerPost(post)}
                             onOpenComments={(post) => {
                                 setCommentsPost(post);
                             }}
@@ -493,6 +486,12 @@ export default function PostDetailScreen({ route, navigation }) {
                     }
                 }}
             />
+            <MediaViewerModal
+                visible={mediaViewerPost !== null}
+                items={mediaViewerPost ? [{ id: mediaViewerPost.id, mediaUrl: mediaViewerPost.image, type: 'image' }] : []}
+                initialIndex={0}
+                onClose={() => setMediaViewerPost(null)}
+            />
         </KeyboardAvoidingView>
     );
 }
@@ -589,17 +588,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
         gap: 6,
     },
-    webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' },
-    // AGREGAR:
-  imageModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalImage: {
-    width: screenWidth,
-    height: screenWidth,
-  },
+    webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' }
   
 });
