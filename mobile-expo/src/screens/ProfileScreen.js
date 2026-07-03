@@ -266,15 +266,20 @@ export default function ProfileScreen({ navigation }) {
         data={sorted}
         keyExtractor={(item) => item.id}
         numColumns={3}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isPinned = pinnedPosts.includes(item.id);
           const firstMedia = item.media[0];
           const isFirstMediaVideo = firstMedia?.type === 'video';
           const isVisible = visibleItems.has(item.id);
 
+          const column = (index % 3) + 1; // 1, 2, 3
+
           return (
             <TouchableOpacity
-              style={styles.gridItem}
+              style={[
+                styles.gridItem,
+                column === 1 && { marginLeft: 1.5 }, // 👈 primera columna (izquierda)
+              ]}
               activeOpacity={0.85}
               onPress={() => handlePostPress(item)}
               onLongPress={() => {
@@ -293,14 +298,12 @@ export default function ProfileScreen({ navigation }) {
                 );
               }}
             >
-              {/* 🆕 Si el primer elemento es video, reproducirlo; si no, mostrar imagen */}
               {isFirstMediaVideo ? (
                 <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
               ) : (
                 <Image source={{ uri: item.image }} style={styles.gridImage} />
               )}
 
-              {/* 🆕 Badge de video solo si el primer elemento es video */}
               {isFirstMediaVideo && (
                 <View style={styles.videoBadge}>
                   <MaterialCommunityIcons name="video" size={12} color="#FFF" />
@@ -812,6 +815,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingTop: 4,
     minHeight: 300,
+    
   },
   gridContainer: {
     flexDirection: 'row',
@@ -824,6 +828,7 @@ const styles = StyleSheet.create({
     width: GRID_ITEM_SIZE,
     height: GRID_ITEM_SIZE,
     borderRadius: 6,
+    margin: 1,
     overflow: 'hidden',
     backgroundColor: '#333',
     position: 'relative',

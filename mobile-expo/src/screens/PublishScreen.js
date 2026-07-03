@@ -165,7 +165,7 @@ export default function PublishScreen({ navigation }) {
         mediaTypes: ['images', 'videos'],
         allowsMultipleSelection: true,
         quality: 0.85,
-        selectionLimit: 10 - mediaItems.length, // límite de 10 en total
+        selectionLimit: 5 - mediaItems.length,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -175,13 +175,19 @@ export default function PublishScreen({ navigation }) {
           duration: asset.duration || 0,
           width: asset.width,
           height: asset.height,
+          fileSize: asset.fileSize || 0,
         }));
 
         setMediaItems((prev) => {
           const combined = [...prev, ...newItems];
-          if (combined.length > 10) {
-            showToast('Máximo 10 archivos por publicación', 'error');
-            return combined.slice(0, 10);
+          const totalSize = combined.reduce((sum, m) => sum + (m.fileSize || 0), 0);
+          if (combined.length > 5) {
+            showToast('Máximo 5 archivos por publicación', 'error');
+            return combined.slice(0, 5);
+          }
+          if (totalSize > 30 * 1024 * 1024) {
+            showToast('El tamaño total supera los 30 MB', 'error');
+            return prev;
           }
           return combined;
         });
@@ -314,7 +320,8 @@ export default function PublishScreen({ navigation }) {
   // RENDER
   // ============================================================
   const hasMedia = mediaItems.length > 0;
-  const canAddMore = mediaItems.length < 10;
+  const canAddMore = mediaItems.length < 5;
+  const totalMB = mediaItems.reduce((sum, m) => sum + (m.fileSize || 0), 0) / (1024 * 1024);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -324,22 +331,7 @@ export default function PublishScreen({ navigation }) {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Nueva publicación</Text>
-        <TouchableOpacity
-          onPress={handlePublish}
-          disabled={loading || !hasMedia || !titulo.trim()}
-          style={[
-            styles.publishHeaderButton,
-            {
-              backgroundColor: loading || !hasMedia || !titulo.trim() ? '#3a4d14' : '#9DBD3F',
-            },
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFF" size="small" />
-          ) : (
-            <Text style={styles.publishHeaderButtonText}>Compartir</Text>
-          )}
-        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
       </View>
 
       <KeyboardAwareScrollView
@@ -388,7 +380,7 @@ export default function PublishScreen({ navigation }) {
               <View style={styles.mediaInfoLeft}>
                 <MaterialCommunityIcons name="image-multiple" size={16} color={isDark ? '#888' : '#666'} />
                 <Text style={[styles.mediaInfoText, { color: isDark ? '#888' : '#666' }]}>
-                  {mediaItems.length} / 10
+                  {mediaItems.length} / 5 · {totalMB.toFixed(1)} MB
                 </Text>
               </View>
               <Text style={[styles.mediaInfoHint, { color: isDark ? '#666' : '#999' }]}>
@@ -555,17 +547,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
+    marginLeft: 2,
     fontFamily: 'Nunito-Bold',
-  },
-  publishHeaderButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 18,
-  },
-  publishHeaderButtonText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'Nunito-Bold',
+    textAlign: 'left',
+    marginLeft: 12,
   },
   scrollContent: {
     paddingBottom: 30,
