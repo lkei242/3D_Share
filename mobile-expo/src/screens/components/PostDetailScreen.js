@@ -48,76 +48,38 @@ import { formatViews } from '../config/formatViews';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // ============================================================
-// 🆕 COMPONENTE: VideoPlayer (thumbnail + play overlay)
+// 🆕 COMPONENTE: VideoThumbnail (miniatura estática, no interactiva)
+// El toque para reproducir/ver en grande lo maneja el TouchableOpacity
+// exterior del carrusel, igual que con las imágenes: así abrir un video
+// se siente idéntico a abrir una imagen (mismo modal, mismo gesto).
 // ============================================================
-const VideoPlayer = React.memo(function VideoPlayer({ uri, style }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-
+const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
   const player = useVideoPlayer(uri, (playerInstance) => {
     playerInstance.loop = false;
-    playerInstance.muted = false;
-    // NO reproducir automáticamente - mostrar primer frame como thumbnail
+    playerInstance.muted = true;
+    // No reproducir acá: esto es solo una miniatura (primer frame).
   });
-
-  // Escuchar cuando termina el video para volver a mostrar el botón play
-  useEffect(() => {
-    const onPlaybackStatusChange = () => {
-      // Si el video se pausa (terminó o pausó manualmente), actualizar estado
-      if (!player.playing) {
-        setIsPlaying(false);
-      }
-    };
-
-    // Verificar periódicamente si el video terminó
-    const interval = setInterval(() => {
-      if (player.playing) {
-        const currentTime = player.currentTime;
-        const duration = player.duration;
-        if (duration > 0 && currentTime >= duration - 0.1) {
-          setIsPlaying(false);
-          player.pause();
-        }
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [player]);
-
-  const handleTogglePlay = () => {
-    if (isPlaying) {
-      player.pause();
-      setIsPlaying(false);
-    } else {
-      player.play();
-      setIsPlaying(true);
-    }
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000', position: 'relative' }}>
       <VideoView
         player={player}
         style={style || styles.postImage}
-        allowsFullscreen={true}
+        allowsFullscreen={false}
         allowsPictureInPicture={false}
-        nativeControls={isPlaying} // Solo mostrar controles nativos cuando está reproduciendo
+        nativeControls={false}
         contentFit="cover"
+        pointerEvents="none"
       />
 
-      {/* Botón de play overlay (solo cuando está pausado) */}
-      {!isPlaying && (
-        <TouchableOpacity
-          style={styles.playButtonOverlay}
-          onPress={handleTogglePlay}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons
-            name="play-circle"
-            size={70}
-            color="rgba(255,255,255,0.9)"
-          />
-        </TouchableOpacity>
-      )}
+      {/* Ícono de play puramente visual (no capta toques) */}
+      <View style={styles.playButtonOverlay} pointerEvents="none">
+        <MaterialCommunityIcons
+          name="play-circle"
+          size={70}
+          color="rgba(255,255,255,0.9)"
+        />
+      </View>
     </View>
   );
 });
@@ -258,17 +220,12 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             renderItem={({ item, index }) => (
               <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={() => {
-                  // Solo abrir media viewer si es imagen (no video)
-                  if (item.type !== 'video') {
-                    onOpenMediaViewer?.(post, index);
-                  }
-                }}
+                onPress={() => onOpenMediaViewer?.(post, index)}
                 style={{ width: screenWidth, height: '100%' }}
               >
                 {item.type === 'video' ? (
-                  // 🆕 Usar VideoPlayer con thumbnail y botón play
-                  <VideoPlayer uri={item.url} style={styles.postImage} />
+                  // Miniatura estática; tocar abre el visor fullscreen (igual que la imagen)
+                  <VideoThumbnail uri={item.url} style={styles.postImage} />
                 ) : (
                   <Image source={{ uri: item.url }} style={styles.postImage} resizeMode="cover" />
                 )}

@@ -42,11 +42,15 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   const panRef = useRef(null);
 
   const player = useVideoPlayer(item.type === 'video' ? item.mediaUrl : null, (p) => {
-    if (p) p.loop = false;
+    if (p) {
+      p.loop = false;
+      p.muted = false;
+      p.volume = 1;
+    }
   });
 
   // Altura real usable, descontando status bar y barra de navegación del sistema
-  const mediaHeight = (SCREEN_HEIGHT - (insets?.top || 0) - (insets?.bottom || 0)) * 0.85;
+    const mediaHeight = (SCREEN_HEIGHT - (insets?.top || 0) - (insets?.bottom || 0)) * 1.1653;
 
   // Si el aspect ratio de la imagen coincide con el de la pantalla (ej: una captura
   // de pantalla), la mostramos a pantalla completa en vez de con margen arriba/abajo.
@@ -62,15 +66,15 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     imageHeightRef.current = imageHeight;
   }, [imageHeight]);
 
-  useEffect(() => {
-    if (player && item.type === 'video' && !isActive) {
-      player.pause();
-    }
-    // Al dejar de ser la página activa (cambiamos de foto/video), volvemos a escala normal
-    if (!isActive) {
-      resetZoom();
-    }
-  }, [isActive]);
+    useEffect(() => {
+      if (!isActive) {
+        try { if (player && item.type === 'video') player.pause(); } catch (_) {}
+        resetZoom();
+      }
+      return () => {
+        try { if (player && item.type === 'video') player.pause(); } catch (_) {}
+      };
+    }, [isActive]);
 
   useEffect(() => {
     onZoomChange?.(zoomed);
@@ -260,7 +264,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
                   player={player}
                   style={{ width: '100%', height: '100%' }}
                   nativeControls
-                  allowsFullscreen
+                    allowsFullscreen={false}
                   contentFit="contain"
                 />
               </Animated.View>
