@@ -91,11 +91,11 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
   const currentUser = auth.currentUser;
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [postViews, setPostViews] = useState(post.views || 0);
   const [descExpanded, setDescExpanded] = useState(false);
   const [currentMediaIdx, setCurrentMediaIdx] = useState(0);
   const moreButtonRef = React.useRef(null);
   const mediaList = post.media && post.media.length > 0 ? post.media : [{ url: post.image, type: 'image' }];
+  const postViews = post.views || 0;
 
   const DESCRIPTION_LIMIT = 100;
   const fullDescription = post.description || 'Sin descripción adicional.';
@@ -111,18 +111,6 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
       });
     }
   };
-
-  useEffect(() => {
-    if (!post?.id) return;
-    let cancelled = false;
-    const postRef = doc(db, 'posts', post.id);
-    getDoc(postRef).then((snapshot) => {
-      if (!cancelled && snapshot.exists()) {
-        setPostViews(snapshot.data().vistas || 0);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [post?.id]);
 
   const handleLike = async () => {
     if (!currentUser || !post) return;
@@ -224,8 +212,13 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                 style={{ width: screenWidth, height: '100%' }}
               >
                 {item.type === 'video' ? (
-                  // Miniatura estática; tocar abre el visor fullscreen (igual que la imagen)
-                  <VideoThumbnail uri={item.url} style={styles.postImage} />
+                  index === currentMediaIdx ? (
+                    <VideoThumbnail uri={item.url} style={styles.postImage} />
+                  ) : (
+                    <View style={[styles.postImage, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
+                      <MaterialCommunityIcons name="play-circle" size={70} color="rgba(255,255,255,0.9)" />
+                    </View>
+                  )
                 ) : (
                   <Image source={{ uri: item.url }} style={styles.postImage} resizeMode="cover" />
                 )}
@@ -320,18 +313,6 @@ export default function PostDetailScreen({ route, navigation }) {
 
   const flatListRef = useRef(null);
 
-  useEffect(() => {
-    if (flatListRef.current && validIndex > 0) {
-      const timer = setTimeout(() => {
-        flatListRef.current.scrollToIndex({
-          index: validIndex,
-          animated: false,
-        });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [validIndex]);
-
   const onScrollToIndexFailed = useCallback((info) => {
     if (flatListRef.current) {
       flatListRef.current.scrollToOffset({
@@ -416,6 +397,8 @@ export default function PostDetailScreen({ route, navigation }) {
           }}
           data={postsList}
           keyExtractor={(item) => item.id}
+          initialScrollIndex={validIndex}
+          initialNumToRender={1}
           getItemLayout={(data, index) => ({
             length: PAGE_HEIGHT,
             offset: PAGE_HEIGHT * index,
@@ -459,8 +442,8 @@ export default function PostDetailScreen({ route, navigation }) {
           scrollEventThrottle={16}
           horizontal={false}
           showsVerticalScrollIndicator={false}
-          removeClippedSubviews={false}
-          windowSize={5}
+          removeClippedSubviews={true}
+          windowSize={3}
           onScrollToIndexFailed={onScrollToIndexFailed}
           keyboardShouldPersistTaps="handled"
         />

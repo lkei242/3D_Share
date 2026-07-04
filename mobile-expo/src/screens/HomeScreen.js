@@ -262,9 +262,20 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   };
 
+  const isFirstFocus = useRef(true);
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
+      if (isFirstFocus.current) {
+        // Primer ingreso a Home: cargamos el feed desde cero.
+        isFirstFocus.current = false;
+        Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
+      } else {
+        // Volvimos de otra pantalla (ej: PostDetail). No reseteamos
+        // el feed para no perder lo que ya se cargó con el scroll
+        // infinito; solo refrescamos la lista de bloqueados.
+        fetchBlockedUsers();
+      }
     });
     return unsubscribe;
   }, [navigation]);
