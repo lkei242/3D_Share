@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useTheme } from '@react-navigation/native';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
+import { deleteMediaFromCloudinary } from './config/mediaHelper';
 import { auth, db } from './config/firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc, arrayUnion, arrayRemove, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import {
   View,
   Text,
@@ -15,9 +16,11 @@ import {
   PanResponder,
   Modal,
   Alert,
+  Pressable,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const v1 = '#546F1C';
@@ -32,6 +35,10 @@ export default function ChatScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [showManagement, setShowManagement] = useState(false);
+  const managementOpacity = useRef(new Animated.Value(0)).current;
+  const managementSlide = useRef(new Animated.Value(300)).current;
   
   const caretAnims = [useRef(new Animated.Value(1)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
   const switchTab = (index) => {
@@ -48,6 +55,34 @@ export default function ChatScreen({ navigation }) {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [followingUsers, setFollowingUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
+
+  // --- Modal de confirmación propio de la app (reemplaza los Alert.alert de
+  // borrado de chat, tanto en handleDeleteChat como en checkAndDelete) ---
+  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+  const confirmOpacity = useRef(new Animated.Value(0)).current;
+  const confirmScale = useRef(new Animated.Value(0.9)).current;
+
+  const openConfirmModal = ({ title, message, onConfirm }) => {
+    setConfirmModal({ title, message, onConfirm });
+    confirmScale.setValue(0.9);
+    Animated.parallel([
+      Animated.timing(confirmOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.spring(confirmScale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 9 }),
+    ]).start();
+  };
+
+  const closeConfirmModal = (onClosed) => {
+    Animated.timing(confirmOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setConfirmModal(null);
+      if (onClosed) onClosed();
+    });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      cleanupPendingDeletions();
+    }, [])
+  );
 
   // Cargar usuarios a los que sigue
   const handleOpenNewChat = async () => {
@@ -94,36 +129,63 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
-  // Al seleccionar un usuario para chatear
+  // Al seleccionar un usuario para chatear — el chat se crea al enviar el primer mensaje
   const handleSelectUser = async (targetUser) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      // 1. Verificar si ya tenemos un chat abierto con este usuario
-      const existingChat = chats.find(c => c.participants && c.participants.includes(targetUser.uid));
-      if (existingChat) {
-        setShowNewChatModal(false);
-        navigation.navigate('ChatDetail', { chatId: existingChat.id, name: existingChat.name,username: existingChat.username,profilePicture: existingChat.profilePicture,otherUid: targetUser.uid});
-        return;
-      }
-
-      // 2. Si no existe, crear un nuevo chat
-      const chatsRef = collection(db, 'chats');
-      const newChatRef = await addDoc(chatsRef, {
-        participants: [user.uid, targetUser.uid],
-        participantNames: [user.email, targetUser.name],
-        lastMessage: 'Sin mensajes aún',
-        lastMessageTime: new Date(),
-        lastSender: user.uid,
+    setShowNewChatModal(false);
+    const user = auth.currentUser;
+    if (!user) return;
+    // 1. Buscar en chats visibles (no eliminados por el usuario actual)
+    const existingChat = chats.find(c => c.participants && c.participants.includes(targetUser.uid));
+    if (existingChat) {
+      navigation.navigate('ChatDetail', {
+        chatId: existingChat.id,
+        name: existingChat.name,
+        username: existingChat.username,
+        profilePicture: existingChat.profilePicture,
+        otherUid: targetUser.uid,
       });
-
-      setShowNewChatModal(false);
-      navigation.navigate('ChatDetail', { chatId: newChatRef.id, name: targetUser.name,username: targetUser.username,profilePicture: targetUser.profilePicture || '', otherUid: targetUser.uid});
-    } catch (err) {
-      console.log('Error al crear nuevo chat:', err);
-      Alert.alert('Error', 'No se pudo iniciar el chat.');
+      return;
     }
+    // 2. Buscar en Firestore un chat eliminado por el usuario actual (para restaurar)
+    try {
+      const q = query(collection(db, 'chats'), where('participants', 'array-contains', user.uid));
+      const snap = await getDocs(q);
+      const deletedChatDoc = snap.docs.find(d => {
+        const data = d.data();
+        const deletedBy = data.deletedBy || [];
+        return data.participants?.includes(targetUser.uid) && deletedBy.includes(user.uid);
+      });
+      if (deletedChatDoc) {
+        const deletedBy = deletedChatDoc.data().deletedBy || [];
+        const bothDeleted = deletedBy.includes(targetUser.uid);
+        if (bothDeleted) {
+          // Ambos eliminaron y el doc aún existe (debería haberse borrado) → borrar y crear nuevo
+          await permanentlyDeleteChat(deletedChatDoc.id);
+        } else {
+          // Solo el usuario actual eliminó → restaurar quitando su UID de deletedBy
+          await updateDoc(deletedChatDoc.ref, { deletedBy: arrayRemove(user.uid) });
+          navigation.navigate('ChatDetail', {
+            chatId: deletedChatDoc.id,
+            name: targetUser.name,
+            username: targetUser.username,
+            profilePicture: targetUser.profilePicture || '',
+            otherUid: targetUser.uid,
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.log('Error buscando chat eliminado:', err);
+    }
+    // 3. No existe chat previo → crear nuevo
+    navigation.navigate('ChatDetail', {
+      chatId: null,
+      name: targetUser.name,
+      username: targetUser.username,
+      profilePicture: targetUser.profilePicture || '',
+      otherUid: targetUser.uid,
+      isNewChat: true,
+    });
   };
 
   const activeTabRef = useRef(activeTab);
@@ -139,6 +201,166 @@ export default function ChatScreen({ navigation }) {
       else if (gs.dx < -50) switchTab(Math.min(2, activeTabRef.current + 1));
     },
   }), []);
+
+  const showManagementCard = (chat) => {
+    setSelectedChat(chat);
+    setShowManagement(true);
+    Animated.parallel([
+      Animated.timing(managementOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.timing(managementSlide, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeManagementCard = (onClosed) => {
+    Animated.parallel([
+      Animated.timing(managementOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(managementSlide, { toValue: 300, duration: 250, useNativeDriver: true }),
+    ]).start(() => {
+      setShowManagement(false);
+      setSelectedChat(null);
+      if (onClosed) onClosed();
+    });
+  };
+
+  const handlePin = () => {
+    Alert.alert('Fijado', `${selectedChat.name} fijado al inicio`);
+    closeManagementCard();
+  };
+
+  const handleDeleteChat = () => {
+    const chat = selectedChat;
+    closeManagementCard(() => {
+      // 1ra confirmación: preguntar si quiere eliminar
+      openConfirmModal({
+        title: 'Eliminar chat',
+        message: '¿Eliminar esta conversación?',
+        onConfirm: () => checkAndDelete(chat),
+      });
+    });
+  };
+
+  const handleMute = () => {
+    Alert.alert('Silenciado', `Notificaciones de ${selectedChat.name} silenciadas`);
+    closeManagementCard();
+  };
+
+  const handleArchive = () => {
+    Alert.alert('Archivado', `${selectedChat.name} archivado`);
+    closeManagementCard();
+  };
+
+  const handleMore = () => {
+    Alert.alert('Más opciones', `Opciones para ${selectedChat.name}`);
+    closeManagementCard();
+  };
+
+  const checkAndDelete = async (chat) => {
+    try {
+      const user = auth.currentUser;
+      const chatRef = doc(db, 'chats', chat.id);
+      const otherUid = chat.otherUid;
+
+      // Leer datos FRESCOS de Firestore (no confiar en el estado)
+      const chatSnap = await getDoc(chatRef);
+      if (!chatSnap.exists()) return;
+      const freshDeletedBy = chatSnap.data().deletedBy || [];
+      const otherAlreadyDeleted = freshDeletedBy.includes(otherUid);
+
+      if (otherAlreadyDeleted) {
+        openConfirmModal({
+          title: 'Eliminar chat',
+          message: 'Eres el ultimo usuario con una copia del chat.\n\nLuego de eliminar este chat su contenido se borrará para siempre.',
+          onConfirm: async () => {
+            await updateDoc(chatRef, { deletedBy: arrayUnion(user.uid) });
+            await permanentlyDeleteChat(chat.id);
+          },
+        });
+        return;
+        
+      }
+
+      // Si no se cumplen las condiciones: solo marcar como eliminado por este usuario
+      await updateDoc(chatRef, { deletedBy: arrayUnion(user.uid) });
+    } catch (err) {
+      console.log('Error al verificar borrado:', err);
+    }
+  };
+
+  const permanentlyDeleteChat = async (chatId) => {
+    try {
+      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const messagesSnap = await getDocs(messagesRef);
+
+      // 1. Recopilar todas las URLs de Cloudinary a eliminar
+      const cloudinaryDeletions = [];
+      for (const d of messagesSnap.docs) {
+        const data = d.data();
+
+        // Mensajes con un solo archivo (image, video, audio, file)
+        if (data.mediaUrl) {
+          cloudinaryDeletions.push(
+            deleteMediaFromCloudinary(data.mediaUrl).catch(e =>
+              console.log('Error borrando media de Cloudinary:', e)
+            )
+          );
+        }
+
+        // Mensajes con múltiples archivos (media_group)
+        if (Array.isArray(data.mediaItems)) {
+          for (const item of data.mediaItems) {
+            if (item.url) {
+              cloudinaryDeletions.push(
+                deleteMediaFromCloudinary(item.url).catch(e =>
+                  console.log('Error borrando media del grupo:', e)
+                )
+              );
+            }
+          }
+        }
+      }
+
+      // Esperar a que Cloudinary elimine todo
+      await Promise.all(cloudinaryDeletions);
+
+      // 2. Eliminar todos los mensajes de Firestore en paralelo
+      await Promise.all(
+        messagesSnap.docs.map(d =>
+          deleteDoc(doc(db, `chats/${chatId}/messages/${d.id}`))
+        )
+      );
+
+      // 3. Eliminar el documento del chat
+      await deleteDoc(doc(db, 'chats', chatId));
+
+      console.log('Chat borrado exitosamente (Firestore + Cloudinary)');
+    } catch (err) {
+      console.log('ERROR al borrar chat:', err.code, err.message);
+    }
+  };
+
+  const cleanupPendingDeletions = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const chatsRef = collection(db, 'chats');
+      const q = query(chatsRef, where('participants', 'array-contains', user.uid));
+      const snap = await getDocs(q);
+
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data();
+        const deletedBy = data.deletedBy || [];
+        if (deletedBy.length >= 2 && deletedBy.includes(user.uid)) {
+          const otherUid = data.participants?.find(uid => uid !== user.uid);
+          if (otherUid && deletedBy.includes(otherUid)) {
+            await permanentlyDeleteChat(docSnap.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Error en cleanupPendingDeletions:', err);
+    }
+  };
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -166,7 +388,6 @@ export default function ChatScreen({ navigation }) {
               otherProfilePicture = userData.profilePicture || '';
               otherUsername = userData.username || '';
             } else {
-              // Si no existe el documento de usuario, usamos el fallback de participantNames
               otherParticipantName = data.participantNames?.find(name => name !== user.email) || 'Usuario';
             }
           } catch (err) {
@@ -192,10 +413,29 @@ export default function ChatScreen({ navigation }) {
           time: lastMsgTime,
           participants: data.participants || [],
           otherUid: otherParticipantUid,
+          deletedBy: data.deletedBy || [],
         };
       });
 
-      const chatList = await Promise.all(chatPromises);
+      // Resolver TODOS los datos antes de usarlos
+      const resolvedChats = await Promise.all(chatPromises);
+
+      // 1. Background cleanup: datos crudos (antes del filtro)
+      for (const chat of resolvedChats) {
+        const deletedBy = chat.deletedBy || [];
+        if (deletedBy.length >= 2 && deletedBy.includes(user.uid)) {
+          const otherUid = chat.otherUid;
+          if (otherUid && deletedBy.includes(otherUid)) {
+            try {
+              await permanentlyDeleteChat(chat.id);
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 2. Filtrar los chats donde el usuario actual ya eliminó (solo se ocultan de la vista)
+      const chatList = resolvedChats.filter(c => !(c.deletedBy || []).includes(user.uid));
+
       setChats(chatList);
       setLoading(false);
     });
@@ -214,6 +454,8 @@ export default function ChatScreen({ navigation }) {
         profilePicture: item.profilePicture,
         otherUid: item.otherUid
       })}
+      onLongPress={() => showManagementCard(item)}
+      delayLongPress={400}
     >
       <View style={styles.avatarContainer}>
         {item.profilePicture ? (
@@ -249,7 +491,7 @@ export default function ChatScreen({ navigation }) {
         </Text>
       </View>
     </TouchableOpacity>
-  ), [colors, isDark, navigation]);
+  ), [colors, isDark, navigation, showManagementCard]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -350,6 +592,59 @@ export default function ChatScreen({ navigation }) {
       )}
     </View>
 
+      {/* OVERLAY DE GESTIÓN DE CHAT */}
+      {showManagement && (
+        <Animated.View style={[styles.managementOverlay, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: managementOpacity }]}>
+          <TouchableWithoutFeedback onPress={() => closeManagementCard()}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+          <Animated.View style={[styles.managementCard, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', transform: [{ translateY: managementSlide }] }]}>
+            {/* Info del chat seleccionado */}
+            <View style={styles.managementChatInfo}>
+              {selectedChat?.profilePicture ? (
+                <Image source={{ uri: selectedChat.profilePicture }} style={[styles.managementAvatar, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} />
+              ) : (
+                <View style={[styles.managementAvatarCircle, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                  <Ionicons name="person-circle-outline" size={53.5} color="#94BA46" style={{ marginLeft: -1, marginTop: -1 }} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.managementChatName, { color: colors.text }]} numberOfLines={1}>
+                  {selectedChat?.name}
+                </Text>
+                {!!selectedChat?.username && (
+                  <Text style={styles.managementChatUsername}>@{selectedChat.username}</Text>
+                )}
+              </View>
+            </View>
+
+            {/* 5 botones de acción */}
+            <View style={styles.managementActions}>
+              <TouchableOpacity style={styles.managementBtn} onPress={handlePin}>
+                <MaterialCommunityIcons name="pin" size={24} color={colors.text} />
+                <Text style={[styles.managementBtnText, { color: colors.text }]}>Fijar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.managementBtn} onPress={handleDeleteChat}>
+                <Ionicons name="trash" size={24} color="#a70d0d" />
+                <Text style={[styles.managementBtnText, { color: '#a70d0d' }]}>Eliminar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.managementBtn} onPress={handleMute}>
+                <Ionicons name="notifications-off" size={24} color={colors.text} />
+                <Text style={[styles.managementBtnText, { color: colors.text }]}>Silenciar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.managementBtn} onPress={handleArchive}>
+                <Ionicons name="archive" size={24} color={colors.text} />
+                <Text style={[styles.managementBtnText, { color: colors.text }]}>Archivar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.managementBtn} onPress={handleMore}>
+                <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
+                <Text style={[styles.managementBtnText, { color: colors.text }]}>Más</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
+
       {/* Botón flotante verde para nuevo chat */}
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: v1 }]}
@@ -420,6 +715,46 @@ export default function ChatScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de confirmación propio de la app (borrado de chat) */}
+      {confirmModal && (
+        <Animated.View style={[styles.confirmOverlay, { opacity: confirmOpacity }]}>
+          <TouchableWithoutFeedback onPress={() => closeConfirmModal()}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+          <Animated.View
+            style={[
+              styles.confirmCard,
+              {
+                backgroundColor: isDark ? '#1C1C1C' : '#FFF',
+                borderColor: isDark ? '#2A2A2A' : '#E0E0E0',
+                transform: [{ scale: confirmScale }],
+              },
+            ]}
+          >
+            <View style={[styles.confirmIconCircle, { backgroundColor: isDark ? 'rgba(167,13,13,0.15)' : '#FBE9E9' }]}>
+              <Ionicons name="trash" size={26} color="#a70d0d" />
+            </View>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>{confirmModal.title}</Text>
+            <Text style={[styles.confirmMessage, { color: isDark ? '#bbb' : '#555' }]}>{confirmModal.message}</Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => closeConfirmModal()}
+                style={[styles.confirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}
+              >
+                <Text style={[styles.confirmBtnText, { color: colors.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => closeConfirmModal(confirmModal.onConfirm)}
+                style={[styles.confirmBtn, { backgroundColor: '#a70d0d' }]}
+              >
+                <Ionicons name="trash" size={16} color="#FFF" />
+                <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -463,4 +798,22 @@ const styles = StyleSheet.create({
   userInfo: {flex: 1,},
   userName: {fontSize: 16,fontFamily: 'Nunito-Bold',},
   userUsername: {fontSize: 14,color: '#888',fontFamily: 'Nunito-Regular',},
+  managementOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, justifyContent: 'flex-end' },
+  managementCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36, elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: -4 } },
+  managementChatInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottomWidth: 0.5, borderBottomColor: '#88888844' },
+  managementAvatar: { width: 52, height: 52, borderRadius: 26, borderWidth: 2 },
+  managementAvatarCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
+  managementChatName: { fontSize: 18, fontFamily: 'Nunito-Bold', flex: 1 },
+  managementChatUsername: { fontSize: 14, color: '#888', fontFamily: 'Nunito-Regular' },
+  managementActions: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingTop: 4 },
+  managementBtn: { alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  managementBtnText: { fontSize: 12, fontFamily: 'Nunito-Bold', textAlign: 'center' },
+  confirmOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 300, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  confirmCard: { width: '82%', borderRadius: 20, borderWidth: 1, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  confirmIconCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  confirmTitle: { fontSize: 18, fontFamily: 'Nunito-Bold', marginBottom: 8, textAlign: 'center' },
+  confirmMessage: { fontSize: 14, fontFamily: 'Nunito-Regular', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  confirmActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  confirmBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 24 },
+  confirmBtnText: { fontSize: 15, fontFamily: 'Nunito-Bold' },
 });
