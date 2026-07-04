@@ -18,7 +18,9 @@ const MessageItem = React.memo(({
   selectedIds,
   onToggleSelect,
   setShowMsgInfo,
-  onOpenMedia
+  onOpenMedia,
+  otherProfilePicture,
+  myProfilePicture,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -105,8 +107,27 @@ const MessageItem = React.memo(({
         )}
 
         {!isMe && (
-          <View style={[styles.bubbleAvatarCircle, { marginRight: 8, marginHorizontal: 0 }]}>
-            <Text style={styles.bubbleAvatarText}>{chatName.charAt(0)}</Text>
+          <View style={[
+            styles.bubbleAvatarCircle, 
+            { 
+              marginRight: 8, 
+              marginHorizontal: 0,
+              backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0',
+              borderColor: isDark ? '#222' : '#E0E0E0',
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden'
+            }
+          ]}>
+            {otherProfilePicture ? (
+              <Image source={{ uri: otherProfilePicture }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <Ionicons
+                name="person-circle-outline"
+                size={28} // Tamaño idéntico al círculo (32)
+                color="#94BA46"
+              />
+            )}
           </View>
         )}
 
@@ -256,13 +277,32 @@ const MessageItem = React.memo(({
           <View style={styles.timeRow}>
             {item.isFavorite && <Ionicons name="star" size={11} color={isMe ? '#FFEE00' : '#FFD700'} style={{ marginRight: 4 }} />}
             <Text style={[styles.messageTime, { color: isMe ? '#E1E1E1' : '#888' }]}>{item.time}</Text>
-            {isMe && <Ionicons name={item.read ? "checkmark-done" : "checkmark"} size={14} color={item.read ? '#FFEE00' : '#E1E1E1'} style={{ marginLeft: 4 }} />}
+                        {isMe && <Ionicons name={item.read ? "checkmark-done" : (item.delivered ? "checkmark-done" : "checkmark")} size={14} color={item.read ? '#FFEE00' : (item.delivered ? '#E1E1E1' : '#E1E1E1')} style={{ marginLeft: 4 }} />}
           </View>
         </Animated.View>
 
         {isMe && (
-          <View style={[styles.bubbleAvatarCircle, { backgroundColor: '#444', borderColor: '#CCC', marginLeft: 8, marginHorizontal: 0 }]}>
-            <Text style={[styles.bubbleAvatarText, { color: '#FFF' }]}>M</Text>
+          <View style={[
+            styles.bubbleAvatarCircle, 
+            { 
+              marginLeft: 8, 
+              marginHorizontal: 0,
+              backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0',
+              borderColor: isDark ? '#222' : '#E0E0E0',
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden'
+            }
+          ]}>
+            {myProfilePicture ? (
+              <Image source={{ uri: myProfilePicture }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <Ionicons
+                name="person-circle-outline"
+                size={28.5}
+                color="#94BA46"
+              />
+            )}
           </View>
         )}
       </Animated.View>
@@ -272,10 +312,14 @@ const MessageItem = React.memo(({
   prev.item.id === next.item.id && 
   prev.item.text === next.item.text && 
   prev.item.read === next.item.read && 
+  prev.item.delivered === next.item.delivered &&
+  prev.item.pending === next.item.pending &&
   prev.item.isFavorite === next.item.isFavorite && 
   prev.item.time === next.item.time && 
   prev.isChecked === next.isChecked && 
   prev.isDark === next.isDark &&
+  prev.otherProfilePicture === next.otherProfilePicture &&
+  prev.myProfilePicture === next.myProfilePicture &&  
   (prev.selectedIds.length > 0) === (next.selectedIds.length > 0)
 );
 

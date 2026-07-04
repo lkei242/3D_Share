@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
+  LogBox,
   View,
   Text,
   TouchableOpacity,
@@ -14,7 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useTheme } from '@react-navigation/native';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
@@ -25,6 +26,8 @@ import {
   doc,
   getDoc,
   addDoc,
+  setDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -43,6 +46,20 @@ import MediaViewerModal from './Mediaviewer';
 import useVoiceRecorder from './Usevoicerecorder';
 import CustomCameraModal from '../components/CustomCameraModal';
 
+const _warn = console.warn;
+console.warn = (...args) => {
+  const msg = args[0];
+  if (
+    typeof msg === 'string' && (
+      msg.includes('Cannot record touch move without a touch start') ||
+      msg.includes('Cannot record touch end without a touch start') ||
+      msg.includes('Ended a touch event which was not counted in') ||
+      msg.includes('trackedTouchCount')
+    )
+  ) return; // Ignorar estos warnings específicos
+  _warn(...args);
+};
+
 export default function ChatDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -57,6 +74,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     otherUid
   } = route.params;
 
+  const [currentChatId, setCurrentChatId] = useState(chatId);
   const [messages, setMessages] = useState([]);
   
   // Inicializamos el estado directamente con lo que viene del listado anterior (instantáneo)
@@ -67,13 +85,56 @@ export default function ChatDetailScreen({ route, navigation }) {
     profilePicture: initialProfilePicture || '',
   });
 
+  const [currentUserPic, setCurrentUserPic] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      const user = auth.currentUser;
+      if (!user || !currentChatId) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      setDoc(userRef, { activeChatId: currentChatId }, { merge: true });
+
+      return () => {
+        (async () => {
+          try {
+            await setDoc(userRef, { activeChatId: null }, { merge: true });
+
+            const chatRef = doc(db, 'chats', currentChatId);
+            const chatSnap = await getDoc(chatRef);
+            if (!chatSnap.exists()) return;
+
+            const data = chatSnap.data();
+            const deletedBy = data.deletedBy || [];
+            const participants = data.participants || [];
+            const bothDeleted =
+              participants.length === 2 &&
+              participants.every((uid) => deletedBy.includes(uid));
+
+            if (!bothDeleted) return;
+            const messagesRef = collection(db, `chats/${currentChatId}/messages`);
+            const messagesSnap = await getDocs(messagesRef);
+            await Promise.all(
+              messagesSnap.docs.map((d) =>
+                deleteDoc(doc(db, `chats/${currentChatId}/messages/${d.id}`))
+              )
+            );
+            await deleteDoc(chatRef);
+          } catch (err) {
+            console.log('Error al verificar borrado definitivo al salir del chat:', err);
+          }
+        })();
+      };
+    }, [currentChatId])
+  );
+
   useEffect(() => {
-    if (!chatId) return;
+    if (!currentChatId) return;
     const fetchOtherParticipantDetails = async () => {
       try {
         const currentUser = auth.currentUser;
         if (!currentUser) return;
-        const chatDocRef = doc(db, 'chats', chatId);
+        const chatDocRef = doc(db, 'chats', currentChatId);
         const chatDoc = await getDoc(chatDocRef);
         if (chatDoc.exists()) {
           const chatData = chatDoc.data();
@@ -85,7 +146,6 @@ export default function ChatDetailScreen({ route, navigation }) {
             if (userDoc.exists()) {
               const userData = userDoc.data();
               
-              // Forzar https:// para evitar bloqueos de seguridad en imágenes
               let picUrl = userData.profilePicture || '';
               if (picUrl.startsWith('http://')) {
                 picUrl = picUrl.replace('http://', 'https://');
@@ -104,7 +164,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       }
     };
     fetchOtherParticipantDetails();
-  }, [chatId, chatName]);
+  }, [currentChatId, chatName]);
 
   const [showCustomCamera, setShowCustomCamera] = useState(false);
 
@@ -193,12 +253,12 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   // Escuchar mensajes en tiempo real desde Firestore
   useEffect(() => {
-    if (!chatId) return;
+    if (!currentChatId) return;
 
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
+    const messagesRef = collection(db, `chats/${currentChatId}/messages`);
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, async (snapshot) => {
       const msgs = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         const date = data.createdAt ? data.createdAt.toDate() : new Date();
@@ -216,18 +276,68 @@ export default function ChatDetailScreen({ route, navigation }) {
           mediaItems: data.mediaItems || null,
           caption: data.caption || null,
           sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
+          rawSender: data.sender,
           time: timeString,
+          rawTime: data.createdAt || null,
           read: data.read || false,
-          isFavorite: data.isFavorite || false
+          delivered: data.delivered || false,
+          isFavorite: data.isFavorite || false,
+          pending: docSnapshot.metadata.hasPendingWrites,
         };
       });
 
       setMessages(msgs);
       setLoading(false);
+
+      // marcar como leidos y entregados los mensajes que me envió el otro
+      const unreadMsgs = snapshot.docs.filter(docSnapshot => {
+        const data = docSnapshot.data();
+        return data.sender !== auth.currentUser?.uid && data.read !== true && !docSnapshot.metadata.hasPendingWrites;
+      });
+      if (unreadMsgs.length > 0) {
+        const batch = unreadMsgs.map(docSnapshot => {
+          const msgRef = doc(db, `chats/${currentChatId}/messages/${docSnapshot.id}`);
+          return updateDoc(msgRef, { read: true });
+        });
+        Promise.all(batch).catch(err => console.log('Error marcando lectura:', err));
+      }
+
+      // sincronizar lastMessage del chat con el ultimo mensaje real de la lista
+      if (msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        let lastMsgText = lastMsg.text || '';
+        if (lastMsg.type === 'image') lastMsgText = '🖼️ Imagen';
+        else if (lastMsg.type === 'video') lastMsgText = '🎥 Video';
+        else if (lastMsg.type === 'audio') lastMsgText = '🎙️ Audio';
+        else if (lastMsg.type === 'location') lastMsgText = '📍 Ubicación compartida';
+        else if (lastMsg.type === 'file') lastMsgText = `📎 ${lastMsg.text || 'Archivo'}`;
+        else if (lastMsg.type === 'media_group') lastMsgText = `🖼️ ${(lastMsg.mediaItems || []).length} archivos`;
+        try {
+          const chatRef = doc(db, `chats/${currentChatId}`);
+          await updateDoc(chatRef, {
+            lastMessage: lastMsgText,
+            lastMessageTime: lastMsg.rawTime || serverTimestamp(),
+            lastSender: lastMsg.rawSender || auth.currentUser?.uid,
+          });
+        } catch (err) {
+          console.log('Error sincronizando lastMessage:', err);
+        }
+      } else {
+        try {
+          const chatRef = doc(db, `chats/${currentChatId}`);
+          await updateDoc(chatRef, {
+            lastMessage: 'Sin mensajes aún',
+            lastMessageTime: serverTimestamp(),
+            lastSender: '',
+          });
+        } catch (err) {
+          console.log('Error limpiando lastMessage:', err);
+        }
+      }
     });
 
     return unsubscribe;
-  }, [chatId]);
+  }, [currentChatId]);
 
   const closeAllMenus = () => {
     setShowHeaderMenu(false);
@@ -236,47 +346,63 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   // Enviar o editar mensaje en Firestore
+  // Enviar o editar mensaje en Firestore — si es nuevo chat, lo crea automáticamente
   const handleSend = async () => {
     const textToSend = inputText.trim();
     if (textToSend === '') return;
 
-    // 1. Limpiar input INMEDIATAMENTE para feedback instantáneo
     setInputText('');
-    setEditingMessageId(null); // También resetear edición si aplica
+    setEditingMessageId(null);
 
     try {
       const user = auth.currentUser;
       if (!user) return;
 
+      let activeChatId = currentChatId;
+
+      // Si no hay chatId, crear el documento del chat con el primer mensaje
+      if (!activeChatId) {
+        const chatsRef = collection(db, 'chats');
+        const chatData = {
+          participants: [user.uid, otherUser.uid],
+          participantNames: [user.email, otherUser.name],
+          lastMessage: textToSend,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+          deletedBy: [],
+        };
+        const newChatRef = await addDoc(chatsRef, chatData);
+        activeChatId = newChatRef.id;
+        setCurrentChatId(activeChatId);
+        navigation.setParams({ chatId: activeChatId });
+      }
+
       if (editingMessageId) {
-        // Guardar edición
-        const msgRef = doc(db, `chats/${chatId}/messages/${editingMessageId}`);
+        const msgRef = doc(db, `chats/${activeChatId}/messages/${editingMessageId}`);
         await updateDoc(msgRef, { text: textToSend });
       } else {
-        // Enviar nuevo - operaciones en paralelo para máxima velocidad
-        const messagesRef = collection(db, `chats/${chatId}/messages`);
-        const chatRef = doc(db, `chats/${chatId}`);
+        const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+        const chatRef = doc(db, `chats/${activeChatId}`);
 
-        // Ejecutar ambas escrituras en paralelo
-        await Promise.all([
-          addDoc(messagesRef, {
-            text: textToSend,
-            sender: user.uid,
-            createdAt: serverTimestamp(),
-            read: false,
-            isFavorite: false
-          }),
-          updateDoc(chatRef, {
-            lastMessage: textToSend,
-            lastMessageTime: serverTimestamp(),
-            lastSender: user.uid
-          })
-        ]);
+        const docRef = await addDoc(messagesRef, {
+          text: textToSend,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+          delivered: false,
+        });
+
+        await updateDoc(docRef, { delivered: true });
+
+        await updateDoc(chatRef, {
+          lastMessage: textToSend,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid
+        });
       }
     } catch (error) {
       console.log("Error al enviar mensaje:", error);
-      // Opcional: restaurar el texto si falla
-      // setInputText(textToSend);
     }
   };
 
@@ -374,6 +500,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         createdAt: serverTimestamp(),
         read: false,
         isFavorite: false,
+        delivered: false,
       }),
       updateDoc(chatRef, {
         lastMessage: caption || lastMsg,
@@ -393,6 +520,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         createdAt: serverTimestamp(),
         read: false,
         isFavorite: false,
+        delivered: false,
       }),
       updateDoc(chatRef, {
         lastMessage: caption || `📷 ${uploaded.length} fotos`,
@@ -456,6 +584,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       createdAt: serverTimestamp(),
       read: false,
       isFavorite: false,
+      delivered: false,
     }),
     updateDoc(chatRef, {
       lastMessage: '📍 Ubicación compartida',
@@ -519,11 +648,13 @@ export default function ChatDetailScreen({ route, navigation }) {
           createdAt: serverTimestamp(),
           read: false,
           isFavorite: false,
+          delivered: false,
         }),
         updateDoc(chatRef, {
           lastMessage,
           lastMessageTime: serverTimestamp(),
           lastSender: user.uid,
+          delivered: true,
         }),
       ]);
     } catch (err) {
@@ -596,6 +727,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             createdAt: serverTimestamp(),
             read: false,
             isFavorite: false,
+            delivered: false,
           }),
           updateDoc(chatRef, {
             lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
@@ -615,6 +747,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             createdAt: serverTimestamp(),
             read: false,
             isFavorite: false,
+            delivered: false,
           }),
           updateDoc(chatRef, {
             lastMessage: `🖼️ ${validItems.length} archivos`,
@@ -666,7 +799,9 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   const handleConfirmDelete = () => {
+    const idsToDelete = [...selectedIds];
     closeDeleteConfirm(async () => {
+      clearSelection();
       try {
         const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
         const deletions = msgsToDelete.map(async (msg) => {
@@ -688,7 +823,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               );
             }
           } catch (cloudinaryError) {
-            console.log("Error al borrar media de Cloudinary (se procederá a borrar el mensaje igualmente):", cloudinaryError);
+            console.log("Error al borrar media de Cloudinary (Se procederá a borrar el mensaje igualmente):", cloudinaryError);
           }
 
           // Borrar de Firestore (se ejecutará siempre)
@@ -761,9 +896,11 @@ export default function ChatDetailScreen({ route, navigation }) {
         onToggleSelect={handleToggleSelect}
         setShowMsgInfo={setShowMsgInfo}
         onOpenMedia={openMediaViewer}
+        otherProfilePicture={otherUser.profilePicture} 
+        myProfilePicture={currentUserPic}
       />
     );
-  }, [selectedIds, isDark, colors, chatName, openMediaViewer]);
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer, otherUser.profilePicture, currentUserPic]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [mediaPreview, setMediaPreview] = useState(null); 
@@ -807,45 +944,35 @@ export default function ChatDetailScreen({ route, navigation }) {
             </View>
 
             {/* Acciones — varían según si el mensaje es mío o del otro */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
-                <Ionicons name="arrow-undo" size={24} color={colors.text} />
-                <Text style={[styles.toolText, { color: colors.text }]}>Responder</Text>
+                <Ionicons name="arrow-undo" size={28} color={colors.text} />
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                <Ionicons
-                  name={activeMsg?.isFavorite ? "star" : "star-outline"}
-                  size={24}
-                  color={colors.text}
-                />
-                <Text style={[styles.toolText, { color: colors.text }]}>Favorito</Text>
+                <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={28} color={colors.text} />
               </TouchableOpacity>
 
               {/* Editar: solo si es 1 mensaje Y es mío */}
               {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
                 <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
-                  <Ionicons name="pencil" size={24} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Editar</Text>
+                  <Ionicons name="pencil" size={28} color={colors.text} />
                 </TouchableOpacity>
               )}
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
-                <Ionicons name="trash" size={24} color="#a70d0d" />
-                <Text style={[styles.toolText, { color: '#a70d0d', fontWeight: 'bold' }]}>Eliminar</Text>
+                <Ionicons name="trash" size={28} color="#a70d0d" />
               </TouchableOpacity>
 
               {selectedIds.length === 1 && activeMsg?.text ? (
                 <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
-                  <Ionicons name="copy" size={24} color={colors.text} />
-                  <Text style={[styles.toolText, { color: colors.text }]}>Copiar</Text>
+                  <Ionicons name="copy" size={28} color={colors.text} />
                 </TouchableOpacity>
               ) : null}
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
-                <Ionicons name="arrow-redo" size={24} color={colors.text} />
-                <Text style={[styles.toolText, { color: colors.text }]}>Reenviar</Text>
+                <Ionicons name="arrow-redo" size={28} color={colors.text} />
               </TouchableOpacity>
 
             </View>
@@ -1002,7 +1129,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
           {/* Menú desplegable de Clip (Adjuntos) */}
           {showAttachmentMenu && (
-            <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
+            <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border, bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 58 }]}>
               <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
                 <Ionicons name="camera" size={27} color={GREEN_ACCENT} />
                 <Text style={[styles.attachmentText, { color: colors.text }]}>Cámara</Text>
@@ -1115,7 +1242,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                     multiline
                   />
 
-                  <TouchableOpacity onPress={() => { setShowAttachmentMenu(!showAttachmentMenu); setShowHeaderMenu(false); }}>
+                  <TouchableOpacity onPress={() => {Keyboard.dismiss(); setShowAttachmentMenu(!showAttachmentMenu); setShowHeaderMenu(false); }}>
                     <Feather name="paperclip" size={20} color={GREEN_ACCENT} style={{ marginRight: 8 }} />
                   </TouchableOpacity>
                 </View>
@@ -1150,9 +1277,9 @@ export default function ChatDetailScreen({ route, navigation }) {
                   )}
 
                   <View
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
+                    onTouchStart={mediaViewerVisible ? undefined : handleTouchStart}
+                    onTouchMove={mediaViewerVisible ? undefined : handleTouchMove}
+                    onTouchEnd={mediaViewerVisible ? undefined : handleTouchEnd}
                     style={[
                       styles.actionButton,
                       { backgroundColor: GREEN_ACCENT },
