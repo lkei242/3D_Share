@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
+import { deleteMediaFromCloudinary } from './config/mediaHelper';
 import { auth, db } from './config/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc, arrayUnion, arrayRemove, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import {
@@ -279,21 +280,53 @@ export default function ChatScreen({ navigation }) {
 
   const permanentlyDeleteChat = async (chatId) => {
     try {
-      console.log('1. Intentando borrar mensajes...');
       const messagesRef = collection(db, `chats/${chatId}/messages`);
       const messagesSnap = await getDocs(messagesRef);
-      console.log(`2. ${messagesSnap.docs.length} mensajes encontrados`);
-      
+
+      // 1. Recopilar todas las URLs de Cloudinary a eliminar
+      const cloudinaryDeletions = [];
       for (const d of messagesSnap.docs) {
-        await deleteDoc(doc(db, `chats/${chatId}/messages/${d.id}`));
-        console.log(`3. Mensaje ${d.id} borrado`);
+        const data = d.data();
+
+        // Mensajes con un solo archivo (image, video, audio, file)
+        if (data.mediaUrl) {
+          cloudinaryDeletions.push(
+            deleteMediaFromCloudinary(data.mediaUrl).catch(e =>
+              console.log('Error borrando media de Cloudinary:', e)
+            )
+          );
+        }
+
+        // Mensajes con múltiples archivos (media_group)
+        if (Array.isArray(data.mediaItems)) {
+          for (const item of data.mediaItems) {
+            if (item.url) {
+              cloudinaryDeletions.push(
+                deleteMediaFromCloudinary(item.url).catch(e =>
+                  console.log('Error borrando media del grupo:', e)
+                )
+              );
+            }
+          }
+        }
       }
-      
-      console.log('4. Intentando borrar documento del chat...');
+
+      // Esperar a que Cloudinary elimine todo
+      await Promise.all(cloudinaryDeletions);
+
+      // 2. Eliminar todos los mensajes de Firestore en paralelo
+      await Promise.all(
+        messagesSnap.docs.map(d =>
+          deleteDoc(doc(db, `chats/${chatId}/messages/${d.id}`))
+        )
+      );
+
+      // 3. Eliminar el documento del chat
       await deleteDoc(doc(db, 'chats', chatId));
-      console.log('5. Chat borrado exitosamente');
+
+      console.log('Chat borrado exitosamente (Firestore + Cloudinary)');
     } catch (err) {
-      console.log('ERROR en paso:', err.code, err.message);
+      console.log('ERROR al borrar chat:', err.code, err.message);
     }
   };
 

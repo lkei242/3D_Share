@@ -114,6 +114,25 @@ export default function ChatDetailScreen({ route, navigation }) {
             if (!bothDeleted) return;
             const messagesRef = collection(db, `chats/${currentChatId}/messages`);
             const messagesSnap = await getDocs(messagesRef);
+            const cloudinaryDeletions = [];
+            for (const d of messagesSnap.docs) {
+              const data = d.data();
+              if (data.mediaUrl) {
+                cloudinaryDeletions.push(
+                  deleteMediaFromCloudinary(data.mediaUrl).catch(() => {})
+                );
+              }
+              if (Array.isArray(data.mediaItems)) {
+                for (const item of data.mediaItems) {
+                  if (item.url) {
+                    cloudinaryDeletions.push(
+                      deleteMediaFromCloudinary(item.url).catch(() => {})
+                    );
+                  }
+                }
+              }
+            }
+            await Promise.all(cloudinaryDeletions);
             await Promise.all(
               messagesSnap.docs.map((d) =>
                 deleteDoc(doc(db, `chats/${currentChatId}/messages/${d.id}`))
