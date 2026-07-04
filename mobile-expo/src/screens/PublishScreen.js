@@ -18,7 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons, Feather } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import CustomCameraModal from './components/CustomCameraModal';
 import { auth, db } from './config/firebase';
 import { API_URL } from './config/api';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -207,6 +209,41 @@ export default function PublishScreen({ navigation }) {
     setMediaItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const [showCameraModal, setShowCameraModal] = useState(false);
+
+  const handleCameraMedia = async (mediaList) => {
+    const itemsWithSize = await Promise.all(
+      mediaList.map(async (item) => {
+        let fileSize = 0;
+        try {
+          const info = await FileSystem.getInfoAsync(item.uri);
+          if (info.exists) fileSize = info.size || 0;
+        } catch (_) {}
+        return {
+          uri: item.uri,
+          type: item.type === 'video' ? 'video' : 'image',
+          duration: item.type === 'video' ? 0 : 0,
+          width: 0,
+          height: 0,
+          fileSize,
+        };
+      })
+    );
+    setMediaItems((prev) => {
+      const combined = [...prev, ...itemsWithSize];
+      const totalSize = combined.reduce((sum, m) => sum + (m.fileSize || 0), 0);
+      if (combined.length > 5) {
+        showToast('Máximo 5 archivos por publicación', 'error');
+        return combined.slice(0, 5);
+      }
+      if (totalSize > 30 * 1024 * 1024) {
+        showToast('El tamaño total supera los 30 MB', 'error');
+        return prev;
+      }
+      return combined;
+    });
+  };
+
   // ============================================================
   // VALIDACIONES
   // ============================================================
@@ -353,24 +390,42 @@ export default function PublishScreen({ navigation }) {
               />
             ))}
 
-            {/* Botón agregar (si hay espacio) */}
+            {/* Botones agregar (cámara + galería) */}
             {canAddMore && (
-              <TouchableOpacity
-                style={[
-                  styles.addMediaButton,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0',
-                    borderColor: isDark ? '#2D2D2D' : '#D0D0D0',
-                  },
-                ]}
-                onPress={pickMedia}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add" size={36} color="#9DBD3F" />
-                <Text style={[styles.addMediaText, { color: isDark ? '#888' : '#666' }]}>
-                  {hasMedia ? 'Agregar más' : 'Agregar'}
-                </Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.addMediaButton,
+                    {
+                      backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0',
+                      borderColor: isDark ? '#2D2D2D' : '#D0D0D0',
+                    },
+                  ]}
+                  onPress={() => setShowCameraModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="camera" size={30} color="#9DBD3F" />
+                  <Text style={[styles.addMediaText, { color: isDark ? '#888' : '#666' }]}>
+                    Cámara
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.addMediaButton,
+                    {
+                      backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0',
+                      borderColor: isDark ? '#2D2D2D' : '#D0D0D0',
+                    },
+                  ]}
+                  onPress={pickMedia}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="images" size={30} color="#9DBD3F" />
+                  <Text style={[styles.addMediaText, { color: isDark ? '#888' : '#666' }]}>
+                    Galería
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
 
@@ -522,6 +577,16 @@ export default function PublishScreen({ navigation }) {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
+
+      <CustomCameraModal
+        visible={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onSend={async (mediaList) => {
+          await handleCameraMedia(mediaList);
+          setShowCameraModal(false);
+        }}
+        username={auth.currentUser?.displayName || ''}
+      />
     </View>
   );
 }
