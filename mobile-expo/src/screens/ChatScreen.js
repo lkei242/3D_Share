@@ -56,6 +56,28 @@ export default function ChatScreen({ navigation }) {
   const [followingUsers, setFollowingUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
 
+  // --- Modal de confirmación propio de la app (reemplaza los Alert.alert de
+  // borrado de chat, tanto en handleDeleteChat como en checkAndDelete) ---
+  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+  const confirmOpacity = useRef(new Animated.Value(0)).current;
+  const confirmScale = useRef(new Animated.Value(0.9)).current;
+
+  const openConfirmModal = ({ title, message, onConfirm }) => {
+    setConfirmModal({ title, message, onConfirm });
+    confirmScale.setValue(0.9);
+    Animated.parallel([
+      Animated.timing(confirmOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.spring(confirmScale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 9 }),
+    ]).start();
+  };
+
+  const closeConfirmModal = (onClosed) => {
+    Animated.timing(confirmOpacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setConfirmModal(null);
+      if (onClosed) onClosed();
+    });
+  };
+
   useFocusEffect(
     useCallback(() => {
       cleanupPendingDeletions();
@@ -209,18 +231,11 @@ export default function ChatScreen({ navigation }) {
     const chat = selectedChat;
     closeManagementCard(() => {
       // 1ra confirmación: preguntar si quiere eliminar
-      Alert.alert(
-        'Eliminar chat',
-        '¿Eliminar esta conversación?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Eliminar',
-            style: 'destructive',
-            onPress: () => checkAndDelete(chat),
-          },
-        ]
-      );
+      openConfirmModal({
+        title: 'Eliminar chat',
+        message: '¿Eliminar esta conversación?',
+        onConfirm: () => checkAndDelete(chat),
+      });
     });
   };
 
@@ -252,21 +267,14 @@ export default function ChatScreen({ navigation }) {
       const otherAlreadyDeleted = freshDeletedBy.includes(otherUid);
 
       if (otherAlreadyDeleted) {
-        Alert.alert(
-          'Eliminar chat',
-          'El chat se borrará para siempre',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Eliminar',
-              style: 'destructive',
-              onPress: async () => {
-                await updateDoc(chatRef, { deletedBy: arrayUnion(user.uid) });
-                await permanentlyDeleteChat(chat.id);
-              },
-            },
-          ]
-        );
+        openConfirmModal({
+          title: 'Eliminar chat',
+          message: 'Eres el ultimo usuario con una copia del chat.\n\nLuego de eliminar este chat su contenido se borrará para siempre.',
+          onConfirm: async () => {
+            await updateDoc(chatRef, { deletedBy: arrayUnion(user.uid) });
+            await permanentlyDeleteChat(chat.id);
+          },
+        });
         return;
         
       }
@@ -707,6 +715,46 @@ export default function ChatScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de confirmación propio de la app (borrado de chat) */}
+      {confirmModal && (
+        <Animated.View style={[styles.confirmOverlay, { opacity: confirmOpacity }]}>
+          <TouchableWithoutFeedback onPress={() => closeConfirmModal()}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+          <Animated.View
+            style={[
+              styles.confirmCard,
+              {
+                backgroundColor: isDark ? '#1C1C1C' : '#FFF',
+                borderColor: isDark ? '#2A2A2A' : '#E0E0E0',
+                transform: [{ scale: confirmScale }],
+              },
+            ]}
+          >
+            <View style={[styles.confirmIconCircle, { backgroundColor: isDark ? 'rgba(167,13,13,0.15)' : '#FBE9E9' }]}>
+              <Ionicons name="trash" size={26} color="#a70d0d" />
+            </View>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>{confirmModal.title}</Text>
+            <Text style={[styles.confirmMessage, { color: isDark ? '#bbb' : '#555' }]}>{confirmModal.message}</Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => closeConfirmModal()}
+                style={[styles.confirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}
+              >
+                <Text style={[styles.confirmBtnText, { color: colors.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => closeConfirmModal(confirmModal.onConfirm)}
+                style={[styles.confirmBtn, { backgroundColor: '#a70d0d' }]}
+              >
+                <Ionicons name="trash" size={16} color="#FFF" />
+                <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -760,4 +808,12 @@ const styles = StyleSheet.create({
   managementActions: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingTop: 4 },
   managementBtn: { alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4 },
   managementBtnText: { fontSize: 12, fontFamily: 'Nunito-Bold', textAlign: 'center' },
+  confirmOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 300, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  confirmCard: { width: '82%', borderRadius: 20, borderWidth: 1, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  confirmIconCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  confirmTitle: { fontSize: 18, fontFamily: 'Nunito-Bold', marginBottom: 8, textAlign: 'center' },
+  confirmMessage: { fontSize: 14, fontFamily: 'Nunito-Regular', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  confirmActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  confirmBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 24 },
+  confirmBtnText: { fontSize: 15, fontFamily: 'Nunito-Bold' },
 });

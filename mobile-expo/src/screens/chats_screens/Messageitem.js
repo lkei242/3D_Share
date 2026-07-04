@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Pressable, Animated, Image, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated, Image, Linking, PanResponder } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { GREEN_ACCENT, getVideoThumbnail } from './Chatconstants';
@@ -19,6 +19,7 @@ const MessageItem = React.memo(({
   onToggleSelect,
   setShowMsgInfo,
   onOpenMedia,
+  onSwipeReply,
   otherProfilePicture,
   myProfilePicture,
 }) => {
@@ -49,6 +50,52 @@ const MessageItem = React.memo(({
       useNativeDriver: false,
     }).start();
   }, [isChecked]);
+
+  // --- Swipe-to-reply (deslizar el mensaje hacia la derecha, como WhatsApp) ---
+  const swipeX = useRef(new Animated.Value(0)).current;
+  const replyIconOpacity = useRef(new Animated.Value(0)).current;
+
+  // El PanResponder se crea una sola vez (useRef), así que guardamos los props
+  // "vivos" en un ref aparte para que sus callbacks no queden con valores viejos
+  // de item/selectedIds/onSwipeReply de la primera renderización.
+  const liveRef = useRef({ item, selectedIds, onSwipeReply });
+  useEffect(() => {
+    liveRef.current = { item, selectedIds, onSwipeReply };
+  });
+
+  const MAX_SWIPE = 68;
+  const TRIGGER_THRESHOLD = 48;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => false,
+      // Solo "roba" el gesto de la lista/Pressable si el movimiento es
+      // claramente horizontal hacia la derecha (evita interferir con el
+      // scroll vertical del FlatList o con el tap/long-press normal).
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        if (liveRef.current.selectedIds.length > 0) return false; // no deslizar en modo selección
+        const { dx, dy } = gestureState;
+        return dx > 12 && dx > Math.abs(dy) * 2;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const dx = Math.max(0, Math.min(gestureState.dx, MAX_SWIPE));
+        swipeX.setValue(dx);
+        replyIconOpacity.setValue(Math.min(dx / TRIGGER_THRESHOLD, 1));
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const triggered = gestureState.dx > TRIGGER_THRESHOLD;
+        Animated.spring(swipeX, { toValue: 0, useNativeDriver: false, speed: 20, bounciness: 6 }).start();
+        Animated.timing(replyIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+        if (triggered && liveRef.current.onSwipeReply) {
+          liveRef.current.onSwipeReply(liveRef.current.item);
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(swipeX, { toValue: 0, useNativeDriver: false }).start();
+        Animated.timing(replyIconOpacity, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+      },
+    })
+  ).current;
 
   const handlePressIn = () => {
     if (isChecked) return;
@@ -81,6 +128,23 @@ const MessageItem = React.memo(({
   };
 
   return (
+    <View style={{ width: '100%' }} {...panResponder.panHandlers}>
+      {/* Ícono de responder que aparece detrás de la burbuja al deslizar */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.replyIconWrap,
+          {
+            opacity: replyIconOpacity,
+            transform: [{
+              scale: replyIconOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+            }],
+          },
+        ]}
+      >
+        <Ionicons name="arrow-undo" size={20} color={isDark ? '#999' : '#777'} />
+      </Animated.View>
+
     <Pressable
       onPress={handlePress}
       onLongPress={handleLongPress}
@@ -90,7 +154,7 @@ const MessageItem = React.memo(({
       <Animated.View style={[
         isMe ? styles.myMessageRow : styles.otherMessageRow,
         isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
-        { backgroundColor: rowBgColor },
+        { backgroundColor: rowBgColor, transform: [{ translateX: swipeX }] },
       ]}>
         {/* CHECKBOX — visible solo en modo multi-selección */}
         {selectedIds.length > 0 && (
@@ -136,6 +200,25 @@ const MessageItem = React.memo(({
           { backgroundColor: isMe ? myBubbleBgColor : otherBubbleBgColor },
           isMe ? { borderBottomRightRadius: 2 } : { borderBottomLeftRadius: 2 },
         ]}>
+        {!!item.replyTo && (
+          <View style={[styles.replyQuoteBox, { backgroundColor: isMe ? 'rgba(255,255,255,0.16)' : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)') }]}>
+            <View style={[styles.replyQuoteAccent, { backgroundColor: isMe ? '#FFF' : GREEN_ACCENT }]} />
+            <View style={styles.replyQuoteContent}>
+              <Text
+                style={[styles.replyQuoteSender, { color: isMe ? '#FFF' : GREEN_ACCENT }]}
+                numberOfLines={1}
+              >
+                {item.replyTo.senderName || 'Mensaje'}
+              </Text>
+              <Text
+                style={[styles.replyQuoteText, { color: isMe ? 'rgba(255,255,255,0.85)' : (isDark ? '#CCC' : '#555') }]}
+                numberOfLines={1}
+              >
+                {item.replyTo.text}
+              </Text>
+            </View>
+          </View>
+        )}
         {item.type === 'audio' ? (
           <AudioPlayer url={item.mediaUrl} duration={item.audioDuration} isMe={isMe} colors={colors} />
         ) : item.type === 'location' ? (
@@ -307,6 +390,7 @@ const MessageItem = React.memo(({
         )}
       </Animated.View>
     </Pressable>
+    </View>
   );
 }, (prev, next) => 
   prev.item.id === next.item.id && 
@@ -316,6 +400,7 @@ const MessageItem = React.memo(({
   prev.item.pending === next.item.pending &&
   prev.item.isFavorite === next.item.isFavorite && 
   prev.item.time === next.item.time && 
+  prev.item.replyTo?.id === next.item.replyTo?.id && 
   prev.isChecked === next.isChecked && 
   prev.isDark === next.isDark &&
   prev.otherProfilePicture === next.otherProfilePicture &&

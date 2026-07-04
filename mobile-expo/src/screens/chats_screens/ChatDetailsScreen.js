@@ -34,6 +34,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  arrayUnion,
 } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -133,11 +134,17 @@ export default function ChatDetailScreen({ route, navigation }) {
               }
             }
             await Promise.all(cloudinaryDeletions);
-            await Promise.all(
-              messagesSnap.docs.map((d) =>
-                deleteDoc(doc(db, `chats/${currentChatId}/messages/${d.id}`))
-              )
-            );
+            try {
+              await Promise.all(
+                messagesSnap.docs.map((d) =>
+                  deleteDoc(doc(db, `chats/${currentChatId}/messages/${d.id}`))
+                    .catch(err => console.warn(`Error eliminando mensaje ${d.id}:`, err))
+                )
+              );
+            } catch (err) {
+              console.error('Error eliminando mensajes:', err);
+              Alert.alert('Error', 'No se pudieron eliminar los mensajes');
+            }
             await deleteDoc(chatRef);
           } catch (err) {
             console.log('Error al verificar borrado definitivo al salir del chat:', err);
@@ -226,6 +233,8 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const textInputRef = useRef(null);
   
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showMoreSubMenu, setShowMoreSubMenu] = useState(false);
@@ -238,10 +247,38 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
+  // Crea el documento del chat si todavía no existe (primer mensaje de cualquier
+  // tipo: texto, imagen, video, ubicación, audio, etc.) y devuelve el id activo.
+  // Se reutiliza en handleSend, en useVoiceRecorder y en todos los handlers de
+  // envío de media, para que un chat también pueda arrancar con contenido
+  // multimedia sin necesidad de un mensaje de texto previo.
+  const ensureChatId = async () => {
+    if (currentChatId) return currentChatId;
+
+    const user = auth.currentUser;
+    if (!user) throw new Error('Usuario no autenticado');
+
+    const chatsRef = collection(db, 'chats');
+    const chatData = {
+      participants: [user.uid, otherUser.uid],
+      participantNames: [user.email, otherUser.name],
+      lastMessage: '',
+      lastMessageTime: serverTimestamp(),
+      lastSender: user.uid,
+      deletedBy: [],
+    };
+    const newChatRef = await addDoc(chatsRef, chatData);
+    setCurrentChatId(newChatRef.id);
+    navigation.setParams({ chatId: newChatRef.id });
+    return newChatRef.id;
+  };
+
   // --- Grabación de notas de voz (estado, animaciones, gestos y envío) ---
   // Todo lo relacionado a grabar audio vive ahora en este hook; acá solo
   // desestructuramos con los MISMOS nombres que usaba el código original
   // para no tener que tocar el JSX de más abajo.
+  // Le pasamos ensureChatId (no chatId a secas) para que el hook pueda crear
+  // el chat sobre la marcha si la nota de voz es el primer mensaje.
   const {
     isLocked,
     isRecording,
@@ -257,18 +294,26 @@ export default function ChatDetailScreen({ route, navigation }) {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
-  } = useVoiceRecorder(chatId);
+  } = useVoiceRecorder(ensureChatId);
 
   const handleToggleSelect = useCallback((id) => {
     setSelectedIds(prev => {
       if (prev.includes(id)) return prev.filter(i => i !== id);
+      if (prev.length > 0) {
+        const firstSender = messages.find(m => m.id === prev[0])?.sender;
+        const newSender = messages.find(m => m.id === id)?.sender;
+        if (firstSender && newSender && firstSender !== newSender) {
+          return prev; // ignora el toque: es de otro remitente
+        }
+      }
       return [...prev, id];
     });
-  }, []);
+  }, [messages]);
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
   const flatListRef = useRef(null);
   const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
+  const selectionSender = selectedIds.length > 0 ? messages.find(m => m.id === selectedIds[0])?.sender : null;
 
   // Escuchar mensajes en tiempo real desde Firestore
   useEffect(() => {
@@ -278,7 +323,12 @@ export default function ChatDetailScreen({ route, navigation }) {
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
     const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, async (snapshot) => {
-      const msgs = snapshot.docs.map(docSnapshot => {
+      const msgs = snapshot.docs
+        .filter(docSnapshot => {
+          const data = docSnapshot.data();
+          return !(data.deletedFor || []).includes(auth.currentUser?.uid);
+        })
+        .map(docSnapshot => {
         const data = docSnapshot.data();
         const date = data.createdAt ? data.createdAt.toDate() : new Date();
         const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -294,6 +344,10 @@ export default function ChatDetailScreen({ route, navigation }) {
           locationAddress: data.locationAddress || null,
           mediaItems: data.mediaItems || null,
           caption: data.caption || null,
+          replyTo: data.replyTo ? {
+            ...data.replyTo,
+            senderName: data.replyTo.senderId === auth.currentUser?.uid ? 'Tú' : chatName,
+          } : null,
           sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
           rawSender: data.sender,
           time: timeString,
@@ -372,29 +426,16 @@ export default function ChatDetailScreen({ route, navigation }) {
 
     setInputText('');
     setEditingMessageId(null);
+    // Capturamos el mensaje al que se está respondiendo ANTES de limpiar el
+    // estado, para poder adjuntarlo al documento sin que la UI espere a Firestore.
+    const replySnapshot = replyingTo;
+    setReplyingTo(null);
 
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      let activeChatId = currentChatId;
-
-      // Si no hay chatId, crear el documento del chat con el primer mensaje
-      if (!activeChatId) {
-        const chatsRef = collection(db, 'chats');
-        const chatData = {
-          participants: [user.uid, otherUser.uid],
-          participantNames: [user.email, otherUser.name],
-          lastMessage: textToSend,
-          lastMessageTime: serverTimestamp(),
-          lastSender: user.uid,
-          deletedBy: [],
-        };
-        const newChatRef = await addDoc(chatsRef, chatData);
-        activeChatId = newChatRef.id;
-        setCurrentChatId(activeChatId);
-        navigation.setParams({ chatId: activeChatId });
-      }
+      const activeChatId = await ensureChatId();
 
       if (editingMessageId) {
         const msgRef = doc(db, `chats/${activeChatId}/messages/${editingMessageId}`);
@@ -410,6 +451,13 @@ export default function ChatDetailScreen({ route, navigation }) {
           read: false,
           isFavorite: false,
           delivered: false,
+          ...(replySnapshot ? {
+            replyTo: {
+              id: replySnapshot.id,
+              text: replySnapshot.text || (replySnapshot.type && replySnapshot.type !== 'text' ? `📎 ${replySnapshot.type}` : ''),
+              senderId: replySnapshot.rawSender || user.uid,
+            },
+          } : {}),
         });
 
         await updateDoc(docRef, { delivered: true });
@@ -501,8 +549,9 @@ export default function ChatDetailScreen({ route, navigation }) {
     return;
   }
 
-  const messagesRef = collection(db, `chats/${chatId}/messages`);
-  const chatRef = doc(db, `chats/${chatId}`);
+  const activeChatId = await ensureChatId();
+  const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+  const chatRef = doc(db, `chats/${activeChatId}`);
 
   if (uploaded.length === 1) {
     // Mensaje individual (igual que antes)
@@ -589,8 +638,9 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   } catch (_) {}
 
-  const messagesRef = collection(db, `chats/${chatId}/messages`);
-  const chatRef = doc(db, `chats/${chatId}`);
+  const activeChatId = await ensureChatId();
+  const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+  const chatRef = doc(db, `chats/${activeChatId}`);
   await Promise.all([
     addDoc(messagesRef, {
       text: locationName,
@@ -655,8 +705,9 @@ export default function ChatDetailScreen({ route, navigation }) {
       const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'], file: [fileName, `📎 ${fileName}`] };
       const [text, lastMessage] = labels[category];
 
-      const messagesRef = collection(db, `chats/${chatId}/messages`);
-      const chatRef = doc(db, `chats/${chatId}`);
+      const activeChatId = await ensureChatId();
+      const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+      const chatRef = doc(db, `chats/${activeChatId}`);
       await Promise.all([
         addDoc(messagesRef, {
           text,
@@ -726,8 +777,9 @@ export default function ChatDetailScreen({ route, navigation }) {
       const validItems = uploadedItems.filter(Boolean);
       if (validItems.length === 0) return;
 
-      const messagesRef = collection(db, `chats/${chatId}/messages`);
-      const chatRef = doc(db, `chats/${chatId}`);
+      const activeChatId = await ensureChatId();
+      const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+      const chatRef = doc(db, `chats/${activeChatId}`);
 
       // 2. Usar el caption del primer item (el campo de comentario del editor)
       const caption = mediaList[0]?.caption || '';
@@ -781,11 +833,28 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
+  // Punto único para entrar en "modo respuesta": lo usan tanto el ícono de
+  // responder de la barra de selección como el swipe-to-reply de cada burbuja.
+  const startReply = useCallback((msg) => {
+    if (!msg) return;
+    setEditingMessageId(null);
+    setInputText('');
+    setReplyingTo(msg);
+    clearSelection();
+    Keyboard.dismiss();
+    setTimeout(() => textInputRef.current?.focus(), 150);
+  }, [clearSelection]);
+
   const handleReply = () => {
-    if (!activeMsg) return;
-    Alert.alert('Responder', `Respondiendo a: "${activeMsg.text}"`);
-    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
+    startReply(activeMsg);
   };
+
+  // Se llama desde MessageItem cuando el usuario desliza un mensaje hacia la derecha
+  const handleSwipeReply = useCallback((item) => {
+    startReply(item);
+  }, [startReply]);
+
+  const handleCancelReply = () => setReplyingTo(null);
 
   const handleFavorite = async () => {
     if (selectedIds.length === 0) return;
@@ -824,29 +893,29 @@ export default function ChatDetailScreen({ route, navigation }) {
       try {
         const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
         const deletions = msgsToDelete.map(async (msg) => {
-          // Intentar borrar de Cloudinary de forma segura (sin bloquear el borrado de Firestore)
+          const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
+
+          if (msg.sender !== 'me') {
+            // Borrar para mí: NO se toca el documento real, solo se marca con mi uid
+            await updateDoc(msgRef, {
+              deletedFor: arrayUnion(auth.currentUser.uid),
+            });
+            return;
+          }
+
+          // Mensajes propios: se borran de verdad (para ambos), como antes
           try {
-            if (msg?.mediaUrl) {
-              await deleteMediaFromCloudinary(msg.mediaUrl);
-            }
+            if (msg?.mediaUrl) await deleteMediaFromCloudinary(msg.mediaUrl);
             if (msg?.type === 'media_group' && msg.mediaItems) {
               await Promise.all(
-                msg.mediaItems.map(item => {
-                  if (item.url) {
-                    return deleteMediaFromCloudinary(item.url).catch(err =>
-                      console.log('Error borrando item de media_group de Cloudinary:', err)
-                    );
-                  }
-                  return Promise.resolve();
-                })
+                msg.mediaItems.map(item =>
+                  item.url ? deleteMediaFromCloudinary(item.url).catch(() => {}) : Promise.resolve()
+                )
               );
             }
           } catch (cloudinaryError) {
-            console.log("Error al borrar media de Cloudinary (Se procederá a borrar el mensaje igualmente):", cloudinaryError);
+            console.log("Error al borrar media de Cloudinary:", cloudinaryError);
           }
-
-          // Borrar de Firestore (se ejecutará siempre)
-          const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
           await deleteDoc(msgRef);
         });
         await Promise.all(deletions);
@@ -861,12 +930,16 @@ export default function ChatDetailScreen({ route, navigation }) {
     closeDeleteConfirm();
   };
 
-  const handleForward = () => {
-    if (selectedIds.length === 0) return;
-    const count = selectedIds.length;
-    const texts = messages.filter(m => selectedIds.includes(m.id)).map(m => m.text).join('", "');
-    Alert.alert('Reenviar', `Reenviando ${count} mensaje${count > 1 ? 's' : ''}: "${texts}"`);
-    clearSelection();
+  // Botón de flecha del header en modo selección: si el cartel de confirmación
+  // de borrado está abierto, hay que cerrarlo (animado) ANTES de limpiar la
+  // selección — si no, el cartel queda "huérfano" en pantalla aunque ya no
+  // haya mensajes seleccionados.
+  const handleExitSelection = () => {
+    if (showDeleteConfirm) {
+      closeDeleteConfirm(clearSelection);
+    } else {
+      clearSelection();
+    }
   };
 
   const handleCopy = async () => {
@@ -897,6 +970,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     if (!activeMsg || activeMsg.sender !== 'me') return;
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
+    setReplyingTo(null);
     clearSelection(); // 👈 antes decía setSelectedMessageId(null)
   };
 
@@ -915,11 +989,12 @@ export default function ChatDetailScreen({ route, navigation }) {
         onToggleSelect={handleToggleSelect}
         setShowMsgInfo={setShowMsgInfo}
         onOpenMedia={openMediaViewer}
+        onSwipeReply={handleSwipeReply}
         otherProfilePicture={otherUser.profilePicture} 
         myProfilePicture={currentUserPic}
       />
     );
-  }, [selectedIds, isDark, colors, chatName, openMediaViewer, otherUser.profilePicture, currentUserPic]);
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, otherUser.profilePicture, currentUserPic]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [mediaPreview, setMediaPreview] = useState(null); 
@@ -954,7 +1029,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
             {/* Flecha + contador */}
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={clearSelection} style={{ paddingRight: 12 }}>
+              <TouchableOpacity onPress={handleExitSelection} style={{ paddingRight: 12 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
               <Text style={[styles.headerName, { color: colors.text, fontSize: 20 }]}>
@@ -965,9 +1040,11 @@ export default function ChatDetailScreen({ route, navigation }) {
             {/* Acciones — varían según si el mensaje es mío o del otro */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
 
-              <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
-                <Ionicons name="arrow-undo" size={28} color={colors.text} />
-              </TouchableOpacity>
+              {selectedIds.length === 1 && (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
+                  <Ionicons name="arrow-undo" size={28} color={colors.text} />
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
                 <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={28} color={colors.text} />
@@ -989,10 +1066,6 @@ export default function ChatDetailScreen({ route, navigation }) {
                   <Ionicons name="copy" size={28} color={colors.text} />
                 </TouchableOpacity>
               ) : null}
-
-              <TouchableOpacity style={styles.toolIcon} onPress={handleForward}>
-                <Ionicons name="arrow-redo" size={28} color={colors.text} />
-              </TouchableOpacity>
 
             </View>
           </View>
@@ -1229,7 +1302,25 @@ export default function ChatDetailScreen({ route, navigation }) {
             </Animated.View>
           ) : (
             // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
-            <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
+            <>
+              {/* Vista previa de respuesta — estilo WhatsApp, arriba del input */}
+              {!!replyingTo && (
+                <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                  <View style={styles.replyPreviewAccent} />
+                  <View style={styles.replyPreviewTextWrap}>
+                    <Text style={styles.replyPreviewTitle} numberOfLines={1}>
+                      {replyingTo.sender === 'me' ? 'Tú' : (otherUser.name || chatName)}
+                    </Text>
+                    <Text style={[styles.replyPreviewText, { color: colors.text }]} numberOfLines={1}>
+                      {replyingTo.text || (replyingTo.type && replyingTo.type !== 'text' ? `📎 ${replyingTo.type}` : '')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleCancelReply} style={styles.replyPreviewCloseBtn}>
+                    <Ionicons name="close" size={20} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
               {isRecording ? (
                 // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
                 <Animated.View style={[styles.recordHintBar, {
@@ -1253,6 +1344,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                   </TouchableOpacity>
 
                   <TextInput
+                    ref={textInputRef}
                     placeholder={editingMessageId ? "Editar mensaje..." : "Mensaje"}
                     placeholderTextColor="#888"
                     value={inputText}
@@ -1310,6 +1402,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </View>
               )}
             </View>
+            </>
           )}
           <CustomCameraModal
           visible={showCustomCamera}
@@ -1340,6 +1433,11 @@ export default function ChatDetailScreen({ route, navigation }) {
           <Text style={[styles.deleteConfirmText, { color: colors.text }]}>
             ¿Deseas eliminar {selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?
           </Text>
+          {selectionSender === 'other' && (
+            <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: '#888', textAlign: 'center' }}>
+              Se eliminará{selectedIds.length > 1 ? 'n' : ''} solo para ti. {otherUser.name || chatName} podrá seguir viéndolo{selectedIds.length > 1 ? 's' : ''}.
+            </Text>
+          )}
           <View style={styles.deleteConfirmActions}>
             <TouchableOpacity onPress={handleCancelDelete} style={[styles.deleteConfirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}>
               <Text style={[styles.deleteConfirmBtnText, { color: colors.text }]}>Cancelar</Text>

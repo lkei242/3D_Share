@@ -18,9 +18,14 @@ import { formatTime } from './Chatconstants';
 // del candado, slide de cancelar), el cronómetro sincronizado con el grabador
 // real, y el flujo de subida + envío del mensaje de audio a Firestore.
 //
+// Recibe `ensureChatId`, una función async que devuelve el id del chat activo
+// y lo crea si todavía no existe (por ejemplo, si la nota de voz es el primer
+// mensaje de la conversación). No recibe el chatId "crudo" para evitar mandar
+// el audio a un chat que nunca se creó.
+//
 // Se usa así dentro de ChatDetailsScreen.js:
-//   const recorder = useVoiceRecorder(chatId);
-export default function useVoiceRecorder(chatId) {
+//   const recorder = useVoiceRecorder(ensureChatId);
+export default function useVoiceRecorder(ensureChatId) {
   const [isLocked, setIsLocked] = useState(false);
   const waveBarAnims = useRef(
     Array.from({ length: 22 }, () => new Animated.Value(0.3))
@@ -200,7 +205,8 @@ export default function useVoiceRecorder(chatId) {
       }
 
       const durationText = formatTime(duration);
-      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const activeChatId = await ensureChatId();
+      const messagesRef = collection(db, `chats/${activeChatId}/messages`);
       await addDoc(messagesRef, {
         text: 'Nota de voz',
         type: 'audio',
@@ -212,7 +218,7 @@ export default function useVoiceRecorder(chatId) {
         isFavorite: false
       });
 
-      const chatRef = doc(db, `chats/${chatId}`);
+      const chatRef = doc(db, `chats/${activeChatId}`);
       await updateDoc(chatRef, {
         lastMessage: `🎙️ Nota de voz (${durationText})`,
         lastMessageTime: serverTimestamp(),

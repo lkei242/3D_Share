@@ -86,6 +86,20 @@ const styles = StyleSheet.create({
 
   mediaTimeBadge: {position: 'absolute',bottom: 6,right: 6,flexDirection: 'row',alignItems: 'center',backgroundColor: 'rgba(0,0,0,0.45)',borderRadius: 10,paddingHorizontal: 6,paddingVertical: 2,},
   mediaTimeBadgeText: {color: '#FFF',fontSize: 11,fontFamily: 'Nunito-Regular',},
+
+  // --- Responder mensaje (swipe-to-reply, estilo WhatsApp) ---
+  replyPreviewBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, marginHorizontal: 10, marginBottom: 6, paddingVertical: 6, paddingHorizontal: 10, overflow: 'hidden' },
+  replyPreviewAccent: { width: 3, alignSelf: 'stretch', backgroundColor: GREEN_ACCENT, borderRadius: 2, marginRight: 8 },
+  replyPreviewTextWrap: { flex: 1 },
+  replyPreviewTitle: { fontSize: 13, fontFamily: 'Nunito-Bold', color: GREEN_ACCENT },
+  replyPreviewText: { fontSize: 13, fontFamily: 'Nunito-Regular' },
+  replyPreviewCloseBtn: { padding: 6 },
+  replyIconWrap: { position: 'absolute', left: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  replyQuoteBox: { flexDirection: 'row', borderRadius: 8, marginBottom: 6, overflow: 'hidden' },
+  replyQuoteAccent: { width: 3 },
+  replyQuoteContent: { paddingVertical: 4, paddingHorizontal: 8, flex: 1 },
+  replyQuoteSender: { fontSize: 12, fontFamily: 'Nunito-Bold' },
+  replyQuoteText: { fontSize: 12, fontFamily: 'Nunito-Regular' },
 });
 
 export default styles;
