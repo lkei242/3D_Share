@@ -22,6 +22,7 @@ const MessageItem = React.memo(({
   onSwipeReply,
   otherProfilePicture,
   myProfilePicture,
+  isEditing,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -155,6 +156,7 @@ const MessageItem = React.memo(({
         isMe ? styles.myMessageRow : styles.otherMessageRow,
         isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
         { backgroundColor: rowBgColor, transform: [{ translateX: swipeX }] },
+        isEditing && { backgroundColor: 'rgba(255,193,7,0.18)' },
       ]}>
         {/* CHECKBOX — visible solo en modo multi-selección */}
         {selectedIds.length > 0 && (
@@ -395,6 +397,8 @@ const MessageItem = React.memo(({
 }, (prev, next) => 
   prev.item.id === next.item.id && 
   prev.item.text === next.item.text && 
+  prev.isEditing === next.isEditing &&
+  prev.item.caption === next.item.caption &&
   prev.item.read === next.item.read && 
   prev.item.delivered === next.item.delivered &&
   prev.item.pending === next.item.pending &&
