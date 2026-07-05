@@ -17,9 +17,16 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { signInWithGoogle } from './config/googleSignIn';
 
 export default function LoginScreen({ navigation, route }) {
-  const { colors } = useTheme();
+  const handleGoogleSignIn = () => {
+    signInWithGoogle(
+      () => navigation.replace('MainTabs'),
+      (msg) => alert(msg)
+    );
+  };
+  const { colors, dark: isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -162,6 +169,20 @@ const saveAccountToStorage = async (user, password) => {
           </Text>
         </TouchableOpacity>
 
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: isDark ? '#333' : '#D0D0D0' }]} />
+          <Text style={[styles.dividerText, { color: isDark ? '#888' : '#999' }]}>o</Text>
+          <View style={[styles.dividerLine, { backgroundColor: isDark ? '#333' : '#D0D0D0' }]} />
+        </View>
+
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+        >
+          <Ionicons name="logo-google" size={22} color="#FFF" />
+          <Text style={styles.googleButtonText}>Iniciar sesión con Google</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => navigation.navigate('Welcome')}>
           <Text style={[styles.link, { color: colors.text }]}>
             Volver
@@ -176,7 +197,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     backgroundColor: '#121212',
-    paddingTop:'168',
+    paddingTop:'68',
     paddingHorizontal: 30,
   },
 
@@ -240,6 +261,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Light',
   },
 
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#4285F4',
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  googleButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontFamily: 'Nunito-Bold',
+  },
   link: {
     color: '#cacaca',
     textAlign: 'center',

@@ -3,6 +3,7 @@
     "name": "3D Share",
     "slug": "mobile-expo",
     "version": "1.0.0",
+    "scheme": "mobile-expo",
     "orientation": "portrait",
     "icon": "./assets/icon-app.png",
     "userInterfaceStyle": "automatic",
@@ -30,6 +31,8 @@
       "backgroundColor": "#00000000"
     },
     "plugins": [
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin",
       "@react-native-community/datetimepicker",
       [
         "expo-audio",
@@ -60,7 +63,8 @@
         }
       ],
       "expo-video",
-      "expo-font"
+      "expo-font",
+      "@react-native-google-signin/google-signin"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
@@ -68,7 +72,8 @@
     "extra": {
       "eas": {
         "projectId": "3301b621-186b-41de-8b98-c8cebf5befda"
-      }
+      },
+      "googleClientId": "177855023674-mim8l54t82ku9tmg52ea2h9pj6hv0uhv.apps.googleusercontent.com"
     }
   }
 }

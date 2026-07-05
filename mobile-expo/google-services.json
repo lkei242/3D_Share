@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "177855023674",
+    "project_id": "dshare-6b84f",
+    "storage_bucket": "dshare-6b84f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177855023674:android:d5407db28f6249e1030303",
+        "android_client_info": {
+          "package_name": "com.germanrom.threeDshare"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "177855023674-r6ibap2rp8brlt530ci31pjo44vs13ij.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.germanrom.threeDshare",
+            "certificate_hash": "616e8a437132a7e3285c94cd48623ecf8c1ebe19"
+          }
+        },
+        {
+          "client_id": "177855023674-r8qg78p866hb1sp5hmmr47o04ovj7dgq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCpjZbIbw5ymgCmqYvbwWJkKSQn1MuTjs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "177855023674-mim8l54t82ku9tmg52ea2h9pj6hv0uhv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

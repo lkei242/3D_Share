@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
+import { signInWithGoogle } from './config/googleSignIn';
 import { API_URL } from './config/api';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
@@ -13,6 +14,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Modal,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
@@ -48,6 +50,8 @@ export default function RegisterScreen({ navigation }) {
   const [image, setImage] = useState(null);
   const [presentation, setPresentation] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  const [showOptions, setShowOptions] = useState(false);
 
   // Control de UI
   const [loading, setLoading] = useState(false);
@@ -190,6 +194,11 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
+  const removeProfilePicture = () => {
+    setShowOptions(false);
+    setImage(null);
+  };
+
   // Validaciones y avance al Paso 2
   const handleContinue = () => {
     const newErrors = {};
@@ -313,7 +322,7 @@ export default function RegisterScreen({ navigation }) {
         username: username.trim().toLowerCase(),
         email: email.trim(),
         birthDate: birthDate.trim(),
-        profilePicture: profilePictureUrl || 'https://res.cloudinary.com/dvrjrpotj/image/upload/v1782073947/3d_share/default_avatar.png',
+        profilePicture: profilePictureUrl || '',
         presentation: sanitizeInput(presentation.trim()) || null,
         createdAt: new Date(),
       });
@@ -374,7 +383,12 @@ export default function RegisterScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.socialButton, { backgroundColor: '#DB4437' }]}
-              onPress={() => alert('El registro con Google estará disponible próximamente.')}
+              onPress={() =>
+                signInWithGoogle(
+                  () => navigation.replace('MainTabs'),
+                  (msg) => showToast(msg)
+                )
+              }
             >
               <FontAwesome name="google" size={20} color="white" />
               <Text style={styles.socialButtonText}>Registrarse con Google</Text>
@@ -493,7 +507,7 @@ export default function RegisterScreen({ navigation }) {
             <View style={[styles.passwordContainer, { marginBottom: 15 }]}>
               <TextInput
                 ref={confirmPasswordRef}
-                style={[styles.input, errors.confirmPassword && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1, marginBottom: 0 }]}
+                style={[styles.input, errors.confirmPassword && styles.inputError, { backgroundColor: colors.inputBackground, flex: 1 }]}
                 placeholder="Repetí tu contraseña"
                 placeholderTextColor="#707070"
                 secureTextEntry={!showConfirmPassword}
@@ -576,7 +590,7 @@ export default function RegisterScreen({ navigation }) {
             <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>Paso 2 de 2: Datos opcionales</Text>
 
             {/* SELECCIONAR FOTO DE PERFIL */}
-            <TouchableOpacity style={styles.avatarPickerContainer} onPress={pickProfileImage}>
+            <TouchableOpacity style={styles.avatarPickerContainer} onPress={() => setShowOptions(true)}>
               <View style={[styles.avatarFrame, { borderColor: colors.avatarborder }]}>
                 {image ? (
                   <Image source={{ uri: image }} style={styles.avatarImage} />
@@ -588,6 +602,32 @@ export default function RegisterScreen({ navigation }) {
                 )}
               </View>
             </TouchableOpacity>
+
+            {/* MODAL DE OPCIONES DE FOTO */}
+            <Modal visible={showOptions} transparent animationType="fade">
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setShowOptions(false)}
+              >
+                <View style={[styles.modalContent, { backgroundColor: isDark ? '#2A2A2A' : '#FFF' }]}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Foto de perfil</Text>
+                  <View style={[styles.modalDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => { setShowOptions(false); pickProfileImage(); }}
+                  >
+                    <Ionicons name="camera" size={22} color="#546F1C" />
+                    <Text style={[styles.modalOptionText, { color: colors.text }]}>Cambiar foto</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.modalDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
+                  <TouchableOpacity style={styles.modalOption} onPress={removeProfilePicture}>
+                    <Ionicons name="trash" size={22} color="#E74C3C" />
+                    <Text style={[styles.modalOptionText, { color: '#E74C3C' }]}>Eliminar foto</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
 
             {/* PRESENTACIÓN / BIO */}
             <TextInput
@@ -840,5 +880,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Nunito-Bold',
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '75%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  modalDivider: {
+    height: 1,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
