@@ -11,10 +11,11 @@ import {
   Dimensions,
   Linking,
   Alert,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
@@ -39,6 +40,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [isBlocked, setIsBlocked] = useState(false);
   const [pinnedPosts, setPinnedPosts] = useState([]);
+  const [otherProfiles, setOtherProfiles] = useState([]);
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
     email: null,
@@ -48,9 +50,7 @@ export default function UserProfileScreen({ route, navigation }) {
     socialMedia: {
       instagram: null,
       facebook: null,
-      twitter: null,
-      tiktok: null,
-      linkedin: null,
+      telegram: null,
     },
   });
 
@@ -79,11 +79,10 @@ export default function UserProfileScreen({ route, navigation }) {
             socialMedia: {
               instagram: data.contacts.socialMedia?.instagram || null,
               facebook: data.contacts.socialMedia?.facebook || null,
-              twitter: data.contacts.socialMedia?.twitter || null,
-              tiktok: data.contacts.socialMedia?.tiktok || null,
-              linkedin: data.contacts.socialMedia?.linkedin || null,
+              telegram: data.contacts.socialMedia?.telegram || null,
             },
           });
+          setOtherProfiles(data.contacts?.otherProfiles || []);
         }
       }
     } catch (error) {
@@ -239,6 +238,16 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Mirá el perfil de ${profileName || username} en 3D Share: @${username}`,
+      });
+    } catch (error) {
+      console.log('Error al compartir:', error);
+    }
+  };
+
   const handleEmail = () => {
     if (userContacts.email) {
       Linking.openURL(`mailto:${userContacts.email}`);
@@ -349,7 +358,10 @@ export default function UserProfileScreen({ route, navigation }) {
     const url = userContacts.socialMedia[platform];
     if (!url) return null;
 
-    const IconComponent = iconType === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
+    const IconComponent =
+      iconType === 'MaterialCommunity' ? MaterialCommunityIcons :
+      iconType === 'FontAwesome5' ? FontAwesome5 :
+      Feather;
 
     return (
       <TouchableOpacity
@@ -459,12 +471,33 @@ export default function UserProfileScreen({ route, navigation }) {
                 </Text>
                 
                 <View style={styles.socialGrid}>
-                  {renderSocialButton('instagram', 'instagram', '#E1306C')}
+                  {renderSocialButton('telegram', 'telegram', '#0088CC', 'FontAwesome5')}
                   {renderSocialButton('facebook', 'facebook', '#1877F2')}
-                  {renderSocialButton('twitter', 'twitter', '#1DA1F2')}
-                  {renderSocialButton('tiktok', 'music-note', '#000000', 'MaterialCommunity')}
-                  {renderSocialButton('linkedin', 'linkedin', '#0A66C2')}
+                  {renderSocialButton('instagram', 'instagram', '#E1306C')}
                 </View>
+              </View>
+            )}
+
+            {/* Tus otros perfiles */}
+            {otherProfiles.length > 0 && (
+              <View style={styles.contactsSection}>
+                <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
+                  Otros perfiles
+                </Text>
+
+                {otherProfiles.map((profile, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[styles.profileCard, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}
+                    onPress={() => Linking.openURL(profile.url)}
+                  >
+                    <View style={styles.profileCardContent}>
+                      <Text style={[styles.profileName, { color: colors.text }]}>{profile.name}</Text>
+                      <Text style={[styles.profileUrl, { color: isDark ? '#888' : '#666' }]} numberOfLines={1}>{profile.url}</Text>
+                    </View>
+                    <Ionicons name="open-outline" size={20} color={isDark ? '#555' : '#999'} />
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
           </View>
@@ -604,7 +637,7 @@ export default function UserProfileScreen({ route, navigation }) {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.btnIcon, { backgroundColor: isDark ? '#2A2A2A' : '#EFEFEF' }]} activeOpacity={0.8}>
+                <TouchableOpacity style={[styles.btnIcon, { backgroundColor: isDark ? '#2A2A2A' : '#EFEFEF' }]} activeOpacity={0.8} onPress={handleShare}>
                   <Feather name="share-2" size={18} color={isDark ? '#FFF' : '#333'} />
                 </TouchableOpacity>
               </View>
@@ -947,6 +980,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 60,
     fontSize: 15,
+    fontFamily: 'Nunito-Regular',
+  },
+  // Tus otros perfiles
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  profileCardContent: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 2,
+  },
+  profileUrl: {
+    fontSize: 13,
     fontFamily: 'Nunito-Regular',
   },
 });

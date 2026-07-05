@@ -29,7 +29,6 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/profile_screens/SettingsScreen';
 import AccountSwitcherScreen from './src/screens/profile_screens/AccountSwitcherScreen';
 import ContactsScreen from './src/screens/profile_screens/ContactsScreen';
-import SocialNetworksScreen from './src/screens/profile_screens/SocialNetworksScreen';
 import AccountScreen from './src/screens/profile_screens/AccountScreen';
 import SecurityScreen from './src/screens/profile_screens/SecurityScreen';
 import NotificationsScreen from './src/screens/profile_screens/NotificationsScreen';
@@ -50,6 +49,7 @@ import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuen
 import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
+import ReauthenticateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/ReauthenticateScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 import PostDetailScreen from './src/screens/components/PostDetailScreen';
 import EditPostScreen from './src/screens/EditPostScreen';
@@ -172,7 +172,6 @@ function AppContent() {
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="AccountSwitcher" component={AccountSwitcherScreen} />
           <Stack.Screen name="Contacts" component={ContactsScreen} />
-          <Stack.Screen name="SocialNetworks" component={SocialNetworksScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Account" component={AccountScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Security" component={SecurityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
@@ -194,6 +193,7 @@ function AppContent() {
           <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ReauthenticateScreen" component={ReauthenticateScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>

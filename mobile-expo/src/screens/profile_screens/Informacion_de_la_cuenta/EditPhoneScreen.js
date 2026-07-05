@@ -1,5 +1,5 @@
 // src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen.js
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
@@ -20,19 +21,54 @@ export default function EditPhoneScreen({ route, navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
+  // Toast
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('error');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(''));
+    }, 3000);
+  };
+
+  const validatePhoneOnBlur = () => {
+    const v = phone.trim();
+    if (!v) return showToast('El teléfono es obligatorio.');
+    if (!/^[\d\s\-\+\(\)]{7,20}$/.test(v)) return showToast('Formato de teléfono no válido.');
+  };
+
   const handleSave = async () => {
+    const v = phone.trim();
+    if (!v) return showToast('El teléfono es obligatorio.');
+    if (!/^[\d\s\-\+\(\)]{7,20}$/.test(v)) return showToast('Formato de teléfono no válido.');
+
     setLoading(true);
     try {
       const user = auth.currentUser;
       if (user) {
         await updateDoc(doc(db, 'users', user.uid), {
-          phone: phone.trim(),
+          phone: v,
         });
-        alert('Teléfono actualizado con éxito.');
-        navigation.goBack();
+        showToast('Teléfono actualizado con éxito.', 'success');
+        setTimeout(() => navigation.goBack(), 1500);
       }
     } catch (error) {
-      alert('Error al guardar: ' + error.message);
+      showToast('Error al guardar: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -53,6 +89,7 @@ export default function EditPhoneScreen({ route, navigation }) {
           style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC', color: colors.text }]}
           value={phone}
           onChangeText={setPhone}
+          onBlur={validatePhoneOnBlur}
           keyboardType="phone-pad"
           placeholder="Ingrese su número"
           placeholderTextColor={isDark ? '#666' : '#999'}
@@ -71,6 +108,32 @@ export default function EditPhoneScreen({ route, navigation }) {
           <Text style={styles.saveText}>Guardar</Text>
         )}
       </TouchableOpacity>
+
+      {/* TOAST */}
+      {toastMessage !== '' && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: toastType === 'success' ? '#27AE60' : '#E74C3C',
+              opacity: toastAnim,
+              transform: [{
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color="#FFF"
+          />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -121,5 +184,29 @@ const styles = StyleSheet.create({
   saveText: {
     color: '#FFF',
     fontFamily: 'Nunito-Bold',
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+    flex: 1,
   },
 });

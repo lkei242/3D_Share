@@ -12,10 +12,16 @@ import {
   RefreshControl,
   Alert,
   FlatList,
+  Share,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -72,6 +78,17 @@ export default function ProfileScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [pinnedPosts, setPinnedPosts] = useState([]);
   const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
+
+  const [otherProfiles, setOtherProfiles] = useState([]);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [editingProfileIndex, setEditingProfileIndex] = useState(null);
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [profileUrlInput, setProfileUrlInput] = useState('');
+  const [addingProfile, setAddingProfile] = useState(false);
+
+  const [socialModalVisible, setSocialModalVisible] = useState(false);
+  const [editingSocialPlatform, setEditingSocialPlatform] = useState(null);
+  const [socialInputValue, setSocialInputValue] = useState('');
   
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
@@ -82,9 +99,7 @@ export default function ProfileScreen({ navigation }) {
     socialMedia: {
       instagram: null,
       facebook: null,
-      twitter: null,
-      tiktok: null,
-      linkedin: null,
+      telegram: null,
     },
   });
 
@@ -117,11 +132,10 @@ export default function ProfileScreen({ navigation }) {
             socialMedia: {
               instagram: data.contacts.socialMedia?.instagram || null,
               facebook: data.contacts.socialMedia?.facebook || null,
-              twitter: data.contacts.socialMedia?.twitter || null,
-              tiktok: data.contacts.socialMedia?.tiktok || null,
-              linkedin: data.contacts.socialMedia?.linkedin || null,
+              telegram: data.contacts.socialMedia?.telegram || null,
             },
           });
+          setOtherProfiles(data.contacts?.otherProfiles || []);
         }
       } else {
         setUserEmail(user.email || '');
@@ -367,12 +381,116 @@ export default function ProfileScreen({ navigation }) {
   };
 
   // Botón de red social (estilo UserProfileScreen)
+  const handleWhatsApp = () => {
+    if (userContacts.whatsapp) {
+      const phone = userContacts.whatsapp.replace(/\D/g, '');
+      Linking.openURL(`whatsapp://send?phone=${phone}`).catch(() => {
+        Alert.alert('Error', 'No se pudo abrir WhatsApp. ¿Está instalado?');
+      });
+    }
+  };
+
+  const handleSocialMedia = (platform) => {
+    const url = userContacts.socialMedia[platform];
+    if (url) {
+      const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+      Linking.openURL(fullUrl).catch(() => {
+        Alert.alert('Error', 'No se pudo abrir el enlace.');
+      });
+    }
+  };
+
+  const getSocialValue = (platform) =>
+    platform === 'whatsapp' ? userContacts.whatsapp : userContacts.socialMedia[platform];
+
+  const openSocialEdit = (platform) => {
+    setEditingSocialPlatform(platform);
+    setSocialInputValue(getSocialValue(platform) || '');
+    setSocialModalVisible(true);
+  };
+
+  const saveSocialContacts = async (updatedContacts) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+      const existing = snap.exists() ? snap.data() : {};
+      await setDoc(userRef, {
+        ...existing,
+        contacts: {
+          ...existing.contacts,
+          whatsapp: updatedContacts.whatsapp,
+          socialMedia: updatedContacts.socialMedia,
+        },
+      });
+    } catch (error) {
+      console.log('Error guardando redes sociales:', error);
+      Alert.alert('Error', 'No se pudo guardar el cambio. Intentá de nuevo.');
+    }
+  };
+
+  const handleSaveSocial = async () => {
+    const value = socialInputValue.trim();
+    const platform = editingSocialPlatform;
+
+    let updatedContacts;
+    if (platform === 'whatsapp') {
+      updatedContacts = { ...userContacts, whatsapp: value || null };
+    } else {
+      updatedContacts = {
+        ...userContacts,
+        socialMedia: { ...userContacts.socialMedia, [platform]: value || null },
+      };
+    }
+
+    setUserContacts(updatedContacts);
+    setSocialModalVisible(false);
+    await saveSocialContacts(updatedContacts);
+  };
+
+  const handleDeleteSocial = async () => {
+    const platform = editingSocialPlatform;
+    let updatedContacts;
+    if (platform === 'whatsapp') {
+      updatedContacts = { ...userContacts, whatsapp: null };
+    } else {
+      updatedContacts = {
+        ...userContacts,
+        socialMedia: { ...userContacts.socialMedia, [platform]: null },
+      };
+    }
+
+    setUserContacts(updatedContacts);
+    setSocialModalVisible(false);
+    await saveSocialContacts(updatedContacts);
+  };
+
+  const handleSocialButtonPress = (platform) => {
+    const hasValue = !!getSocialValue(platform);
+
+    if (!hasValue) {
+      // Si no está configurado, abrimos el modal para agregarlo
+      openSocialEdit(platform);
+      return;
+    }
+
+    if (platform === 'whatsapp') {
+      handleWhatsApp();
+    } else {
+      handleSocialMedia(platform);
+    }
+  };
+
   const renderSocialButton = (platform, iconName, color, iconType = 'Feather') => {
     const url = platform === 'whatsapp'
       ? userContacts.whatsapp
       : userContacts.socialMedia[platform];
     const hasValue = url !== null && url !== '';
-    const IconComponent = iconType === 'MaterialCommunity' ? MaterialCommunityIcons : Feather;
+    const IconComponent =
+      iconType === 'MaterialCommunity' ? MaterialCommunityIcons :
+      iconType === 'FontAwesome5' ? FontAwesome5 :
+      Feather;
     return (
       <TouchableOpacity
         key={platform}
@@ -380,7 +498,8 @@ export default function ProfileScreen({ navigation }) {
           styles.socialButton,
           { backgroundColor: hasValue ? color + '15' : (isDark ? '#2A2A2A' : '#F5F5F5') },
         ]}
-        onPress={() => navigation.navigate('SocialNetworks')}
+        onPress={() => handleSocialButtonPress(platform)}
+        onLongPress={() => openSocialEdit(platform)}
         activeOpacity={0.7}
       >
         <View style={styles.socialIconContainer}>
@@ -415,6 +534,96 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
+  const isValidUrl = (url) => {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const saveOtherProfiles = async (profiles) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+      const existing = snap.exists() ? snap.data() : {};
+      await setDoc(userRef, {
+        ...existing,
+        contacts: {
+          ...existing.contacts,
+          otherProfiles: profiles,
+        },
+      });
+    } catch (error) {
+      console.log('Error guardando otros perfiles:', error);
+    }
+  };
+
+  const openAddProfile = () => {
+    setEditingProfileIndex(null);
+    setProfileNameInput('');
+    setProfileUrlInput('');
+    setAddingProfile(true);
+    setProfileModalVisible(true);
+  };
+
+  const openEditProfile = (index) => {
+    setEditingProfileIndex(index);
+    setProfileNameInput(otherProfiles[index].name);
+    setProfileUrlInput(otherProfiles[index].url);
+    setAddingProfile(false);
+    setProfileModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    const name = profileNameInput.trim();
+    const url = profileUrlInput.trim();
+    if (!name) return Alert.alert('Error', 'El nombre es obligatorio.');
+    if (!url) return Alert.alert('Error', 'La URL es obligatoria.');
+    if (!isValidUrl(url)) return Alert.alert('Error', 'La URL no es válida. Debe comenzar con http:// o https://');
+
+    let newProfiles;
+    if (editingProfileIndex !== null) {
+      newProfiles = otherProfiles.map((p, i) =>
+        i === editingProfileIndex ? { name, url } : p
+      );
+    } else {
+      newProfiles = [...otherProfiles, { name, url }];
+    }
+
+    setOtherProfiles(newProfiles);
+    await saveOtherProfiles(newProfiles);
+    setProfileModalVisible(false);
+  };
+
+  const handleDeleteProfile = async (index) => {
+    Alert.alert('Eliminar perfil', `¿Eliminar "${otherProfiles[index].name}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          const newProfiles = otherProfiles.filter((_, i) => i !== index);
+          setOtherProfiles(newProfiles);
+          await saveOtherProfiles(newProfiles);
+        },
+      },
+    ]);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `${userName || userUsername} te ha invitado a 3D_Share 📲\n¡Buscá a @${userUsername} cuando entres a la app!`,
+      });
+    } catch (error) {
+      console.log('Error al compartir:', error);
+    }
+  };
+
   // Renderizar pestaña de contactos
   const renderContactsTab = () => {
     const hasAnyContact =
@@ -433,17 +642,48 @@ export default function ProfileScreen({ navigation }) {
             Redes sociales
           </Text>
           <Text style={[styles.contactsSectionSubtitle, { color: isDark ? '#888' : '#777' }]}>
-            Toca para agregar o editar tus enlaces
+            Toca para abrir el enlace. Mantené presionado para editarlo
           </Text>
 
           <View style={styles.socialGrid}>
-            {renderSocialButton('instagram', 'instagram', '#E1306C')}
-            {renderSocialButton('facebook', 'facebook', '#1877F2')}
-            {renderSocialButton('twitter', 'twitter', '#1DA1F2')}
-            {renderSocialButton('tiktok', 'music-note', '#000000', 'MaterialCommunity')}
-            {renderSocialButton('linkedin', 'linkedin', '#0A66C2')}
             {renderSocialButton('whatsapp', 'whatsapp', '#25D366', 'MaterialCommunity')}
+            {renderSocialButton('facebook', 'facebook', '#1877F2')}
+            {renderSocialButton('instagram', 'instagram', '#E1306C')}
+            {renderSocialButton('telegram', 'telegram', '#0088CC', 'FontAwesome5')}
           </View>
+        </View>
+
+        {/* Tus otros perfiles */}
+        <View style={styles.contactsSection}>
+          <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
+            Tus otros perfiles
+          </Text>
+          <Text style={[styles.contactsSectionSubtitle, { color: isDark ? '#888' : '#777' }]}>
+            Agregá enlaces a tus otros perfiles
+          </Text>
+
+          {otherProfiles.map((profile, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.profileCard, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}
+              onPress={() => openEditProfile(index)}
+              onLongPress={() => handleDeleteProfile(index)}
+            >
+              <View style={styles.profileCardContent}>
+                <Text style={[styles.profileName, { color: colors.text }]}>{profile.name}</Text>
+                <Text style={[styles.profileUrl, { color: isDark ? '#888' : '#666' }]} numberOfLines={1}>{profile.url}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={isDark ? '#555' : '#999'} />
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={[styles.addProfileButton, { borderColor: isDark ? '#333' : '#DCDCDC' }]}
+            onPress={openAddProfile}
+          >
+            <Ionicons name="add-circle-outline" size={22} color="#546F1C" />
+            <Text style={[styles.addProfileText, { color: '#546F1C' }]}>Agregar perfil</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -600,7 +840,7 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.btnPrimaryText}>Editar perfil</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8} onPress={handleShare}>
                 <Feather
                   name="share-2"
                   size={16}
@@ -649,6 +889,102 @@ export default function ProfileScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Modal para agregar/editar perfil */}
+      <Modal visible={profileModalVisible} transparent animationType="fade" onRequestClose={() => setProfileModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalKeyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setProfileModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: isDark ? '#2A2A2A' : '#FFF' }]}>
+              <TouchableOpacity activeOpacity={1}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  {addingProfile ? 'Agregar perfil' : 'Editar perfil'}
+                </Text>
+
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC', color: colors.text }]}
+                  placeholder="Nombre del perfil"
+                  placeholderTextColor={isDark ? '#666' : '#999'}
+                  value={profileNameInput}
+                  onChangeText={setProfileNameInput}
+                />
+
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC', color: colors.text }]}
+                  placeholder="URL (https://...)"
+                  placeholderTextColor={isDark ? '#666' : '#999'}
+                  value={profileUrlInput}
+                  onChangeText={setProfileUrlInput}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]}
+                    onPress={() => setProfileModalVisible(false)}
+                  >
+                    <Text style={[styles.modalButtonText, { color: colors.text }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: '#546F1C' }]}
+                    onPress={handleSaveProfile}
+                  >
+                    <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Guardar</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal para agregar/editar red social */}
+      <Modal visible={socialModalVisible} transparent animationType="fade" onRequestClose={() => setSocialModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalKeyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSocialModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: isDark ? '#2A2A2A' : '#FFF' }]}>
+              <TouchableOpacity activeOpacity={1}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  {editingSocialPlatform
+                    ? `${editingSocialPlatform.charAt(0).toUpperCase() + editingSocialPlatform.slice(1)}`
+                    : ''}
+                </Text>
+
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC', color: colors.text }]}
+                  placeholder={editingSocialPlatform === 'whatsapp' ? 'Número de teléfono (ej: 3624918273)' : 'URL o usuario (ej: https://...)'}
+                  placeholderTextColor={isDark ? '#666' : '#999'}
+                  value={socialInputValue}
+                  onChangeText={setSocialInputValue}
+                  autoCapitalize="none"
+                  keyboardType={editingSocialPlatform === 'whatsapp' ? 'phone-pad' : 'url'}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]}
+                    onPress={() => setSocialModalVisible(false)}
+                  >
+                    <Text style={[styles.modalButtonText, { color: colors.text }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: '#546F1C' }]}
+                    onPress={handleSaveSocial}
+                  >
+                    <Text style={[styles.modalButtonText, { color: '#FFF' }]}>Guardar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {!!getSocialValue(editingSocialPlatform) && (
+                  <TouchableOpacity style={styles.modalDeleteButton} onPress={handleDeleteSocial}>
+                    <Text style={styles.modalDeleteButtonText}>Eliminar enlace</Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -979,5 +1315,98 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Nunito-Regular',
     marginTop: 2,
+  },
+  // Tus otros perfiles
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  profileCardContent: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 2,
+  },
+  profileUrl: {
+    fontSize: 13,
+    fontFamily: 'Nunito-Regular',
+  },
+  addProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 5,
+  },
+  addProfileText: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+  },
+  // Modal de perfiles
+  modalKeyboardView: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 28,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Nunito-Bold',
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 52,
+    fontFamily: 'Nunito-Regular',
+    fontSize: 15,
+    marginBottom: 14,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontFamily: 'Nunito-Bold',
+  },
+  modalDeleteButton: {
+    marginTop: 14,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  modalDeleteButtonText: {
+    color: '#E53935',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
   },
 });

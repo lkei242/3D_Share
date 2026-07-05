@@ -1,5 +1,5 @@
 // src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen.js
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from '../../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { query, collection, where, getDocs } from 'firebase/firestore';
+import { verifyBeforeUpdateEmail } from 'firebase/auth';
 
 export default function EditEmailScreen({ route, navigation }) {
   const { currentEmail } = route.params || {};
@@ -20,23 +22,71 @@ export default function EditEmailScreen({ route, navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
+  // Toast
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('error');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(''));
+    }, 3000);
+  };
+
+  const validateEmailOnBlur = () => {
+    const v = email.trim();
+    if (!v) return showToast('El correo es obligatorio.');
+    if (v.length > 100) return showToast('Máximo 100 caracteres.');
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(v)) return showToast('Solamente correos @gmail.com.');
+  };
+
   const handleSave = async () => {
-    if (!email.trim()) {
-      alert('El correo no puede estar vacío.');
-      return;
-    }
+    const v = email.trim();
+    if (!v) return showToast('El correo no puede estar vacío.');
+    if (v.length > 100) return showToast('Máximo 100 caracteres.');
+    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(v)) return showToast('Solamente correos @gmail.com.');
+
+    if (v === currentEmail) return showToast('El correo es el mismo que el actual.');
+
+    // Verificar que no esté en uso
+    const q = query(
+      collection(db, 'users'),
+      where('email', '==', v)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) return showToast('Este correo ya está en uso.');
+
     setLoading(true);
     try {
       const user = auth.currentUser;
-      if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          email: email.trim(),
-        });
-        alert('Correo electrónico actualizado con éxito.');
-        navigation.goBack();
-      }
+      if (!user) return showToast('No hay usuario autenticado.');
+
+      // Enviar correo de verificación al nuevo email
+      await verifyBeforeUpdateEmail(user, v);
+
+      showToast('Te enviamos un correo a tu nueva dirección. Confirmalo para completar el cambio.', 'success');
+      setTimeout(() => navigation.goBack(), 3000);
     } catch (error) {
-      alert('Error al guardar: ' + error.message);
+      if (error.code === 'auth/requires-recent-login') {
+        // Necesita re-autenticación → ir a pantalla extra
+        navigation.navigate('ReauthenticateScreen', { newEmail: v });
+      } else {
+        showToast('Error al guardar: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,11 +107,13 @@ export default function EditEmailScreen({ route, navigation }) {
           style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC', color: colors.text }]}
           value={email}
           onChangeText={setEmail}
+          onBlur={validateEmailOnBlur}
           keyboardType="email-address"
           placeholder="correo@ejemplo.com"
           placeholderTextColor={isDark ? '#777' : '#999'}
           autoCapitalize="none"
           editable={!loading}
+          maxLength={100}
         />
       </View>
 
@@ -76,6 +128,32 @@ export default function EditEmailScreen({ route, navigation }) {
           <Text style={styles.saveText}>Guardar</Text>
         )}
       </TouchableOpacity>
+
+      {/* TOAST */}
+      {toastMessage !== '' && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: toastType === 'success' ? '#27AE60' : '#E74C3C',
+              opacity: toastAnim,
+              transform: [{
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color="#FFF"
+          />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -125,5 +203,29 @@ const styles = StyleSheet.create({
   saveText: {
     color: '#FFF',
     fontFamily: 'Nunito-Bold',
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+    flex: 1,
   },
 });
