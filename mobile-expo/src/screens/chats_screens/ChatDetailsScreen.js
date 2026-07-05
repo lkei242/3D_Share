@@ -13,6 +13,7 @@ import {
   Keyboard,
   Image,
   Modal,
+  BackHandler,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
@@ -312,6 +313,15 @@ export default function ChatDetailScreen({ route, navigation }) {
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
   const flatListRef = useRef(null);
+  const prevMessagesLengthRef = useRef(0);
+
+  useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
+  
   const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
   const selectionSender = selectedIds.length > 0 ? messages.find(m => m.id === selectedIds[0])?.sender : null;
 
@@ -439,7 +449,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
       if (editingMessageId) {
         const msgRef = doc(db, `chats/${activeChatId}/messages/${editingMessageId}`);
-        await updateDoc(msgRef, { text: textToSend });
+        await updateDoc(msgRef, { text: textToSend, caption: textToSend });
       } else {
         const messagesRef = collection(db, `chats/${activeChatId}/messages`);
         const chatRef = doc(db, `chats/${activeChatId}`);
@@ -856,6 +866,28 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const handleCancelReply = () => setReplyingTo(null);
 
+    const handleCancelEdit = () => {
+    Keyboard.dismiss();
+    setEditingMessageId(null);
+    setInputText('');
+  };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (editingMessageId) {
+        handleCancelEdit();
+        return true;
+      }
+      if (selectedIds.length > 0) {
+        handleExitSelection();
+        return true;
+      }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [editingMessageId, selectedIds, showDeleteConfirm]);
+
   const handleFavorite = async () => {
     if (selectedIds.length === 0) return;
     try {
@@ -971,7 +1003,14 @@ export default function ChatDetailScreen({ route, navigation }) {
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
     setReplyingTo(null);
-    clearSelection(); // 👈 antes decía setSelectedMessageId(null)
+    clearSelection();
+
+    setTimeout(() => {
+      textInputRef.current?.focus();
+      try {
+        flatListRef.current?.scrollToItem({ item: activeMsg, animated: true, viewPosition: 0.5 });
+      } catch (_) {}
+    }, 150);
   };
 
   const renderMessageItem = React.useCallback(({ item }) => {
@@ -985,6 +1024,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         colors={colors}
         chatName={chatName}
         isChecked={isChecked}
+        isEditing={item.id === editingMessageId}
         selectedIds={selectedIds}
         onToggleSelect={handleToggleSelect}
         setShowMsgInfo={setShowMsgInfo}
@@ -994,7 +1034,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         myProfilePicture={currentUserPic}
       />
     );
-  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, otherUser.profilePicture, currentUserPic]);
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, otherUser.profilePicture, currentUserPic, editingMessageId]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [mediaPreview, setMediaPreview] = useState(null); 
@@ -1198,23 +1238,26 @@ export default function ChatDetailScreen({ route, navigation }) {
         {loading ? (
           <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ flex: 1 }} />
         ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={renderMessageItem}
-            contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => {
-              if (messages.length > 0) {
-                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
-              }
-            }}
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={15}
-            windowSize={10}
-            initialNumToRender={20}
-            style={{ flex: 1 }}
-          />
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMessageItem}
+              contentContainerStyle={styles.messagesList}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={15}
+              windowSize={10}
+              initialNumToRender={20}
+              style={{ flex: 1 }}
+            />
+            {!!editingMessageId && (
+              <View
+                pointerEvents="none"
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }}
+              />
+            )}
+          </View>
         )}
 
         {/* INPUT DE MENSAJE */}
@@ -1303,6 +1346,24 @@ export default function ChatDetailScreen({ route, navigation }) {
           ) : (
             // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
             <>
+              {/* Vista previa de edición — mismo estilo que la de respuesta */}
+              {!!editingMessageId && (
+                <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                  <View style={styles.replyPreviewAccent} />
+                  <View style={styles.replyPreviewTextWrap}>
+                    <Text style={styles.replyPreviewTitle} numberOfLines={1}>
+                      Editando mensaje
+                    </Text>
+                    <Text style={[styles.replyPreviewText, { color: colors.text }]} numberOfLines={1}>
+                      {inputText}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleCancelEdit} style={styles.replyPreviewCloseBtn}>
+                    <Ionicons name="close" size={20} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Vista previa de respuesta — estilo WhatsApp, arriba del input */}
               {!!replyingTo && (
                 <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
