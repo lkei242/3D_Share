@@ -89,6 +89,20 @@ export default function ChatScreen({ navigation }) {
     });
   };
 
+  // --- Toast propio de la app (avisos cortos dentro de los modales, ej. campos faltantes) ---
+  const [groupToast, setGroupToast] = useState('');
+  const groupToastOpacity = useRef(new Animated.Value(0)).current;
+  const groupToastTimer = useRef(null);
+
+  const showGroupToast = (message) => {
+    setGroupToast(message);
+    if (groupToastTimer.current) clearTimeout(groupToastTimer.current);
+    Animated.timing(groupToastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    groupToastTimer.current = setTimeout(() => {
+      Animated.timing(groupToastOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setGroupToast(''));
+    }, 2000);
+  };
+
   useFocusEffect(
     useCallback(() => {
       cleanupPendingDeletions();
@@ -255,7 +269,11 @@ export default function ChatScreen({ navigation }) {
 
   const handleCreateGroup = async () => {
     const user = auth.currentUser;
-    if (!user || selectedMemberIds.length === 0 || !groupNameInput.trim()) return;
+    if (!user || selectedMemberIds.length === 0) return;
+    if (!groupNameInput.trim()) {
+      showGroupToast('Ingresá un nombre para el grupo');
+      return;
+    }
     try {
       const newChatRef = await addDoc(collection(db, 'groupchats'), {
         groupName: groupNameInput.trim(),
@@ -267,7 +285,7 @@ export default function ChatScreen({ navigation }) {
         lastMessage: '',
         lastMessageTime: null,
       });
-      setShowNewGroupModal(false);
+      setShowNewGroupModal(false); // cierra el modal "Nuevo grupo" al crearlo
       navigation.navigate('ChatDetailGroup', {
         chatId: newChatRef.id,
         groupName: groupNameInput.trim(),
@@ -277,6 +295,7 @@ export default function ChatScreen({ navigation }) {
       });
     } catch (err) {
       console.log('Error al crear grupo:', err);
+      showGroupToast('No se pudo crear el grupo');
     }
   };
 
@@ -1122,20 +1141,27 @@ export default function ChatScreen({ navigation }) {
 
             <TouchableOpacity
               onPress={handleCreateGroup}
-              disabled={selectedMemberIds.length === 0 || !groupNameInput.trim()}
+              disabled={selectedMemberIds.length === 0}
               style={{
                 backgroundColor: (selectedMemberIds.length === 0 || !groupNameInput.trim()) ? (isDark ? '#333' : '#ddd') : v1,
                 borderRadius: 24,
                 paddingVertical: 14,
                 alignItems: 'center',
                 marginTop: 8,
-                marginBottom: 8,
+                marginBottom: insets.bottom + 12
               }}
             >
               <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
                 Crear grupo{selectedMemberIds.length > 0 ? ` (${selectedMemberIds.length})` : ''}
               </Text>
             </TouchableOpacity>
+
+            {!!groupToast && (
+              <Animated.View style={[styles.groupToast, { opacity: groupToastOpacity }]}>
+                <Ionicons name="alert-circle" size={18} color="#FFF" />
+                <Text style={styles.groupToastText}>{groupToast}</Text>
+              </Animated.View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1226,7 +1252,7 @@ export default function ChatScreen({ navigation }) {
                 paddingVertical: 14,
                 alignItems: 'center',
                 marginTop: 8,
-                marginBottom: 8,
+                marginBottom: insets.bottom + 12
               }}
             >
               <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
@@ -1337,4 +1363,6 @@ const styles = StyleSheet.create({
   confirmActions: { flexDirection: 'row', gap: 10, width: '100%' },
   confirmBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 24 },
   confirmBtnText: { fontSize: 15, fontFamily: 'Nunito-Bold' },
+  groupToast: { position: 'absolute', bottom: 130, left: 16, right: 16, backgroundColor: '#323232', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5 },
+  groupToastText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold' },
 });

@@ -33,6 +33,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   serverTimestamp,
   arrayUnion,
@@ -95,6 +96,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     photo: initialGroupPhoto || '',
     participants: initialParticipants || [],
     admins: [],
+    createdBy: '',
   });
 
   // Mapa uid -> { name, username, profilePicture } de cada integrante. En un
@@ -117,6 +119,14 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   }, []);
 
   const getMemberPic = useCallback((uid) => membersMap[uid]?.profilePicture || '', [membersMap]);
+
+  const currentUserRole = React.useMemo(() => {
+  const uid = auth.currentUser?.uid;
+    if (!uid) return 'member';
+    if (uid === groupInfo.createdBy) return 'owner';
+    if (groupInfo.admins.includes(uid)) return 'admin';
+    return 'member';
+    }, [groupInfo.createdBy, groupInfo.admins]);
 
   // Solo marcamos el chat como activo mientras la pantalla está enfocada
   // (para presencia / notificaciones). A diferencia del chat 1 a 1, un grupo
@@ -149,6 +159,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
         photo: data.groupPhoto || '',
         participants: data.participants || [],
         admins: data.admins || [],
+        createdBy: data.createdBy || '',
       });
     }, (err) => console.log('Error escuchando datos del grupo:', err));
     return unsubscribe;
@@ -258,6 +269,11 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const textInputRef = useRef(null);
+
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [selectableUsers, setSelectableUsers] = useState([]);
+  const [fetchingSelectable, setFetchingSelectable] = useState(false);
+  const [selectedNewMemberIds, setSelectedNewMemberIds] = useState([]);
   
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [showMoreSubMenu, setShowMoreSubMenu] = useState(false);
@@ -941,10 +957,25 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           const msgRef = doc(db, `groupchats/${currentChatId}/messages/${msg.id}`);
 
           if (msg.sender !== 'me') {
-            // Borrar para mí: NO se toca el documento real, solo se marca con mi uid
-            await updateDoc(msgRef, {
-              deletedFor: arrayUnion(auth.currentUser.uid),
-            });
+            if (currentUserRole === 'admin' || currentUserRole === 'owner') {
+              try {
+                if (msg?.mediaUrl) await deleteMediaFromCloudinary(msg.mediaUrl);
+                if (msg?.type === 'media_group' && msg.mediaItems) {
+                  await Promise.all(
+                    msg.mediaItems.map(item =>
+                      item.url ? deleteMediaFromCloudinary(item.url).catch(() => {}) : Promise.resolve()
+                    )
+                  );
+                }
+              } catch (cloudinaryError) {
+                console.log("Error al borrar media de Cloudinary:", cloudinaryError);
+              }
+              await deleteDoc(msgRef);
+            } else {
+              await updateDoc(msgRef, {
+                deletedFor: arrayUnion(auth.currentUser.uid),
+              });
+            }
             return;
           }
 
@@ -1136,6 +1167,122 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       ]
     );
   };
+
+  const handleOpenAddMemberModal = async () => {
+    setSelectedNewMemberIds([]);
+    setShowAddMemberModal(true);
+    setFetchingSelectable(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      const followingIds = snapshot.docs.map(d => d.data().userId);
+      const currentParticipants = groupInfo.participants || [];
+
+      const usersData = [];
+      for (const uid of followingIds) {
+        if (currentParticipants.includes(uid)) continue; // ya está en el grupo
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          let picUrl = data.profilePicture || '';
+          if (picUrl.startsWith('http://')) picUrl = picUrl.replace('http://', 'https://');
+          usersData.push({
+            uid,
+            name: data.profileName || data.username || 'Usuario',
+            username: data.username || 'usuario',
+            profilePicture: picUrl,
+          });
+        }
+      }
+      setSelectableUsers(usersData);
+    } catch (err) {
+      console.log('Error al cargar seguidos para agregar:', err);
+    } finally {
+      setFetchingSelectable(false);
+    }
+  };
+
+  const toggleNewMemberSelection = (uid) => {
+    setSelectedNewMemberIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+  };
+
+  const handleAddMember = async () => {
+    if (selectedNewMemberIds.length === 0) return;
+    try {
+        const groupRef = doc(db, 'groupchats', currentChatId);
+        await updateDoc(groupRef, {
+        participants: arrayUnion(...selectedNewMemberIds),
+        });
+        setSelectedNewMemberIds([]);
+        setShowAddMemberModal(false);
+    } catch (err) {
+        console.log('Error al agregar miembro:', err);
+        Alert.alert('Error', 'No se pudo agregar el miembro');
+    }
+    };
+
+    const handleRemoveMember = (uid) => {
+    const name = membersMap[uid]?.name || 'Usuario';
+    Alert.alert(
+        'Eliminar integrante',
+        `¿Eliminar a ${name} del grupo?`,
+        [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: async () => {
+            try {
+            const groupRef = doc(db, 'groupchats', currentChatId);
+            await updateDoc(groupRef, {
+                participants: arrayRemove(uid),
+                admins: arrayRemove(uid),
+            });
+            } catch (err) {
+            console.log('Error al eliminar integrante:', err);
+            Alert.alert('Error', 'No se pudo eliminar el integrante');
+            }
+        }},
+        ]
+    );
+    };
+
+    const handleToggleAdmin = (uid) => {
+    const name = membersMap[uid]?.name || 'Usuario';
+    const isCurrentlyAdmin = (groupInfo.admins || []).includes(uid);
+    Alert.alert(
+        `${isCurrentlyAdmin ? 'Quitar' : 'Dar'} admin`,
+        `¿${isCurrentlyAdmin ? 'Quitar' : 'Dar'} rango de admin a ${name}?`,
+        [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Confirmar', onPress: async () => {
+            try {
+            const groupRef = doc(db, 'groupchats', currentChatId);
+            await updateDoc(groupRef, {
+                admins: isCurrentlyAdmin ? arrayRemove(uid) : arrayUnion(uid),
+            });
+            } catch (err) {
+            console.log('Error al cambiar admin:', err);
+            }
+        }},
+        ]
+    );
+    };
+
+    const handleDeleteGroup = () => {
+    closeAllMenus();
+    Alert.alert(
+        'Eliminar grupo',
+        `¿Eliminar "${groupInfo.name}" permanentemente? Se borrarán todos los mensajes, archivos y datos del grupo para TODOS los integrantes.`,
+        [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: async () => {
+            setShowGroupInfoModal(false);
+            await permanentlyDeleteThisGroup();
+            navigation.goBack();
+        }},
+        ]
+    );
+    };
   
   return (
     <View style={{ flex: 1 }}>
@@ -1568,11 +1715,14 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           <Text style={[styles.deleteConfirmText, { color: colors.text }]}>
             ¿Deseas eliminar {selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?
           </Text>
-          {selectionSender === 'other' && (
-            <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: '#888', textAlign: 'center' }}>
-              Se eliminará{selectedIds.length > 1 ? 'n' : ''} solo para ti. El resto del grupo podrá seguir viéndolo{selectedIds.length > 1 ? 's' : ''}.
-            </Text>
-          )}
+            {selectionSender === 'other' && (
+              <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: '#888', textAlign: 'center' }}>
+                {currentUserRole === 'admin' || currentUserRole === 'owner'
+                  ? `Se eliminará${selectedIds.length > 1 ? 'n' : ''} para todos los integrantes del grupo.`
+                  : `Se eliminará${selectedIds.length > 1 ? 'n' : ''} solo para ti. El resto del grupo podrá seguir viéndolo${selectedIds.length > 1 ? 's' : ''}.`
+                }
+              </Text>
+            )}
           <View style={styles.deleteConfirmActions}>
             <TouchableOpacity onPress={handleCancelDelete} style={[styles.deleteConfirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}>
               <Text style={[styles.deleteConfirmBtnText, { color: colors.text }]}>Cancelar</Text>
@@ -1701,12 +1851,27 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               ) : (
                 <Ionicons name="people-circle-outline" size={80} color="#94BA46" />
               )}
-            </View>
+            </View>y
             <Text style={{ fontSize: 20, fontFamily: 'Nunito-Bold', color: colors.text }}>{groupInfo.name}</Text>
             <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: isDark ? '#888' : '#777', marginTop: 4 }}>
               {(groupInfo.participants || []).length} {(groupInfo.participants || []).length === 1 ? 'integrante' : 'integrantes'}
             </Text>
           </View>
+
+          {(currentUserRole === 'owner' || currentUserRole === 'admin') && (
+            <TouchableOpacity
+              onPress={handleOpenAddMemberModal}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 8,
+                paddingVertical: 10, marginHorizontal: 16, marginBottom: 8,
+              }}
+            >
+              <Ionicons name="person-add" size={22} color={GREEN_ACCENT} />
+              <Text style={{ fontSize: 14, fontFamily: 'Nunito-Bold', color: GREEN_ACCENT }}>
+                Agregar integrante
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <FlatList
             data={groupInfo.participants || []}
@@ -1716,6 +1881,11 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               const member = membersMap[uid];
               const isSelf = uid === auth.currentUser?.uid;
               const isAdmin = (groupInfo.admins || []).includes(uid);
+              const canRemove = !isSelf && (
+                currentUserRole === 'owner' ||
+                (currentUserRole === 'admin' && !isAdmin && uid !== groupInfo.createdBy)
+              );
+              const canToggleAdmin = currentUserRole === 'owner' && !isSelf;
               return (
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
                   <View style={{
@@ -1739,25 +1909,135 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                       </Text>
                     )}
                   </View>
-                  {isAdmin && (
+                  {uid === groupInfo.createdBy ? (
+                    <Text style={{ fontSize: 12, fontFamily: 'Nunito-Bold', color: GREEN_ACCENT }}>Propietario</Text>
+                  ) : isAdmin ? (
                     <Text style={{ fontSize: 12, fontFamily: 'Nunito-Bold', color: GREEN_ACCENT }}>Admin</Text>
+                  ) : null}
+                  {canRemove && (
+                    <TouchableOpacity onPress={() => handleRemoveMember(uid)} style={{ paddingLeft: 8 }}>
+                      <Ionicons name="remove-circle-outline" size={28} color="#a70d0d" />
+                    </TouchableOpacity>
+                  )}
+                  {canToggleAdmin && (
+                    <TouchableOpacity onPress={() => handleToggleAdmin(uid)} style={{ paddingLeft: 24 }}>
+                      <Ionicons name={isAdmin ? "shield-checkmark" : "shield-outline"} size={28} color={GREEN_ACCENT} />
+                    </TouchableOpacity>
                   )}
                 </View>
               );
             }}
           />
 
-          <TouchableOpacity
-            onPress={handleLeaveGroup}
-            style={{
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-              paddingVertical: 16, marginHorizontal: 16, marginBottom: Math.max(insets.bottom, 16),
-              borderRadius: 12, backgroundColor: isDark ? '#2C1414' : '#FBE9E9',
-            }}
-          >
-            <Ionicons name="exit-outline" size={20} color="#a70d0d" />
-            <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: '#a70d0d' }}>Salir del grupo</Text>
-          </TouchableOpacity>
+          {currentUserRole === 'owner' ? (
+            <TouchableOpacity
+              onPress={handleDeleteGroup}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                paddingVertical: 16, marginHorizontal: 16, marginBottom: Math.max(insets.bottom, 16),
+                borderRadius: 12, backgroundColor: isDark ? '#2C1414' : '#FBE9E9',
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color="#a70d0d" />
+              <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: '#a70d0d' }}>Eliminar grupo</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={handleLeaveGroup}
+              style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                paddingVertical: 16, marginHorizontal: 16, marginBottom: Math.max(insets.bottom, 16),
+                borderRadius: 12, backgroundColor: isDark ? '#2C1414' : '#FBE9E9',
+              }}
+            >
+              <Ionicons name="exit-outline" size={20} color="#a70d0d" />
+              <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: '#a70d0d' }}>Salir del grupo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </Modal>
+
+      
+      {/* MODAL AGREGAR MIEMBRO */}
+      <Modal visible={showAddMemberModal} animationType="slide" transparent onRequestClose={() => setShowAddMemberModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{
+            backgroundColor: isDark ? '#1C1C1C' : '#FFF',
+            borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            height: '70%', paddingHorizontal: 16, paddingTop: 16,
+          }}>
+            <View style={{
+              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+              borderBottomWidth: 0.5, borderBottomColor: '#88888844', paddingBottom: 12, marginBottom: 8,
+            }}>
+              <Text style={{ fontSize: 20, fontFamily: 'Nunito-Bold', color: colors.text }}>
+                Agregar integrante
+              </Text>
+              <TouchableOpacity onPress={() => setShowAddMemberModal(false)}>
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {fetchingSelectable ? (
+              <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ marginTop: 40 }} />
+            ) : selectableUsers.length === 0 ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+                <Text style={{ fontSize: 16, fontFamily: 'Nunito-Regular', color: isDark ? '#aaa' : '#666', textAlign: 'center', lineHeight: 22 }}>
+                  No tenés seguidos disponibles para agregar (o ya forman parte del grupo).
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={selectableUsers}
+                keyExtractor={(item) => item.uid}
+                renderItem={({ item }) => {
+                  const isSelected = selectedNewMemberIds.includes(item.uid);
+                  return (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#88888822' }}
+                      activeOpacity={0.7}
+                      onPress={() => toggleNewMemberSelection(item.uid)}
+                    >
+                      {item.profilePicture ? (
+                        <Image source={{ uri: item.profilePicture }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: isDark ? '#2A2A2A' : '#E0E0E0', marginRight: 12 }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12 }}>
+                          <Ionicons name="person-circle-outline" size={46} color="#94BA46" style={{ marginLeft: -1, marginTop: -2 }} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontFamily: 'Nunito-Bold', color: colors.text }}>{item.name}</Text>
+                        <Text style={{ fontSize: 14, color: '#888', fontFamily: 'Nunito-Regular' }}>@{item.username}</Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? 'checkbox' : 'square-outline'}
+                        size={22}
+                        color={isSelected ? '#9DBD3F' : (isDark ? '#666' : '#ccc')}
+                      />
+                    </TouchableOpacity>
+                  );
+                }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+
+            <TouchableOpacity
+              onPress={handleAddMember}
+              disabled={selectedNewMemberIds.length === 0}
+              style={{
+                backgroundColor: selectedNewMemberIds.length === 0 ? (isDark ? '#333' : '#ddd') : GREEN_ACCENT,
+                borderRadius: 24,
+                paddingVertical: 14,
+                alignItems: 'center',
+                marginTop: 8,
+                marginBottom: insets.bottom + 12,
+              }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
+                Agregar{selectedNewMemberIds.length > 0 ? ` (${selectedNewMemberIds.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
