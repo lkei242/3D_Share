@@ -18,17 +18,14 @@ const POPOVER_WIDTH = 220;
 const MARGIN = 10; // margen mínimo al borde de la pantalla
 
 const MENU_ITEMS_OTHER = [
-  { key: 'reportPost', label: 'Denunciar publicación', icon: 'flag-outline',               color: '#E74C3C', bold: true  },
-  { key: 'block',      label: 'Bloquear usuario',      icon: 'ban-outline',                color: '#E74C3C', bold: true  },
-  { key: 'mute',       label: 'Silenciar usuario',     icon: 'volume-mute-outline',        color: null,      bold: false },
-  { key: 'reportUser', label: 'Denunciar usuario',     icon: 'person-remove-outline',      color: null,      bold: false },
-  { key: 'reportData', label: 'Info sobre este post',  icon: 'information-circle-outline', color: null,      bold: false },
+  { key: 'block', label: 'Bloquear usuario', icon: 'ban-outline', color: '#E74C3C', bold: true },
 ];
 
 const MENU_ITEMS_OWN = [
-  { key: 'delete',  label: 'Eliminar',      icon: 'trash-outline',  color: '#E74C3C', bold: true  },
-  { key: 'edit',    label: 'Editar',        icon: 'create-outline', color: null,      bold: false },
-  { key: 'promote', label: 'Promocionar',   icon: 'rocket-outline', color: '#9DBD3F', bold: false },
+  { key: 'delete',  label: 'Eliminar',      icon: 'trash-outline',              color: '#E74C3C', bold: true  },
+  { key: 'edit',    label: 'Editar',        icon: 'create-outline',             color: null,      bold: false },
+  { key: 'promote', label: 'Promocionar',   icon: 'rocket-outline',             color: '#9DBD3F', bold: false },
+  { key: 'reportData', label: 'Info sobre este post', icon: 'information-circle-outline', color: null, bold: false },
 ];
 
 const ITEM_HEIGHT = 48;

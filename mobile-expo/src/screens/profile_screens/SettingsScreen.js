@@ -88,22 +88,6 @@ export default function SettingsScreen({ navigation }) {
 
         <TouchableOpacity
           style={[styles.option, { borderBottomColor: colors.border }]}
-          onPress={() => navigation.navigate('Security')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Seguridad</Text>
-          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.option, { borderBottomColor: colors.border }]}
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <Text style={[styles.optionText, { color: colors.text }]}>Notificaciones</Text>
-          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.option, { borderBottomColor: colors.border }]}
           onPress={() => navigation.navigate('Preferences')}
         >
           <Text style={[styles.optionText, { color: colors.text }]}>Preferencias</Text>

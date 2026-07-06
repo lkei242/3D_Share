@@ -792,12 +792,12 @@ export default function ProfileScreen({ navigation }) {
 
               <View style={styles.statsRow}>
                 <View style={styles.statsNumbers}>
-                  <TouchableOpacity style={styles.statItem} onPress={() => setActiveTab('Publicaciones')}>
+                  <View style={styles.statItem}>
                     <Text style={[styles.statNumber, { color: colors.text }]}>{posts.length}</Text>
                     <Text style={[styles.statLabel, { color: isDark ? '#AAA' : '#666' }]}>
                       Publicaciones
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                   <View style={[styles.statDivider, { backgroundColor: isDark ? '#333' : '#E0E0E0' }]} />
                   <TouchableOpacity
                     style={styles.statItem}

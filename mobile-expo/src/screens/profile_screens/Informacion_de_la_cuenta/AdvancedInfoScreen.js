@@ -14,6 +14,7 @@ import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { auth, db } from '../../config/firebase';
 import { API_URL } from '../../config/api';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { deleteMediaFromCloudinary } from '../../config/mediaHelper';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -84,6 +85,11 @@ export default function AdvancedInfoScreen({ navigation }) {
       if (!user) return;
       const token = await user.getIdToken();
 
+      // Borrar la imagen anterior de Cloudinary
+      if (profilePicture) {
+        deleteMediaFromCloudinary(profilePicture).catch(() => {});
+      }
+
       const formData = new FormData();
       const blob = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -125,6 +131,12 @@ export default function AdvancedInfoScreen({ navigation }) {
     try {
       const user = auth.currentUser;
       if (!user) return;
+
+      // Borrar la imagen de Cloudinary
+      if (profilePicture) {
+        deleteMediaFromCloudinary(profilePicture).catch(() => {});
+      }
+
       await updateDoc(doc(db, 'users', user.uid), {
         profilePicture: '',
       });

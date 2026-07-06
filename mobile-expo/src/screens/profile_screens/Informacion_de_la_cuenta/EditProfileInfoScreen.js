@@ -94,21 +94,15 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Email */}
-        <TouchableOpacity
-          style={styles.field}
-          onPress={() => navigation.navigate('EditEmailScreen', { currentEmail: email })}
-        >
-          <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.text }]}>Correo electrónico</Text>
-            <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
-          </View>
+        {/* Email (solo lectura) */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.text }]}>Correo electrónico</Text>
           <View style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}>
             <Text style={[styles.valueText, { color: isDark ? '#ccc' : '#444' }]}>
               {email || 'Ingrese su correo'}
             </Text>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* Teléfono */}
         <TouchableOpacity

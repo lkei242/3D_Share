@@ -40,6 +40,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [isBlocked, setIsBlocked] = useState(false);
   const [pinnedPosts, setPinnedPosts] = useState([]);
+  const [userNotFound, setUserNotFound] = useState(false);
   const [otherProfiles, setOtherProfiles] = useState([]);
   const [userContacts, setUserContacts] = useState({
     whatsapp: null,
@@ -64,6 +65,7 @@ export default function UserProfileScreen({ route, navigation }) {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
+        setUserNotFound(false);
         const data = userDoc.data();
         setPresentation(data.presentation || '');
         setPinnedPosts(data.pinnedPosts || []);
@@ -84,6 +86,8 @@ export default function UserProfileScreen({ route, navigation }) {
           });
           setOtherProfiles(data.contacts?.otherProfiles || []);
         }
+      } else {
+        setUserNotFound(true);
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
@@ -515,6 +519,26 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
+  if (userNotFound) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 6, backgroundColor: colors.card, borderBottomColor: isDark ? '#222' : '#E8E8E8', borderBottomWidth: 1, position: 'absolute', top: 0, left: 0, right: 0 }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerUsername, { color: colors.text }]} numberOfLines={1}>
+            {profileName}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <Ionicons name="person-remove-outline" size={64} color={isDark ? '#555' : '#ccc'} />
+        <Text style={{ color: isDark ? '#888' : '#999', fontSize: 16, marginTop: 16, textAlign: 'center', paddingHorizontal: 40 }}>
+          Esta cuenta de usuario no existe o ha sido eliminada
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* HEADER FIJO */}
@@ -535,9 +559,6 @@ export default function UserProfileScreen({ route, navigation }) {
         </Text>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Ionicons name="notifications-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={handleBlock}>
             <Feather name="more-vertical" size={22} color={colors.text} />
           </TouchableOpacity>

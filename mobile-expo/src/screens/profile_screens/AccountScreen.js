@@ -1,16 +1,32 @@
 // src/screens/profile_screens/AccountScreen.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { auth } from '../config/firebase';
 
 export default function AccountScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
+  const [isGoogleOnly, setIsGoogleOnly] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        const providers = user.providerData.map((p) => p.providerId);
+        const hasGoogle = providers.includes('google.com');
+        const hasPassword = providers.includes('password');
+        setIsGoogleOnly(hasGoogle && !hasPassword);
+      } else {
+        setIsGoogleOnly(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
@@ -24,10 +40,12 @@ export default function AccountScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() => navigation.navigate('ChangePasswordScreen')}>
-          <Text style={[styles.optionText, { color: colors.text }]}>Cambiar contraseña</Text>
-          <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
-        </TouchableOpacity>
+        {!isGoogleOnly && (
+          <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() => navigation.navigate('ChangePasswordScreen')}>
+            <Text style={[styles.optionText, { color: colors.text }]}>Cambiar contraseña</Text>
+            <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={[styles.option, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]} onPress={() => navigation.navigate('DeactivateAccountScreen')}>
           <Text style={[styles.optionText, { color: colors.text }]}>Desactivar cuenta</Text>

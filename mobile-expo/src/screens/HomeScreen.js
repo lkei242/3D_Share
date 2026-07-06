@@ -74,20 +74,24 @@ const PostCard = React.memo(function PostCard({ item, onPress, isVisible }) { //
 
   const handleSave = async () => {
     if (!currentUser) return;
-    const savedRef = doc(db, 'saved', `${currentUser.uid}_${item.id}`);
-    if (saved) {
-      await deleteDoc(savedRef);
-      setSaved(false);
-    } else {
-      await setDoc(savedRef, {
-        userId: currentUser.uid,
-        postId: item.id,
-        postImage: item.image,
-        postTitle: item.title,
-        postAuthor: item.author,
-        createdAt: new Date(),
-      });
-      setSaved(true);
+    try {
+      const savedRef = doc(db, 'saved', `${currentUser.uid}_${item.id}`);
+      if (saved) {
+        await deleteDoc(savedRef);
+        setSaved(false);
+      } else {
+        await setDoc(savedRef, {
+          userId: currentUser.uid,
+          postId: item.id,
+          postImage: item.image,
+          postTitle: item.title,
+          postAuthor: item.author,
+          createdAt: new Date(),
+        });
+        setSaved(true);
+      }
+    } catch (error) {
+      console.log('Error al guardar:', error);
     }
   };
 

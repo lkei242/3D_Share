@@ -15,23 +15,69 @@ import {
   ScrollView,
   Platform,
   Keyboard,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle } from './config/googleSignIn';
 
-export default function LoginScreen({ navigation, route }) {
-  const handleGoogleSignIn = () => {
-    signInWithGoogle(
-      () => navigation.replace('MainTabs'),
-      (msg) => alert(msg)
-    );
+const translateAuthError = (code) => {
+  const map = {
+    'auth/user-not-found': 'No existe una cuenta con este correo',
+    'auth/wrong-password': 'Contraseña incorrecta',
+    'auth/invalid-credential': 'Correo o contraseña incorrectos',
+    'auth/invalid-email': 'El formato del correo no es válido',
+    'auth/user-disabled': 'Esta cuenta ha sido deshabilitada',
+    'auth/too-many-requests': 'Demasiados intentos. Intentá de nuevo más tarde',
+    'auth/network-request-failed': 'Error de conexión. Revisá tu internet',
+    'auth/email-already-in-use': 'Este correo ya está registrado',
+    'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres',
+    'auth/requires-recent-login': 'Debes volver a iniciar sesión',
+    'auth/account-exists-with-different-credential': 'Ya existe una cuenta con este correo usando otro método de inicio de sesión',
+    'auth/popup-closed-by-user': 'Inicio de sesión cancelado',
+    'auth/cancelled-popup-request': 'Inicio de sesión cancelado',
   };
+  return map[code] || code;
+};
+
+export default function LoginScreen({ navigation, route }) {
   const { colors, dark: isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
   const passwordRef = useRef(null);
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('error');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'error') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(''));
+    }, 3000);
+  };
+
+  const handleGoogleSignIn = () => {
+    signInWithGoogle(
+      () => navigation.replace('MainTabs'),
+      (msg) => showToast(translateAuthError(msg))
+    );
+  };
   // Prellenar email si viene del AccountSwitcher
   useEffect(() => {
     if (route?.params?.email) {
@@ -64,7 +110,7 @@ const handleLogin = async () => {
     saveAccountToStorage(user, password);
 
   } catch (error) {
-    alert(error.message);
+    showToast(translateAuthError(error.code || error.message));
   }
 };
 
@@ -153,14 +199,6 @@ const saveAccountToStorage = async (user, password) => {
         </View>
 
         <TouchableOpacity
-          onPress={() => navigation.navigate('ForgotPassword')}
-        >
-          <Text style={[styles.forgotPassword, { color: colors.letraschicas }]}>
-            ¿Olvidaste tu contraseña?
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={styles.button}
           onPress={handleLogin}
         >
@@ -189,6 +227,12 @@ const saveAccountToStorage = async (user, password) => {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+      {toastMessage !== '' && (
+        <Animated.View style={[styles.toast, { backgroundColor: toastType === 'success' ? '#27AE60' : '#E74C3C', opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
+          <Ionicons name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'} size={20} color="#FFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -297,14 +341,29 @@ const styles = StyleSheet.create({
     marginTop: 25,
     textDecorationLine: 'underline',
     fontFamily: 'Nunito-Bold',
-    letterSpacing: 0.4, // 👈 esto separa las letras
+    letterSpacing: 0.4,
   },
-  forgotPassword: {
-    textAlign: 'right',
-    fontSize: 12,
-    marginTop: 15,
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 10,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
     fontFamily: 'Nunito-Bold',
-    letterSpacing: 1,
-    marginBottom: 12,
+    flex: 1,
   },
 });

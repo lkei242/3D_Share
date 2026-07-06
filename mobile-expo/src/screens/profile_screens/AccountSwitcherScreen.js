@@ -16,6 +16,7 @@ import { auth, db } from '../config/firebase';
 import { signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithGoogle } from '../config/googleSignIn';
 
 export default function AccountSwitcherScreen({ navigation }) {
   const { colors } = useTheme();
@@ -131,17 +132,25 @@ export default function AccountSwitcherScreen({ navigation }) {
                 await signInWithEmailAndPassword(auth, account.email, account.password);
                 navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
               } else {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login', params: { email: account.email } }],
-                });
+                // Es cuenta de Google → usar Google Sign-In
+                signInWithGoogle(
+                  () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }),
+                  (msg) => {
+                    Alert.alert('Error', msg);
+                    navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                  }
+                );
               }
             } catch (error) {
               console.log('Error al cambiar cuenta:', error);
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login', params: { email: account.email } }],
-              });
+              if (!account.password) {
+                signInWithGoogle(
+                  () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }),
+                  () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] })
+                );
+              } else {
+                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+              }
             }
           },
         },

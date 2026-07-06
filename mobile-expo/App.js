@@ -20,7 +20,7 @@ import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
-import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+
 // Pantallas principales
 import HomeScreen from './src/screens/HomeScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -30,15 +30,16 @@ import SettingsScreen from './src/screens/profile_screens/SettingsScreen';
 import AccountSwitcherScreen from './src/screens/profile_screens/AccountSwitcherScreen';
 import ContactsScreen from './src/screens/profile_screens/ContactsScreen';
 import AccountScreen from './src/screens/profile_screens/AccountScreen';
-import SecurityScreen from './src/screens/profile_screens/SecurityScreen';
-import NotificationsScreen from './src/screens/profile_screens/NotificationsScreen';
+
+
 import PublishScreen from './src/screens/PublishScreen';
 import ActivityScreen from './src/screens/profile_screens/ActivityScreen';
 import PreferencesScreen from './src/screens/profile_screens/PreferencesScreen';
 import LikesScreen from './src/screens/profile_screens/Tu_actividad/LikesScreen';
 import SavedScreen from './src/screens/profile_screens/Tu_actividad/SavedScreen';
-import ConnectedDevicesScreen from './src/screens/profile_screens/ConnectedDevicesScreen';
+
 import ChangePasswordScreen from './src/screens/profile_screens/Tu_cuenta/ChangePasswordScreen';
+
 import NewPasswordScreen from './src/screens/profile_screens/Tu_cuenta/NewPasswordScreen';
 import DeactivateAccountScreen from './src/screens/profile_screens/Tu_cuenta/DeactivateAccountScreen';
 import DeactivateAccountPasswordScreen from './src/screens/profile_screens/Tu_cuenta/DeactivateAccountPasswordScreen';
@@ -46,10 +47,8 @@ import EditProfileInfoScreen from './src/screens/profile_screens/Informacion_de_
 import AdvancedInfoScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/AdvancedInfoScreen';
 import PresentationScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/PresentationScreen';
 import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditNameScreen';
-import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
-import ReauthenticateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/ReauthenticateScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 import PostDetailScreen from './src/screens/components/PostDetailScreen';
 import EditPostScreen from './src/screens/EditPostScreen';
@@ -165,7 +164,7 @@ function AppContent() {
           <Stack.Screen name="Welcome" component={WelcomeScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ headerShown: false }} />
@@ -174,16 +173,14 @@ function AppContent() {
           <Stack.Screen name="AccountSwitcher" component={AccountSwitcherScreen} />
           <Stack.Screen name="Contacts" component={ContactsScreen} />
           <Stack.Screen name="Account" component={AccountScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Security" component={SecurityScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Publish" component={PublishScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditPost" component={EditPostScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Preferences" component={PreferencesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="LikesScreen" component={LikesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SavedScreen" component={SavedScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="ConnectedDevicesScreen" component={ConnectedDevicesScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} options={{ headerShown: false }} />
+
           <Stack.Screen name="NewPasswordScreen" component={NewPasswordScreen} options={{ headerShown: false }} />
           <Stack.Screen name="DeactivateAccountScreen" component={DeactivateAccountScreen} options={{ headerShown: false }} />
           <Stack.Screen name="DeactivateAccountPasswordScreen" component={DeactivateAccountPasswordScreen} options={{ headerShown: false }} />
@@ -191,10 +188,8 @@ function AppContent() {
           <Stack.Screen name="AdvancedInfoScreen" component={AdvancedInfoScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PresentationScreen" component={PresentationScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="ReauthenticateScreen" component={ReauthenticateScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetailGroup" component={ChatDetailGroupScreen} options={{ headerShown: false }} />
         </Stack.Navigator>

@@ -81,8 +81,8 @@ export default function LikesScreen({ navigation }) {
       >
         <Image source={{ uri: item.postImage }} style={styles.image} />
         {isSelected && (
-          <View style={styles.overlay}>
-            <Ionicons name="checkmark-circle" size={28} color="#9DBD3F" />
+          <View style={styles.checkBadge}>
+            <Ionicons name="checkmark" size={12} color="#FFF" />
           </View>
         )}
       </TouchableOpacity>
@@ -153,11 +153,16 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   image: { width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
+  checkBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#546F1C',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   empty: {
     flex: 1,

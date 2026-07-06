@@ -26,6 +26,7 @@ import { blockUser } from '../config/userActions';
 import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
+import PostInfoModal from './PostInfoModal';
 import MediaViewerModal from '../chats_screens/Mediaviewer';
 import { useVideoPlayer, VideoView } from 'expo-video'; // ← NUEVO
 import {
@@ -38,6 +39,8 @@ import {
   query,
   where,
   orderBy,
+  startAfter,
+  limit,
   getDocs,
   addDoc,
   serverTimestamp,
@@ -94,6 +97,16 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
   const [descExpanded, setDescExpanded] = useState(false);
   const [currentMediaIdx, setCurrentMediaIdx] = useState(0);
   const moreButtonRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!currentUser || !post) return;
+    let cancelled = false;
+    const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+    getDoc(savedRef).then((snap) => {
+      if (!cancelled) setSaved(snap.exists());
+    });
+    return () => { cancelled = true; };
+  }, [post.id, currentUser?.uid]);
   const mediaList = post.media && post.media.length > 0 ? post.media : [{ url: post.image, type: 'image' }];
   const postViews = post.views || 0;
 
@@ -301,6 +314,9 @@ export default function PostDetailScreen({ route, navigation }) {
   const HEADER_HEIGHT = 50;
   const PAGE_HEIGHT = screenHeight - insets.top - HEADER_HEIGHT;
   const [postsList, setPostsList] = useState(posts);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastVisiblePost, setLastVisiblePost] = useState(null);
   const initialIndex = postsList.findIndex((p) => p.id === post.id);
   const validIndex = initialIndex >= 0 ? initialIndex : 0;
   const [mediaViewerPost, setMediaViewerPost] = useState(null);
@@ -308,6 +324,7 @@ export default function PostDetailScreen({ route, navigation }) {
   const [commentsPost, setCommentsPost] = useState(null);
   const [menuPost, setMenuPost] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [infoPostId, setInfoPostId] = useState(null);
 
   if (!post) return null;
 
@@ -365,6 +382,49 @@ export default function PostDetailScreen({ route, navigation }) {
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 });
 
+  const loadMorePosts = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const lastPost = postsList[postsList.length - 1];
+      if (!lastPost) { setLoadingMore(false); return; }
+      const lastDocSnap = await getDoc(doc(db, 'posts', lastPost.id));
+      if (!lastDocSnap.exists()) { setLoadingMore(false); return; }
+      const q = query(
+        collection(db, 'posts'),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastDocSnap),
+        limit(10)
+      );
+      const snap = await getDocs(q);
+      const newDocs = snap.docs.map(d => {
+        const data = d.data();
+        const mediaArray = data.media || (data.imagenes || []).map(url => ({ url, type: 'image' }));
+        return {
+          id: d.id,
+          title: data.titulo || 'Sin título',
+          image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
+          price: data.precio ? `${data.precio}$` : null,
+          views: data.vistas || 0,
+          totalImages: mediaArray.length,
+          media: mediaArray,
+          hasVideo: mediaArray.some(m => m.type === 'video'),
+          description: data.descripcion || '',
+          webLink: data.webLink || null,
+          author: data.autor,
+        };
+      });
+      if (newDocs.length > 0) {
+        setPostsList(prev => [...prev, ...newDocs]);
+      }
+      setHasMore(snap.docs.length === 10);
+    } catch (e) {
+      console.log('Error loading more posts:', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, postsList]);
+
   const handlePostUpdated = useCallback((postId, updatedFields) => {
     setPostsList((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updatedFields } : p)));
   }, []);
@@ -376,6 +436,50 @@ export default function PostDetailScreen({ route, navigation }) {
       incrementView(postsList[index].id);
     }
   });
+
+  const handleOpenMediaViewer = useCallback((post, index) => {
+    setMediaViewerPost(post);
+    setMediaViewerIndex(index);
+  }, []);
+
+  const handleOpenComments = useCallback((post) => {
+    setCommentsPost(post);
+  }, []);
+
+  const handleAuthorPress = useCallback((author, profileName, username, profilePicture) => {
+    if (currentUser && author === currentUser.uid) {
+      navigation.navigate('MainTabs', { screen: 'Profile' });
+    } else {
+      navigation.navigate('UserProfile', {
+        userId: author,
+        profileName: profileName || 'Usuario',
+        username: username || 'usuario',
+        profilePicture: profilePicture || '',
+      });
+    }
+  }, [currentUser, navigation]);
+
+  const handleMorePress = useCallback((anchor, post) => {
+    setMenuAnchor(anchor);
+    setMenuPost(post);
+  }, []);
+
+  const renderPostItem = useCallback(({ item }) => (
+    <PostItem
+      post={item}
+      isOwnPost={currentUser && item.author === currentUser.uid}
+      displayName={item.authorProfileName || 'Usuario'}
+      displayHandle={'@' + (item.authorUsername || 'usuario')}
+      authorProfilePicture={item.authorProfilePicture || ''}
+      onOpenMediaViewer={handleOpenMediaViewer}
+      onOpenComments={handleOpenComments}
+      onAuthorPress={() => handleAuthorPress(item.author, item.authorProfileName, item.authorUsername, item.authorProfilePicture)}
+      onMorePress={(anchor) => handleMorePress(anchor, item)}
+      colors={colors}
+      isDark={isDark}
+      pageHeight={PAGE_HEIGHT}
+    />
+  ), [currentUser, colors, isDark, PAGE_HEIGHT, handleOpenMediaViewer, handleOpenComments, handleAuthorPress, handleMorePress]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -404,38 +508,7 @@ export default function PostDetailScreen({ route, navigation }) {
             offset: PAGE_HEIGHT * index,
             index,
           })}
-          renderItem={({ item }) => (
-            <PostItem
-              post={item}
-              isOwnPost={currentUser && item.author === currentUser.uid}
-              displayName={item.authorProfileName || 'Usuario'}
-              displayHandle={'@' + (item.authorUsername || 'usuario')}
-              authorProfilePicture={item.authorProfilePicture || ''}
-              onOpenMediaViewer={(post, index) => { setMediaViewerPost(post); setMediaViewerIndex(index); }}
-              onOpenComments={(post) => {
-                setCommentsPost(post);
-              }}
-              onAuthorPress={() => {
-                if (currentUser && item.author === currentUser.uid) {
-                  navigation.navigate('MainTabs', { screen: 'Profile' });
-                } else {
-                  navigation.navigate('UserProfile', {
-                    userId: item.author,
-                    profileName: item.authorProfileName || 'Usuario',
-                    username: item.authorUsername || 'usuario',
-                    profilePicture: item.authorProfilePicture || '',
-                  });
-                }
-              }}
-              onMorePress={(anchor) => {
-                setMenuAnchor(anchor);
-                setMenuPost(item);
-              }}
-              colors={colors}
-              isDark={isDark}
-              pageHeight={PAGE_HEIGHT}
-            />
-          )}
+          renderItem={renderPostItem}
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
           onScroll={onScroll.current}
@@ -444,6 +517,9 @@ export default function PostDetailScreen({ route, navigation }) {
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={true}
           windowSize={3}
+          onEndReached={loadMorePosts}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 20 }} /> : null}
           onScrollToIndexFailed={onScrollToIndexFailed}
           keyboardShouldPersistTaps="handled"
         />
@@ -494,7 +570,10 @@ export default function PostDetailScreen({ route, navigation }) {
                     try {
                       const postId = menuPost.id;
                       await deleteDoc(doc(db, 'posts', postId));
-                      deleteMediaFromCloudinary(menuPost.image).catch(() => {});
+                      const allMedia = menuPost.media || (menuPost.image ? [{ url: menuPost.image, type: 'image' }] : []);
+                      for (const m of allMedia) {
+                        deleteMediaFromCloudinary(m.url).catch(() => {});
+                      }
                       const collections = ['likes', 'views', 'saved', 'comments'];
                       for (const col of collections) {
                         try {
@@ -520,6 +599,10 @@ export default function PostDetailScreen({ route, navigation }) {
             setMenuPost(null);
             navigation.navigate('EditPost', { post: menuPost, onSave: handlePostUpdated });
           }
+          if (key === 'reportData') {
+            setInfoPostId(menuPost.id);
+            setMenuPost(null);
+          }
         }}
       />
       <MediaViewerModal
@@ -527,6 +610,11 @@ export default function PostDetailScreen({ route, navigation }) {
         items={mediaViewerPost ? (mediaViewerPost.media || [{ url: mediaViewerPost.image, type: 'image' }]).map((m, i) => ({ id: `${mediaViewerPost.id}_${i}`, mediaUrl: m.url, type: m.type })) : []}
         initialIndex={mediaViewerIndex || 0}
         onClose={() => { setMediaViewerPost(null); setMediaViewerIndex(0); }}
+      />
+      <PostInfoModal
+        visible={infoPostId !== null}
+        postId={infoPostId}
+        onClose={() => setInfoPostId(null)}
       />
     </KeyboardAvoidingView>
   );
