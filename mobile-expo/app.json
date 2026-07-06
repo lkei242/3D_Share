@@ -64,7 +64,15 @@
       ],
       "expo-video",
       "expo-font",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3159468616197576~9065857830",
+          "iosAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"
+        }
+      ],
+      "expo-build-properties"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
