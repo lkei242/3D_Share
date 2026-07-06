@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { deleteMediaFromCloudinary } from './config/mediaHelper';
 import { auth, db } from './config/firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc, arrayUnion, arrayRemove, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc, arrayUnion, arrayRemove, deleteDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
   View,
   Text,
@@ -56,6 +56,17 @@ export default function ChatScreen({ navigation }) {
   const [followingUsers, setFollowingUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
 
+  // --- Grupos y listas de difusión ---
+  const [groupChatsList, setGroupChatsList] = useState([]);
+  const [broadcastLists, setBroadcastLists] = useState([]);
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [showNewBroadcastModal, setShowNewBroadcastModal] = useState(false);
+  const [selectableUsers, setSelectableUsers] = useState([]);
+  const [fetchingSelectable, setFetchingSelectable] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [groupNameInput, setGroupNameInput] = useState('');
+  const [broadcastNameInput, setBroadcastNameInput] = useState('');
+
   // --- Modal de confirmación propio de la app (reemplaza los Alert.alert de
   // borrado de chat, tanto en handleDeleteChat como en checkAndDelete) ---
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
@@ -100,7 +111,7 @@ export default function ChatScreen({ navigation }) {
       const usersData = [];
       for (const uid of followingIds) {
         // 1. Verificar si ya tenemos una sala de chat con este usuario
-        const hasExistingChat = chats.some(c => c.participants && c.participants.includes(uid));
+        const hasExistingChat = chats.some(c => c.kind !== 'group' && c.participants && c.participants.includes(uid));
         if (hasExistingChat) continue; // Si ya existe el chat, salta al siguiente seguidor (no lo muestra)
         const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
@@ -135,7 +146,7 @@ export default function ChatScreen({ navigation }) {
     const user = auth.currentUser;
     if (!user) return;
     // 1. Buscar en chats visibles (no eliminados por el usuario actual)
-    const existingChat = chats.find(c => c.participants && c.participants.includes(targetUser.uid));
+    const existingChat = chats.find(c => c.kind !== 'group' && c.participants && c.participants.includes(targetUser.uid));
     if (existingChat) {
       navigation.navigate('ChatDetail', {
         chatId: existingChat.id,
@@ -188,6 +199,139 @@ export default function ChatScreen({ navigation }) {
     });
   };
 
+  // --- Cargar seguidos para seleccionar miembros (grupos y difusión) ---
+  const fetchFollowingUsers = async () => {
+    setFetchingSelectable(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      const followingIds = snapshot.docs.map(d => d.data().userId);
+
+      const usersData = [];
+      for (const uid of followingIds) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          let picUrl = data.profilePicture || '';
+          if (picUrl.startsWith('http://')) {
+            picUrl = picUrl.replace('http://', 'https://');
+          }
+          usersData.push({
+            id: uid,
+            uid,
+            name: data.profileName || data.username || 'Usuario',
+            username: data.username || 'usuario',
+            profilePicture: picUrl,
+          });
+        }
+      }
+      setSelectableUsers(usersData);
+    } catch (err) {
+      console.log('Error al cargar seguidos para selección:', err);
+    } finally {
+      setFetchingSelectable(false);
+    }
+  };
+
+  const toggleMemberSelection = (uid) => {
+    setSelectedMemberIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+  };
+
+  const handleOpenNewGroupModal = () => {
+    setSelectedMemberIds([]);
+    setGroupNameInput('');
+    setShowNewGroupModal(true);
+    fetchFollowingUsers();
+  };
+
+  const handleOpenNewBroadcastModal = () => {
+    setSelectedMemberIds([]);
+    setBroadcastNameInput('');
+    setShowNewBroadcastModal(true);
+    fetchFollowingUsers();
+  };
+
+  const handleCreateGroup = async () => {
+    const user = auth.currentUser;
+    if (!user || selectedMemberIds.length === 0 || !groupNameInput.trim()) return;
+    try {
+      const newChatRef = await addDoc(collection(db, 'groupchats'), {
+        groupName: groupNameInput.trim(),
+        groupPhoto: '',
+        participants: [user.uid, ...selectedMemberIds],
+        admins: [user.uid],
+        createdBy: user.uid,
+        createdAt: serverTimestamp(),
+        lastMessage: '',
+        lastMessageTime: null,
+      });
+      setShowNewGroupModal(false);
+      navigation.navigate('ChatDetailGroup', {
+        chatId: newChatRef.id,
+        groupName: groupNameInput.trim(),
+        groupPhoto: '',
+        participants: [user.uid, ...selectedMemberIds],
+        isNewChat: true,
+      });
+    } catch (err) {
+      console.log('Error al crear grupo:', err);
+    }
+  };
+
+  const handleCreateBroadcast = async () => {
+    const user = auth.currentUser;
+    if (!user || selectedMemberIds.length === 0 || !broadcastNameInput.trim()) return;
+    try {
+      const newListRef = await addDoc(collection(db, 'broadcastLists'), {
+        name: broadcastNameInput.trim(),
+        ownerId: user.uid,
+        recipients: selectedMemberIds,
+        photo: '',
+        createdAt: serverTimestamp(),
+        lastMessage: '',
+        lastMessageTime: null,
+      });
+      setShowNewBroadcastModal(false);
+      // TODO: pendiente definir la pantalla/comportamiento de envío de difusión
+      navigation.navigate('BroadcastDetail', {
+        broadcastId: newListRef.id,
+        name: broadcastNameInput.trim(),
+        recipients: selectedMemberIds,
+        isNewChat: true,
+      });
+    } catch (err) {
+      console.log('Error al crear lista de difusión:', err);
+    }
+  };
+
+  const handleLeaveGroup = async (chat) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const groupRef = doc(db, 'groupchats', chat.id);
+      await updateDoc(groupRef, {
+        participants: arrayRemove(user.uid),
+        admins: arrayRemove(user.uid),
+      });
+      const freshSnap = await getDoc(groupRef);
+      if (freshSnap.exists() && (freshSnap.data().participants || []).length === 0) {
+        await permanentlyDeleteGroup(chat.id);
+      }
+    } catch (err) {
+      console.log('Error al salir del grupo:', err);
+    }
+  };
+
+  const handleDeleteBroadcast = async (chat) => {
+    try {
+      await deleteDoc(doc(db, 'broadcastLists', chat.id));
+    } catch (err) {
+      console.log('Error al eliminar lista de difusión:', err);
+    }
+  };
+
   const activeTabRef = useRef(activeTab);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
 
@@ -230,12 +374,25 @@ export default function ChatScreen({ navigation }) {
   const handleDeleteChat = () => {
     const chat = selectedChat;
     closeManagementCard(() => {
-      // 1ra confirmación: preguntar si quiere eliminar
-      openConfirmModal({
-        title: 'Eliminar chat',
-        message: '¿Eliminar esta conversación?',
-        onConfirm: () => checkAndDelete(chat),
-      });
+      if (chat.kind === 'group') {
+        openConfirmModal({
+          title: 'Salir del grupo',
+          message: `¿Salir de "${chat.name}"? Ya no recibirás sus mensajes.`,
+          onConfirm: () => handleLeaveGroup(chat),
+        });
+      } else if (chat.kind === 'broadcast') {
+        openConfirmModal({
+          title: 'Eliminar lista',
+          message: `¿Eliminar la lista de difusión "${chat.name}"? Esta acción no se puede deshacer.`,
+          onConfirm: () => handleDeleteBroadcast(chat),
+        });
+      } else {
+        openConfirmModal({
+          title: 'Eliminar chat',
+          message: '¿Eliminar esta conversación?',
+          onConfirm: () => checkAndDelete(chat),
+        });
+      }
     });
   };
 
@@ -338,6 +495,46 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
+  const permanentlyDeleteGroup = async (groupId) => {
+    try {
+      const messagesRef = collection(db, `groupchats/${groupId}/messages`);
+      const messagesSnap = await getDocs(messagesRef);
+
+      const cloudinaryDeletions = [];
+      for (const d of messagesSnap.docs) {
+        const data = d.data();
+        if (data.mediaUrl) {
+          cloudinaryDeletions.push(
+            deleteMediaFromCloudinary(data.mediaUrl).catch(e =>
+              console.log('Error borrando media de Cloudinary:', e)
+            )
+          );
+        }
+        if (Array.isArray(data.mediaItems)) {
+          for (const item of data.mediaItems) {
+            if (item.url) {
+              cloudinaryDeletions.push(
+                deleteMediaFromCloudinary(item.url).catch(e =>
+                  console.log('Error borrando media del grupo:', e)
+                )
+              );
+            }
+          }
+        }
+      }
+      await Promise.all(cloudinaryDeletions);
+      await Promise.all(
+        messagesSnap.docs.map(d =>
+          deleteDoc(doc(db, `groupchats/${groupId}/messages/${d.id}`))
+        )
+      );
+      await deleteDoc(doc(db, 'groupchats', groupId));
+      console.log('Grupo borrado exitosamente (Firestore + Cloudinary)');
+    } catch (err) {
+      console.log('ERROR al borrar grupo:', err.code, err.message);
+    }
+  };
+
   const cleanupPendingDeletions = async () => {
     try {
       const user = auth.currentUser;
@@ -373,6 +570,8 @@ export default function ChatScreen({ navigation }) {
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const chatPromises = snapshot.docs.map(async (docSnapshot) => {
         const data = docSnapshot.data();
+
+        // --- Chat individual ---
         const otherParticipantUid = data.participants?.find(uid => uid !== user.uid);
         
         let otherParticipantName = 'Usuario';
@@ -406,6 +605,8 @@ export default function ChatScreen({ navigation }) {
 
         return {
           id: docSnapshot.id,
+          kind: 'individual',
+          type: 'individual',
           name: otherParticipantName,
           username: otherUsername,
           profilePicture: otherProfilePicture,
@@ -443,17 +644,112 @@ export default function ChatScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  const renderChatItem = React.useCallback(({ item }) => (
+  // --- Grupos (colección separada: groupchats) ---
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'groupchats'),
+      where('participants', 'array-contains', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const groups = snapshot.docs.map((docSnapshot) => {
+        const data = docSnapshot.data();
+        let lastMsgTime = '';
+        if (data.lastMessageTime) {
+          lastMsgTime = data.lastMessageTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return {
+          id: docSnapshot.id,
+          kind: 'group',
+          name: data.groupName || 'Grupo',
+          username: '',
+          profilePicture: data.groupPhoto || '',
+          message: data.lastMessage || 'Sin mensajes aún',
+          time: lastMsgTime,
+          participants: data.participants || [],
+          memberCount: (data.participants || []).length,
+          admins: data.admins || [],
+        };
+      });
+      setGroupChatsList(groups);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // --- Listas de difusión (colección separada: solo el dueño las ve) ---
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const listsRef = collection(db, 'broadcastLists');
+    const q = query(listsRef, where('ownerId', '==', user.uid));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lists = snapshot.docs.map((docSnapshot) => {
+        const data = docSnapshot.data();
+        let lastMsgTime = '';
+        if (data.lastMessageTime) {
+          lastMsgTime = data.lastMessageTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return {
+          id: docSnapshot.id,
+          kind: 'broadcast',
+          name: data.name || 'Lista de difusión',
+          username: '',
+          profilePicture: data.photo || '',
+          recipients: data.recipients || [],
+          message: data.lastMessage || 'Sin mensajes aún',
+          time: lastMsgTime,
+        };
+      });
+      setBroadcastLists(lists);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // chats solo contiene individuales; groupChatsList viene de su propio listener
+  const individualChats = useMemo(() => chats, [chats]);
+  const currentList = activeTab === 0 ? individualChats : activeTab === 1 ? groupChatsList : broadcastLists;
+
+  const renderChatItem = React.useCallback(({ item }) => {
+    const isGroup = item.kind === 'group';
+    const isBroadcast = item.kind === 'broadcast';
+
+    const handlePress = () => {
+      if (isGroup) {
+        navigation.navigate('ChatDetailGroup', {
+          chatId: item.id,
+          groupName: item.name,
+          groupPhoto: item.profilePicture,
+          participants: item.participants,
+        });
+      } else if (isBroadcast) {
+        navigation.navigate('BroadcastDetail', {
+          broadcastId: item.id,
+          name: item.name,
+          recipients: item.recipients,
+        });
+      } else {
+        navigation.navigate('ChatDetail', {
+          chatId: item.id,
+          name: item.name,
+          username: item.username,
+          profilePicture: item.profilePicture,
+          otherUid: item.otherUid,
+        });
+      }
+    };
+
+    return (
     <TouchableOpacity 
       style={styles.chatRow} 
       activeOpacity={0.7} 
-      onPress={() => navigation.navigate('ChatDetail', { 
-        chatId: item.id, 
-        name: item.name,
-        username: item.username,
-        profilePicture: item.profilePicture,
-        otherUid: item.otherUid
-      })}
+      onPress={handlePress}
       onLongPress={() => showManagementCard(item)}
       delayLongPress={400}
     >
@@ -463,7 +759,7 @@ export default function ChatScreen({ navigation }) {
         ) : (
           <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', borderColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden', justifyContent: 'center', alignItems: 'center',  }]}>
             <Ionicons
-              name="person-circle-outline"
+              name={isGroup ? 'people-circle-outline' : isBroadcast ? 'megaphone-outline' : 'person-circle-outline'}
               size={53.5}
               color="#94BA46"
               style={{ marginLeft: -2.7, marginTop: -3.2 }}
@@ -478,9 +774,19 @@ export default function ChatScreen({ navigation }) {
             <Text style={[styles.chatName, { color: colors.text }]} numberOfLines={1}>
               {item.name}
             </Text>
-            {!!item.username && (
+            {!isGroup && !isBroadcast && !!item.username && (
               <Text style={{ fontSize: 13, color: isDark ? '#888' : '#777', fontFamily: 'Nunito-Regular' }} numberOfLines={1}>
                 @{item.username}
+              </Text>
+            )}
+            {isGroup && (
+              <Text style={{ fontSize: 12, color: isDark ? '#888' : '#777', fontFamily: 'Nunito-Regular' }} numberOfLines={1}>
+                · {item.memberCount} {item.memberCount === 1 ? 'miembro' : 'miembros'}
+              </Text>
+            )}
+            {isBroadcast && (
+              <Text style={{ fontSize: 12, color: isDark ? '#888' : '#777', fontFamily: 'Nunito-Regular' }} numberOfLines={1}>
+                · {(item.recipients || []).length} destinatarios
               </Text>
             )}
           </View>
@@ -491,7 +797,8 @@ export default function ChatScreen({ navigation }) {
         </Text>
       </View>
     </TouchableOpacity>
-  ), [colors, isDark, navigation, showManagementCard]);
+    );
+  }, [colors, isDark, navigation, showManagementCard]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -578,12 +885,22 @@ export default function ChatScreen({ navigation }) {
         </LinearGradient>
       )}
 
-      {/* Lista de Chats */}
+      {/* Lista de Chats (individual / grupos / difusión según la pestaña activa) */}
       {loading ? (
         <ActivityIndicator size="large" color={v1} style={{ marginTop: 50 }} />
+      ) : currentList.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
+            {activeTab === 0
+              ? 'No tenés chats todavía. Tocá el botón + para empezar uno.'
+              : activeTab === 1
+              ? 'No tenés grupos todavía. Tocá el botón + para crear uno.'
+              : 'No tenés listas de difusión todavía. Tocá el botón + para crear una.'}
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={chats}
+          data={currentList}
           keyExtractor={(item) => item.id}
           renderItem={renderChatItem}
           contentContainerStyle={styles.listContent}
@@ -625,8 +942,10 @@ export default function ChatScreen({ navigation }) {
                 <Text style={[styles.managementBtnText, { color: colors.text }]}>Fijar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.managementBtn} onPress={handleDeleteChat}>
-                <Ionicons name="trash" size={24} color="#a70d0d" />
-                <Text style={[styles.managementBtnText, { color: '#a70d0d' }]}>Eliminar</Text>
+                <Ionicons name={selectedChat?.kind === 'group' ? 'log-out-outline' : 'trash'} size={24} color="#a70d0d" />
+                <Text style={[styles.managementBtnText, { color: '#a70d0d' }]}>
+                  {selectedChat?.kind === 'group' ? 'Salir' : 'Eliminar'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.managementBtn} onPress={handleMute}>
                 <Ionicons name="notifications-off" size={24} color={colors.text} />
@@ -645,13 +964,21 @@ export default function ChatScreen({ navigation }) {
         </Animated.View>
       )}
 
-      {/* Botón flotante verde para nuevo chat */}
+      {/* Botón flotante: abre el flujo de creación según la pestaña activa */}
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: v1 }]}
         activeOpacity={0.8}
-        onPress={handleOpenNewChat}
+        onPress={() => {
+          if (activeTab === 0) handleOpenNewChat();
+          else if (activeTab === 1) handleOpenNewGroupModal();
+          else handleOpenNewBroadcastModal();
+        }}
       >
-        <Ionicons name="chatbubble-ellipses" size={26} color="#FFF" />
+        <Ionicons
+          name={activeTab === 0 ? 'chatbubble-ellipses' : activeTab === 1 ? 'people' : 'megaphone'}
+          size={26}
+          color="#FFF"
+        />
       </TouchableOpacity>
 
       {/* Modal para iniciar chat con seguidos */}
@@ -716,6 +1043,200 @@ export default function ChatScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* Modal para crear un grupo nuevo */}
+      <Modal
+        visible={showNewGroupModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNewGroupModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1C' : '#FFF' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Nuevo grupo</Text>
+              <TouchableOpacity onPress={() => setShowNewGroupModal(false)}>
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              placeholder="Nombre del grupo"
+              placeholderTextColor={isDark ? '#888' : '#999'}
+              value={groupNameInput}
+              onChangeText={setGroupNameInput}
+              style={{
+                borderWidth: 1,
+                borderColor: isDark ? '#333' : '#DDD',
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                fontSize: 16,
+                fontFamily: 'Nunito-Regular',
+                color: colors.text,
+                marginBottom: 12,
+              }}
+            />
+
+            {fetchingSelectable ? (
+              <ActivityIndicator size="large" color={v1} style={{ marginTop: 40 }} />
+            ) : selectableUsers.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
+                  Sigue a otros usuarios desde el buscador para agregarlos a un grupo.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={selectableUsers}
+                keyExtractor={(item) => item.uid}
+                renderItem={({ item }) => {
+                  const isSelected = selectedMemberIds.includes(item.uid);
+                  return (
+                    <TouchableOpacity
+                      style={styles.userRow}
+                      activeOpacity={0.7}
+                      onPress={() => toggleMemberSelection(item.uid)}
+                    >
+                      {item.profilePicture ? (
+                        <Image source={{ uri: item.profilePicture }} style={[styles.modalAvatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.userAvatar, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden', borderColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                          <Ionicons name="person-circle-outline" size={46} color="#94BA46" style={{ marginLeft: -1, marginTop: -2 }} />
+                        </View>
+                      )}
+                      <View style={styles.userInfo}>
+                        <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
+                        <Text style={styles.userUsername}>@{item.username}</Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? 'checkbox' : 'square-outline'}
+                        size={22}
+                        color={isSelected ? '#9DBD3F' : (isDark ? '#666' : '#ccc')}
+                      />
+                    </TouchableOpacity>
+                  );
+                }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+
+            <TouchableOpacity
+              onPress={handleCreateGroup}
+              disabled={selectedMemberIds.length === 0 || !groupNameInput.trim()}
+              style={{
+                backgroundColor: (selectedMemberIds.length === 0 || !groupNameInput.trim()) ? (isDark ? '#333' : '#ddd') : v1,
+                borderRadius: 24,
+                paddingVertical: 14,
+                alignItems: 'center',
+                marginTop: 8,
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
+                Crear grupo{selectedMemberIds.length > 0 ? ` (${selectedMemberIds.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para crear una lista de difusión nueva */}
+      <Modal
+        visible={showNewBroadcastModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNewBroadcastModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1C' : '#FFF' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Nueva lista de difusión</Text>
+              <TouchableOpacity onPress={() => setShowNewBroadcastModal(false)}>
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              placeholder="Nombre de la lista"
+              placeholderTextColor={isDark ? '#888' : '#999'}
+              value={broadcastNameInput}
+              onChangeText={setBroadcastNameInput}
+              style={{
+                borderWidth: 1,
+                borderColor: isDark ? '#333' : '#DDD',
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                fontSize: 16,
+                fontFamily: 'Nunito-Regular',
+                color: colors.text,
+                marginBottom: 12,
+              }}
+            />
+
+            {fetchingSelectable ? (
+              <ActivityIndicator size="large" color={v1} style={{ marginTop: 40 }} />
+            ) : selectableUsers.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
+                  Sigue a otros usuarios desde el buscador para agregarlos a una lista de difusión.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={selectableUsers}
+                keyExtractor={(item) => item.uid}
+                renderItem={({ item }) => {
+                  const isSelected = selectedMemberIds.includes(item.uid);
+                  return (
+                    <TouchableOpacity
+                      style={styles.userRow}
+                      activeOpacity={0.7}
+                      onPress={() => toggleMemberSelection(item.uid)}
+                    >
+                      {item.profilePicture ? (
+                        <Image source={{ uri: item.profilePicture }} style={[styles.modalAvatarImage, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.userAvatar, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', overflow: 'hidden', borderColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
+                          <Ionicons name="person-circle-outline" size={46} color="#94BA46" style={{ marginLeft: -1, marginTop: -2 }} />
+                        </View>
+                      )}
+                      <View style={styles.userInfo}>
+                        <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
+                        <Text style={styles.userUsername}>@{item.username}</Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? 'checkbox' : 'square-outline'}
+                        size={22}
+                        color={isSelected ? '#9DBD3F' : (isDark ? '#666' : '#ccc')}
+                      />
+                    </TouchableOpacity>
+                  );
+                }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+
+            <TouchableOpacity
+              onPress={handleCreateBroadcast}
+              disabled={selectedMemberIds.length === 0 || !broadcastNameInput.trim()}
+              style={{
+                backgroundColor: (selectedMemberIds.length === 0 || !broadcastNameInput.trim()) ? (isDark ? '#333' : '#ddd') : v1,
+                borderRadius: 24,
+                paddingVertical: 14,
+                alignItems: 'center',
+                marginTop: 8,
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
+                Crear lista{selectedMemberIds.length > 0 ? ` (${selectedMemberIds.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de confirmación propio de la app (borrado de chat) */}
       {confirmModal && (
         <Animated.View style={[styles.confirmOverlay, { opacity: confirmOpacity }]}>
@@ -769,8 +1290,8 @@ const styles = StyleSheet.create({
   caretIcon: { position: 'absolute', bottom: -14 },
   solicitudesButton: { paddingVertical: 6 },
   solicitudesText: { fontSize: 16, fontFamily: 'Nunito-Bold' },
-  filterContainer: { flexDirection: 'row', paddingHorizontal: 32, marginTop: -7 , paddingBottom: 6, gap: 62 },
-  filterTab: { alignItems: 'center' },
+  filterContainer: { flexDirection: 'row', paddingHorizontal: 16, marginTop: -7, paddingBottom: 6, justifyContent: 'space-around' },
+  filterTab: { flex: 1, alignItems: 'center' },
   filterText: { fontSize: 20, fontFamily: 'Nunito-Regular' },
   searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 18, marginBottom: 8, marginRight: 0, borderTopLeftRadius: 20, borderBottomLeftRadius: 20, paddingHorizontal: 14, height: 42 },
   searchIcon: { marginRight: 8 },

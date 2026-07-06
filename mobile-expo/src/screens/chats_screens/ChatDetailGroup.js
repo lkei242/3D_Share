@@ -1,0 +1,1772 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  LogBox,
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  TextInput,
+  TouchableWithoutFeedback,
+  Alert,
+  Animated,
+  ActivityIndicator,
+  Keyboard,
+  Image,
+  Modal,
+  BackHandler,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { useTheme, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { auth, db } from '../config/firebase';
+import { API_URL } from '../config/api';
+import { deleteMediaFromCloudinary } from '../config/mediaHelper';
+import {
+  collection,
+  doc,
+  getDoc,
+  addDoc,
+  setDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  arrayUnion,
+  arrayRemove,
+} from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
+
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './Chatconstants';
+import styles from './Chatstyles';
+import MessageItem from './Messageitem';
+import MediaViewerModal from './Mediaviewer';
+import useVoiceRecorder from './Usevoicerecorder';
+import CustomCameraModal from '../components/CustomCameraModal';
+
+const _warn = console.warn;
+console.warn = (...args) => {
+  const msg = args[0];
+  if (
+    typeof msg === 'string' && (
+      msg.includes('Cannot record touch move without a touch start') ||
+      msg.includes('Cannot record touch end without a touch start') ||
+      msg.includes('Ended a touch event which was not counted in') ||
+      msg.includes('trackedTouchCount')
+    )
+  ) return; // Ignorar estos warnings específicos
+  _warn(...args);
+};
+
+export default function ChatDetailGroupScreen({ route, navigation }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const isDark = colors.text === '#FFFFFF';
+
+  // Recuperar los datos pasados desde ChatScreen (ver handleCreateGroup /
+  // renderChatItem -> navigation.navigate('ChatDetailGroup', ...)). A
+  // diferencia del chat 1 a 1, el documento del grupo SIEMPRE existe antes de
+  // llegar acá (se crea en handleCreateGroup con addDoc a 'groupchats').
+  const {
+    chatId,
+    groupName: initialGroupName,
+    groupPhoto: initialGroupPhoto,
+    participants: initialParticipants,
+  } = route.params;
+
+  // Para un chat 1 a 1 "chatName" es la única identidad relevante; acá la
+  // reutilizamos como alias del nombre del grupo para no tener que renombrar
+  // cada referencia interna (replyTo, lastMessage, etc.).
+  const chatName = initialGroupName || 'Grupo';
+
+  const [currentChatId] = useState(chatId);
+  const [messages, setMessages] = useState([]);
+
+  // Info del grupo (nombre, foto, participantes, admins). Se inicializa con
+  // lo que ya trae la navegación (instantáneo) y se mantiene sincronizada en
+  // tiempo real con Firestore más abajo.
+  const [groupInfo, setGroupInfo] = useState({
+    name: initialGroupName || 'Grupo',
+    photo: initialGroupPhoto || '',
+    participants: initialParticipants || [],
+    admins: [],
+  });
+
+  // Mapa uid -> { name, username, profilePicture } de cada integrante. En un
+  // chat 1 a 1 "el otro" es siempre la misma persona; en un grupo puede ser
+  // cualquiera de varios miembros, así que necesitamos poder resolver el
+  // nombre/foto de cualquier remitente para pintarlo en cada burbuja.
+  const [membersMap, setMembersMap] = useState({});
+  const [currentUserPic, setCurrentUserPic] = useState('');
+
+  // Ref con la última versión de membersMap, para poder leerla dentro del
+  // listener de mensajes (onSnapshot) sin tener que resuscribirlo cada vez
+  // que cambia el mapa de integrantes.
+  const membersMapRef = useRef({});
+  useEffect(() => { membersMapRef.current = membersMap; }, [membersMap]);
+
+  const resolveMemberName = useCallback((uid) => {
+    if (!uid) return 'Alguien';
+    if (uid === auth.currentUser?.uid) return 'Tú';
+    return membersMapRef.current[uid]?.name || 'Usuario';
+  }, []);
+
+  const getMemberPic = useCallback((uid) => membersMap[uid]?.profilePicture || '', [membersMap]);
+
+  // Solo marcamos el chat como activo mientras la pantalla está enfocada
+  // (para presencia / notificaciones). A diferencia del chat 1 a 1, un grupo
+  // NUNCA se borra automáticamente al salir de la pantalla: solo se elimina
+  // cuando se queda sin participantes (ver handleConfirmLeaveGroup más abajo,
+  // igual que permanentlyDeleteGroup en ChatScreen).
+  useFocusEffect(
+    useCallback(() => {
+      const user = auth.currentUser;
+      if (!user || !currentChatId) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      setDoc(userRef, { activeChatId: currentChatId }, { merge: true });
+
+      return () => {
+        setDoc(userRef, { activeChatId: null }, { merge: true }).catch(() => {});
+      };
+    }, [currentChatId])
+  );
+
+  // Escuchar en tiempo real los datos del grupo (nombre, foto, participantes, admins)
+  useEffect(() => {
+    if (!currentChatId) return;
+    const groupRef = doc(db, 'groupchats', currentChatId);
+    const unsubscribe = onSnapshot(groupRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      setGroupInfo({
+        name: data.groupName || initialGroupName || 'Grupo',
+        photo: data.groupPhoto || '',
+        participants: data.participants || [],
+        admins: data.admins || [],
+      });
+    }, (err) => console.log('Error escuchando datos del grupo:', err));
+    return unsubscribe;
+  }, [currentChatId, initialGroupName]);
+
+  // Resolver nombre/foto de cada integrante (incluido uno mismo) para poder
+  // mostrar quién mandó cada mensaje.
+  useEffect(() => {
+    const uids = groupInfo.participants || [];
+    if (uids.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const entries = await Promise.all(
+          uids.map(async (uid) => {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', uid));
+              if (!userSnap.exists()) return [uid, null];
+              const d = userSnap.data();
+              let picUrl = d.profilePicture || '';
+              if (picUrl.startsWith('http://')) {
+                picUrl = picUrl.replace('http://', 'https://');
+              }
+              return [uid, {
+                name: d.profileName || d.username || 'Usuario',
+                username: d.username || '',
+                profilePicture: picUrl,
+              }];
+            } catch (_) {
+              return [uid, null];
+            }
+          })
+        );
+        if (cancelled) return;
+
+        setMembersMap(prev => {
+          const next = { ...prev };
+          entries.forEach(([uid, info]) => { if (info) next[uid] = info; });
+          return next;
+        });
+
+        const me = auth.currentUser;
+        const mine = entries.find(([uid]) => uid === me?.uid);
+        if (mine && mine[1]) setCurrentUserPic(mine[1].profilePicture);
+      } catch (err) {
+        console.log('Error cargando integrantes del grupo:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [groupInfo.participants]);
+
+  // Subtítulo del header con los nombres de los integrantes (estilo WhatsApp)
+  const membersSubtitle = React.useMemo(() => {
+    const others = (groupInfo.participants || []).filter(uid => uid !== auth.currentUser?.uid);
+    const names = others.map(uid => membersMap[uid]?.name).filter(Boolean);
+    if (names.length === 0) {
+      const total = (groupInfo.participants || []).length;
+      return `${total} ${total === 1 ? 'integrante' : 'integrantes'}`;
+    }
+    if (names.length <= 2) return names.join(' y ');
+    return `${names.slice(0, 2).join(', ')} y ${names.length - 2} más`;
+  }, [groupInfo.participants, membersMap]);
+
+  const [showCustomCamera, setShowCustomCamera] = useState(false);
+  const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
+
+  // --- Visor de media a pantalla completa ---
+  const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
+  const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
+  // Lista plana de todos los items de media para el visor (expande media_group)
+  const flatMediaItems = React.useMemo(() => {
+    const result = [];
+    messages.forEach(m => {
+      if (m.type === 'image' || m.type === 'video' || m.type === 'file') {
+        result.push(m);
+      } else if (m.type === 'media_group') {
+        (m.mediaItems || []).forEach((mi, idx) => {
+          result.push({
+            id: `${m.id}_${idx}`,
+            type: mi.type || 'image',
+            mediaUrl: mi.url,
+            text: mi.type === 'video' ? 'Video' : 'Imagen',
+          });
+        });
+      }
+    });
+    return result;
+  }, [messages]);
+
+  const openMediaViewer = useCallback((item, groupIdx = 0) => {
+    if (item.type === 'media_group') {
+      // Buscar el índice de la primera foto de este grupo en flatMediaItems
+      const firstId = `${item.id}_0`;
+      const baseIdx = flatMediaItems.findIndex(m => m.id === firstId);
+      setMediaViewerIndex(baseIdx >= 0 ? baseIdx + groupIdx : 0);
+    } else {
+      const idx = flatMediaItems.findIndex(m => m.id === item.id);
+      setMediaViewerIndex(idx >= 0 ? idx : 0);
+    }
+    setMediaViewerVisible(true);
+  }, [flatMediaItems]);
+
+  const [loading, setLoading] = useState(true);
+  const [inputText, setInputText] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const textInputRef = useRef(null);
+  
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showMoreSubMenu, setShowMoreSubMenu] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showMsgInfo, setShowMsgInfo] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
+
+  // A diferencia del chat 1 a 1, el grupo NUNCA se crea "sobre la marcha":
+  // ya existe en 'groupchats' desde que se creó en ChatScreen. Mantenemos el
+  // nombre "ensureChatId" (en vez de usar currentChatId a secas) solo para
+  // no tener que tocar la firma de useVoiceRecorder ni de los handlers de
+  // envío de media, que ya esperan una función async que resuelva el id.
+  const ensureChatId = async () => {
+    if (currentChatId) return currentChatId;
+    throw new Error('No se encontró el grupo');
+  };
+
+  // --- Grabación de notas de voz (estado, animaciones, gestos y envío) ---
+  // Todo lo relacionado a grabar audio vive en este hook; acá solo
+  // desestructuramos con los MISMOS nombres que usaba el código original
+  // para no tener que tocar el JSX de más abajo.
+  // IMPORTANTE: si useVoiceRecorder escribe internamente en la colección
+  // 'chats/{id}/messages' de forma fija, hay que ajustarlo para que también
+  // pueda apuntar a 'groupchats/{id}/messages' (por ejemplo, aceptando la
+  // colección base como segundo parámetro), o las notas de voz enviadas
+  // desde un grupo quedarán guardadas en el chat 1 a 1 equivocado.
+  const {
+    isLocked,
+    isRecording,
+    isPaused,
+    recordSeconds,
+    waveBarAnims,
+    lockBounceAnim,
+    lockSlideAnim,
+    lockOpacityAnim,
+    cancelSlideAnim,
+    togglePauseRecording,
+    stopAndSendRecording,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useVoiceRecorder(ensureChatId);
+
+  const handleToggleSelect = useCallback((id) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) return prev.filter(i => i !== id);
+      if (prev.length > 0) {
+        const firstSender = messages.find(m => m.id === prev[0])?.sender;
+        const newSender = messages.find(m => m.id === id)?.sender;
+        if (firstSender && newSender && firstSender !== newSender) {
+          return prev; // ignora el toque: es de otro remitente
+        }
+      }
+      return [...prev, id];
+    });
+  }, [messages]);
+  const clearSelection = useCallback(() => setSelectedIds([]), []);
+
+  const flatListRef = useRef(null);
+  const prevMessagesLengthRef = useRef(0);
+
+  useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
+  
+  const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
+  const selectionSender = selectedIds.length > 0 ? messages.find(m => m.id === selectedIds[0])?.sender : null;
+
+  // Escuchar mensajes en tiempo real desde Firestore
+  useEffect(() => {
+    if (!currentChatId) return;
+
+    const messagesRef = collection(db, `groupchats/${currentChatId}/messages`);
+    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, async (snapshot) => {
+      const msgs = snapshot.docs
+        .filter(docSnapshot => {
+          const data = docSnapshot.data();
+          return !(data.deletedFor || []).includes(auth.currentUser?.uid);
+        })
+        .map(docSnapshot => {
+        const data = docSnapshot.data();
+        const date = data.createdAt ? data.createdAt.toDate() : new Date();
+        const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return {
+          id: docSnapshot.id,
+          text: data.text,
+          type: data.type || 'text',
+          mediaUrl: data.mediaUrl || null,
+          audioDuration: data.audioDuration || null,
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          locationName: data.locationName || null,
+          locationAddress: data.locationAddress || null,
+          mediaItems: data.mediaItems || null,
+          caption: data.caption || null,
+          replyTo: data.replyTo ? {
+            ...data.replyTo,
+            // En un grupo el remitente citado puede ser cualquier integrante,
+            // no siempre "el otro" fijo del chat 1 a 1.
+            senderName: resolveMemberName(data.replyTo.senderId),
+          } : null,
+          sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
+          rawSender: data.sender,
+          // Nombre y foto de quien mandó ESTE mensaje, para pintarlos en la
+          // burbuja (a diferencia del 1 a 1, acá "other" no es una sola persona).
+          senderName: data.sender === auth.currentUser?.uid ? 'Tú' : resolveMemberName(data.sender),
+          time: timeString,
+          rawTime: data.createdAt || null,
+          read: data.read || false,
+          delivered: data.delivered || false,
+          isFavorite: data.isFavorite || false,
+          pending: docSnapshot.metadata.hasPendingWrites,
+        };
+      });
+
+      setMessages(msgs);
+      setLoading(false);
+
+      // marcar como leidos y entregados los mensajes que me envió el otro
+      const unreadMsgs = snapshot.docs.filter(docSnapshot => {
+        const data = docSnapshot.data();
+        return data.sender !== auth.currentUser?.uid && data.read !== true && !docSnapshot.metadata.hasPendingWrites;
+      });
+      if (unreadMsgs.length > 0) {
+        const batch = unreadMsgs.map(docSnapshot => {
+          const msgRef = doc(db, `groupchats/${currentChatId}/messages/${docSnapshot.id}`);
+          return updateDoc(msgRef, { read: true });
+        });
+        Promise.all(batch).catch(err => console.log('Error marcando lectura:', err));
+      }
+
+      // sincronizar lastMessage del chat con el ultimo mensaje real de la lista
+      if (msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        let lastMsgText = lastMsg.text || '';
+        if (lastMsg.type === 'image') lastMsgText = '🖼️ Imagen';
+        else if (lastMsg.type === 'video') lastMsgText = '🎥 Video';
+        else if (lastMsg.type === 'audio') lastMsgText = '🎙️ Audio';
+        else if (lastMsg.type === 'location') lastMsgText = '📍 Ubicación compartida';
+        else if (lastMsg.type === 'file') lastMsgText = `📎 ${lastMsg.text || 'Archivo'}`;
+        else if (lastMsg.type === 'media_group') lastMsgText = `🖼️ ${(lastMsg.mediaItems || []).length} archivos`;
+        try {
+          const chatRef = doc(db, `groupchats/${currentChatId}`);
+          await updateDoc(chatRef, {
+            lastMessage: lastMsgText,
+            lastMessageTime: lastMsg.rawTime || serverTimestamp(),
+            lastSender: lastMsg.rawSender || auth.currentUser?.uid,
+          });
+        } catch (err) {
+          console.log('Error sincronizando lastMessage:', err);
+        }
+      } else {
+        try {
+          const chatRef = doc(db, `groupchats/${currentChatId}`);
+          await updateDoc(chatRef, {
+            lastMessage: 'Sin mensajes aún',
+            lastMessageTime: serverTimestamp(),
+            lastSender: '',
+          });
+        } catch (err) {
+          console.log('Error limpiando lastMessage:', err);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [currentChatId]);
+
+  const closeAllMenus = () => {
+    setShowHeaderMenu(false);
+    setShowMoreSubMenu(false);
+    setShowAttachmentMenu(false);
+  };
+
+  // Enviar o editar mensaje en Firestore
+  const handleSend = async () => {
+    const textToSend = inputText.trim();
+    if (textToSend === '') return;
+
+    setInputText('');
+    setEditingMessageId(null);
+    // Capturamos el mensaje al que se está respondiendo ANTES de limpiar el
+    // estado, para poder adjuntarlo al documento sin que la UI espere a Firestore.
+    const replySnapshot = replyingTo;
+    setReplyingTo(null);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const activeChatId = await ensureChatId();
+
+      if (editingMessageId) {
+        const msgRef = doc(db, `groupchats/${activeChatId}/messages/${editingMessageId}`);
+        await updateDoc(msgRef, { text: textToSend, caption: textToSend });
+      } else {
+        const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
+        const chatRef = doc(db, `groupchats/${activeChatId}`);
+
+        const docRef = await addDoc(messagesRef, {
+          text: textToSend,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+          delivered: false,
+          ...(replySnapshot ? {
+            replyTo: {
+              id: replySnapshot.id,
+              text: replySnapshot.text || (replySnapshot.type && replySnapshot.type !== 'text' ? `📎 ${replySnapshot.type}` : ''),
+              senderId: replySnapshot.rawSender || user.uid,
+            },
+          } : {}),
+        });
+
+        await updateDoc(docRef, { delivered: true });
+
+        await updateDoc(chatRef, {
+          lastMessage: textToSend,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid
+        });
+      }
+    } catch (error) {
+      console.log("Error al enviar mensaje:", error);
+    }
+  };
+
+  const handleOpenCamera = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      setMediaPreview({ assets: result.assets, caption: '' });
+    }
+  };
+
+  const handleOpenGallery = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la galería.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+    });
+    if (!result.canceled && result.assets?.length) {
+      setMediaPreview({ assets: result.assets, caption: '' });
+    }
+  };
+
+  const handleSendMediaPreview = async () => {
+  if (!mediaPreview) return;
+  const { assets, caption } = mediaPreview;
+  setMediaPreview(null);
+
+  const user = auth.currentUser;
+  const token = await user.getIdToken();
+
+  // Subir todos los assets
+  const uploaded = [];
+  for (const asset of assets) {
+    const uri = asset.uri;
+    const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+    const category = getMediaCategory(mimeType);
+    const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const fileName = asset.fileName || asset.name || `media_${Date.now()}.${extension}`;
+
+    const formData = new FormData();
+    formData.append('imagen', { uri, type: mimeType, name: fileName });
+
+    const uploadRes = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/api/media/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.onload = () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        resolve({ ok: xhr.status === 200, data });
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(formData);
+    });
+
+    if (uploadRes.ok) {
+      uploaded.push({ url: uploadRes.data.url, type: category });
+    }
+  }
+
+  if (uploaded.length === 0) {
+    Alert.alert('Error', 'No se pudo subir ningún archivo.');
+    return;
+  }
+
+  const activeChatId = await ensureChatId();
+  const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
+  const chatRef = doc(db, `groupchats/${activeChatId}`);
+
+  if (uploaded.length === 1) {
+    // Mensaje individual (igual que antes)
+    const { url, type } = uploaded[0];
+    const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'] };
+    const [text, lastMsg] = labels[type] || ['Archivo', '📎 Archivo'];
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: caption || text,
+        type,
+        mediaUrl: url,
+        caption: caption || null,
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+        delivered: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: caption || lastMsg,
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  } else {
+    // Mensaje grupo de medias
+    await Promise.all([
+      addDoc(messagesRef, {
+        text: caption || '📷 Fotos',
+        type: 'media_group',
+        mediaItems: uploaded, // [{ url, type }]
+        caption: caption || null,
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+        delivered: false,
+      }),
+      updateDoc(chatRef, {
+        lastMessage: caption || `📷 ${uploaded.length} fotos`,
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      }),
+    ]);
+  }
+};
+
+  const handleOpenFiles = async () => {
+    setShowAttachmentMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const file = result.assets[0];
+      await handleUploadAndSendMedia({
+        uri: file.uri,
+        type: file.mimeType || 'application/octet-stream',
+        fileName: file.name,
+      });
+    }
+  };
+
+  const handleSendLocation = async () => {
+    setShowAttachmentMenu(false);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la ubicación.');
+      return;
+    }
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const { latitude, longitude } = loc.coords;
+    const user = auth.currentUser;
+    const token = await user.getIdToken();
+// Obtener nombre del lugar (geocoding inverso)
+  let locationName = 'Ubicación compartida';
+  let locationAddress = '';
+  try {
+    const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+    if (place) {
+      locationName = place.name || place.street || 'Ubicación';
+      locationAddress = [place.street, place.district, place.city]
+        .filter(Boolean).join(', ');
+    }
+  } catch (_) {}
+
+  const activeChatId = await ensureChatId();
+  const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
+  const chatRef = doc(db, `groupchats/${activeChatId}`);
+  await Promise.all([
+    addDoc(messagesRef, {
+      text: locationName,
+      type: 'location',
+      latitude,
+      longitude,
+      locationName,
+      locationAddress,
+      sender: user.uid,
+      createdAt: serverTimestamp(),
+      read: false,
+      isFavorite: false,
+      delivered: false,
+    }),
+    updateDoc(chatRef, {
+      lastMessage: '📍 Ubicación compartida',
+      lastMessageTime: serverTimestamp(),
+      lastSender: user.uid,
+    }),
+  ]);
+};
+
+  // Handler genérico que sube a Cloudinary y manda el mensaje
+  const handleUploadAndSendMedia = async (asset) => {
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+      const uri = asset.uri;
+
+      // asset.type del ImagePicker solo trae la categoría ("image"/"video"), no
+      // un MIME real. Priorizamos mimeType (ImagePicker y DocumentPicker lo traen).
+      const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+      const category = getMediaCategory(mimeType);
+      const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+      const fileName = asset.fileName || asset.name || `media_${Date.now()}.${extension}`;
+
+      const formData = new FormData();
+      formData.append('imagen', { uri, type: mimeType, name: fileName });
+
+      const xhr = new XMLHttpRequest();
+      const uploadRes = await new Promise((resolve, reject) => {
+        xhr.open('POST', `${API_URL}/api/media/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.onload = () => {
+          let data = null;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch (e) {}
+          resolve({ ok: xhr.status === 200, data });
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(formData);
+      });
+
+      if (!uploadRes.ok) {
+        Alert.alert('Error', 'No se pudo subir el archivo.');
+        return;
+      }
+
+      const uploadData = uploadRes.data;
+
+      const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'], file: [fileName, `📎 ${fileName}`] };
+      const [text, lastMessage] = labels[category];
+
+      const activeChatId = await ensureChatId();
+      const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
+      const chatRef = doc(db, `groupchats/${activeChatId}`);
+      await Promise.all([
+        addDoc(messagesRef, {
+          text,
+          type: category,
+          mediaUrl: uploadData.url,
+          fileName: category === 'file' ? fileName : null,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+          delivered: false,
+        }),
+        updateDoc(chatRef, {
+          lastMessage,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+          delivered: true,
+        }),
+      ]);
+    } catch (err) {
+      console.log('Error subiendo media:', err);
+      Alert.alert('Error', 'No se pudo enviar el archivo.');
+    }
+  };
+
+  const handleSendCustomMediaList = async (mediaList) => {
+    setShowCustomCamera(false);
+    if (!mediaList || mediaList.length === 0) return;
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+
+      // 1. Subir TODOS los archivos a Cloudinary en paralelo
+      const uploadedItems = await Promise.all(
+        mediaList.map(async (item) => {
+          const uri = item.uri;
+          const extension = uri.split('.').pop()?.split('?')[0] || (item.type === 'video' ? 'mp4' : 'jpg');
+          const type = item.type === 'video' ? 'video/mp4' : 'image/jpeg';
+          const fileName = `media_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+
+          const formData = new FormData();
+          formData.append('imagen', { uri, type, name: fileName });
+
+          const xhr = new XMLHttpRequest();
+          const uploadRes = await new Promise((resolve, reject) => {
+            xhr.open('POST', `${API_URL}/api/media/upload`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.onload = () => {
+              let data = null;
+              try { data = JSON.parse(xhr.responseText); } catch (e) {}
+              resolve({ ok: xhr.status === 200, data });
+            };
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send(formData);
+          });
+
+          if (!uploadRes.ok || !uploadRes.data?.url) return null;
+
+          return {
+            url: uploadRes.data.url,
+            type: item.type === 'video' ? 'video' : 'image',
+          };
+        })
+      );
+
+      // Filtrar los que fallaron
+      const validItems = uploadedItems.filter(Boolean);
+      if (validItems.length === 0) return;
+
+      const activeChatId = await ensureChatId();
+      const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
+      const chatRef = doc(db, `groupchats/${activeChatId}`);
+
+      // 2. Usar el caption del primer item (el campo de comentario del editor)
+      const caption = mediaList[0]?.caption || '';
+
+      if (validItems.length === 1) {
+        // Solo 1 archivo → mensaje normal image/video
+        const single = validItems[0];
+        const isVideo = single.type === 'video';
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: caption || (isVideo ? 'Video' : 'Imagen'),
+            caption: caption || null,
+            type: isVideo ? 'video' : 'image',
+            mediaUrl: single.url,
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false,
+            delivered: false,
+          }),
+          updateDoc(chatRef, {
+            lastMessage: isVideo ? '🎥 Video' : '🖼️ Imagen',
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid,
+          }),
+        ]);
+      } else {
+        // Más de 1 archivo → un solo mensaje media_group
+        await Promise.all([
+          addDoc(messagesRef, {
+            text: caption || '🖼️ Multimedia',
+            caption: caption || null,
+            type: 'media_group',
+            mediaItems: validItems,  // [{ url, type }]
+            sender: user.uid,
+            createdAt: serverTimestamp(),
+            read: false,
+            isFavorite: false,
+            delivered: false,
+          }),
+          updateDoc(chatRef, {
+            lastMessage: `🖼️ ${validItems.length} archivos`,
+            lastMessageTime: serverTimestamp(),
+            lastSender: user.uid,
+          }),
+        ]);
+      }
+    } catch (err) {
+      console.log('Error enviando media personalizada:', err);
+      Alert.alert('Error', 'No se pudo enviar el archivo.');
+    }
+  };
+
+  // Punto único para entrar en "modo respuesta": lo usan tanto el ícono de
+  // responder de la barra de selección como el swipe-to-reply de cada burbuja.
+  const startReply = useCallback((msg) => {
+    if (!msg) return;
+    setEditingMessageId(null);
+    setInputText('');
+    setReplyingTo(msg);
+    clearSelection();
+    Keyboard.dismiss();
+    setTimeout(() => textInputRef.current?.focus(), 150);
+  }, [clearSelection]);
+
+  const handleReply = () => {
+    startReply(activeMsg);
+  };
+
+  // Se llama desde MessageItem cuando el usuario desliza un mensaje hacia la derecha
+  const handleSwipeReply = useCallback((item) => {
+    startReply(item);
+  }, [startReply]);
+
+  const handleCancelReply = () => setReplyingTo(null);
+
+    const handleCancelEdit = () => {
+    Keyboard.dismiss();
+    setEditingMessageId(null);
+    setInputText('');
+  };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (editingMessageId) {
+        handleCancelEdit();
+        return true;
+      }
+      if (selectedIds.length > 0) {
+        handleExitSelection();
+        return true;
+      }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [editingMessageId, selectedIds, showDeleteConfirm]);
+
+  const handleFavorite = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      const firstMsg = messages.find(m => m.id === selectedIds[0]);
+      const newFav = !firstMsg?.isFavorite;
+      const batch = selectedIds.map(id => {
+        const msgRef = doc(db, `groupchats/${currentChatId}/messages/${id}`);
+        return updateDoc(msgRef, { isFavorite: newFav });
+      });
+      await Promise.all(batch);
+    } catch (error) {
+      console.log("Error al marcar favorito:", error);
+    }
+    clearSelection();
+  };
+
+  const handleDelete = () => {
+    if (selectedIds.length === 0) return;
+    setShowDeleteConfirm(true);
+    Animated.timing(deleteConfirmOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  };
+
+  const closeDeleteConfirm = (onClosed) => {
+    Animated.timing(deleteConfirmOpacity, { toValue: 0, duration: 150, useNativeDriver: true })
+      .start(() => {
+        setShowDeleteConfirm(false);
+        if (onClosed) onClosed();
+      });
+  };
+
+  const handleConfirmDelete = () => {
+    const idsToDelete = [...selectedIds];
+    closeDeleteConfirm(async () => {
+      clearSelection();
+      try {
+        const msgsToDelete = messages.filter(m => selectedIds.includes(m.id));
+        const deletions = msgsToDelete.map(async (msg) => {
+          const msgRef = doc(db, `groupchats/${currentChatId}/messages/${msg.id}`);
+
+          if (msg.sender !== 'me') {
+            // Borrar para mí: NO se toca el documento real, solo se marca con mi uid
+            await updateDoc(msgRef, {
+              deletedFor: arrayUnion(auth.currentUser.uid),
+            });
+            return;
+          }
+
+          // Mensajes propios: se borran de verdad (para ambos), como antes
+          try {
+            if (msg?.mediaUrl) await deleteMediaFromCloudinary(msg.mediaUrl);
+            if (msg?.type === 'media_group' && msg.mediaItems) {
+              await Promise.all(
+                msg.mediaItems.map(item =>
+                  item.url ? deleteMediaFromCloudinary(item.url).catch(() => {}) : Promise.resolve()
+                )
+              );
+            }
+          } catch (cloudinaryError) {
+            console.log("Error al borrar media de Cloudinary:", cloudinaryError);
+          }
+          await deleteDoc(msgRef);
+        });
+        await Promise.all(deletions);
+      } catch (error) {
+        console.log("Error al borrar mensajes:", error);
+      }
+      clearSelection();
+    });
+  };
+
+  const handleCancelDelete = () => {
+    closeDeleteConfirm();
+  };
+
+  // Botón de flecha del header en modo selección: si el cartel de confirmación
+  // de borrado está abierto, hay que cerrarlo (animado) ANTES de limpiar la
+  // selección — si no, el cartel queda "huérfano" en pantalla aunque ya no
+  // haya mensajes seleccionados.
+  const handleExitSelection = () => {
+    if (showDeleteConfirm) {
+      closeDeleteConfirm(clearSelection);
+    } else {
+      clearSelection();
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!activeMsg.text) return;
+    clearSelection();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage('Mensaje copiado al portapapeles');
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      // Escribir al clipboard después de que el toast de la app ya se vea
+      setTimeout(() => {
+        Clipboard.setStringAsync(activeMsg.text);
+      }, 1000);
+    });
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => setToastMessage(null));
+    }, 900);
+  };
+
+  const handleStartEdit = () => {
+    if (!activeMsg || activeMsg.sender !== 'me') return;
+    setInputText(activeMsg.text);
+    setEditingMessageId(activeMsg.id);
+    setReplyingTo(null);
+    clearSelection();
+
+    setTimeout(() => {
+      textInputRef.current?.focus();
+      try {
+        flatListRef.current?.scrollToItem({ item: activeMsg, animated: true, viewPosition: 0.5 });
+      } catch (_) {}
+    }, 150);
+  };
+
+  const renderMessageItem = React.useCallback(({ item }) => {
+    const isMe = item.sender === 'me';
+    const isChecked = selectedIds.includes(item.id);
+    // En el 1 a 1 "el otro" es siempre la misma persona (otherProfilePicture
+    // fijo); en un grupo cada mensaje puede venir de un integrante distinto,
+    // así que resolvemos nombre/foto por mensaje usando rawSender.
+    const bubblePic = isMe ? currentUserPic : getMemberPic(item.rawSender);
+    return (
+      <MessageItem
+        item={item}
+        isMe={isMe}
+        isDark={isDark}
+        colors={colors}
+        chatName={chatName}
+        isChecked={isChecked}
+        isEditing={item.id === editingMessageId}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        setShowMsgInfo={setShowMsgInfo}
+        onOpenMedia={openMediaViewer}
+        onSwipeReply={handleSwipeReply}
+        otherProfilePicture={bubblePic}
+        myProfilePicture={currentUserPic}
+        isGroup
+        senderName={isMe ? 'Tú' : resolveMemberName(item.rawSender)}
+        senderProfilePicture={bubblePic}
+      />
+    );
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, getMemberPic, currentUserPic, editingMessageId]);
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [mediaPreview, setMediaPreview] = useState(null); 
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
+  // A diferencia del chat 1 a 1 (que navega al perfil de "el otro"), tocar el
+  // header de un grupo abre un panel local con la info del grupo e integrantes.
+  const handleOpenGroupInfo = () => {
+    closeAllMenus();
+    setShowGroupInfoModal(true);
+  };
+
+  // Salir del grupo: quita al usuario actual de participants/admins en
+  // 'groupchats' y, si el grupo se queda sin integrantes, lo borra por
+  // completo (mensajes + media en Cloudinary), igual que
+  // permanentlyDeleteGroup en ChatScreen.
+  const permanentlyDeleteThisGroup = async () => {
+    try {
+      const messagesRef = collection(db, `groupchats/${currentChatId}/messages`);
+      const messagesSnap = await getDocs(messagesRef);
+      const cloudinaryDeletions = [];
+      for (const d of messagesSnap.docs) {
+        const data = d.data();
+        if (data.mediaUrl) {
+          cloudinaryDeletions.push(deleteMediaFromCloudinary(data.mediaUrl).catch(() => {}));
+        }
+        if (Array.isArray(data.mediaItems)) {
+          for (const item of data.mediaItems) {
+            if (item.url) cloudinaryDeletions.push(deleteMediaFromCloudinary(item.url).catch(() => {}));
+          }
+        }
+      }
+      await Promise.all(cloudinaryDeletions);
+      await Promise.all(messagesSnap.docs.map(d => deleteDoc(doc(db, `groupchats/${currentChatId}/messages/${d.id}`))));
+      await deleteDoc(doc(db, 'groupchats', currentChatId));
+    } catch (err) {
+      console.log('Error al borrar el grupo:', err);
+    }
+  };
+
+  const handleConfirmLeaveGroup = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user || !currentChatId) return;
+      const groupRef = doc(db, 'groupchats', currentChatId);
+      await updateDoc(groupRef, {
+        participants: arrayRemove(user.uid),
+        admins: arrayRemove(user.uid),
+      });
+      const freshSnap = await getDoc(groupRef);
+      if (freshSnap.exists() && (freshSnap.data().participants || []).length === 0) {
+        await permanentlyDeleteThisGroup();
+      }
+      setShowGroupInfoModal(false);
+      navigation.goBack();
+    } catch (err) {
+      console.log('Error al salir del grupo:', err);
+      Alert.alert('Error', 'No se pudo salir del grupo');
+    }
+  };
+
+  const handleLeaveGroup = () => {
+    closeAllMenus();
+    Alert.alert(
+      'Salir del grupo',
+      `¿Salir de "${groupInfo.name}"? Ya no recibirás sus mensajes.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: handleConfirmLeaveGroup },
+      ]
+    );
+  };
+  
+  return (
+    <View style={{ flex: 1 }}>
+      <TouchableWithoutFeedback onPress={closeAllMenus}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        
+        {/* HEADER MULTI-SELECCIÓN O NORMAL */}
+        {selectedIds.length > 0 ? (
+          <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
+            {/* Flecha + contador */}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={handleExitSelection} style={{ paddingRight: 12 }}>
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.headerName, { color: colors.text, fontSize: 20 }]}>
+                {selectedIds.length}
+              </Text>
+            </View>
+
+            {/* Acciones — varían según si el mensaje es mío o del otro */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+
+              {selectedIds.length === 1 && (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
+                  <Ionicons name="arrow-undo" size={28} color={colors.text} />
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
+                <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={28} color={colors.text} />
+              </TouchableOpacity>
+
+              {/* Editar: solo si es 1 mensaje Y es mío */}
+              {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
+                  <Ionicons name="pencil" size={28} color={colors.text} />
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.toolIcon} onPress={handleDelete}>
+                <Ionicons name="trash" size={28} color="#a70d0d" />
+              </TouchableOpacity>
+
+              {selectedIds.length === 1 && activeMsg?.text ? (
+                <TouchableOpacity style={styles.toolIcon} onPress={handleCopy}>
+                  <Ionicons name="copy" size={28} color={colors.text} />
+                </TouchableOpacity>
+              ) : null}
+
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 8 }}>
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              
+              {/* Envoltura táctil que abre la info del grupo (en vez del perfil de "el otro") */}
+              <TouchableOpacity 
+                activeOpacity={0.7} 
+                onPress={handleOpenGroupInfo} 
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+              >
+                {/* Foto del grupo o silueta Ionicons centrada */}
+                <View style={[
+                  styles.avatarCircle, 
+                  { 
+                    backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    overflow: 'hidden' 
+                  }
+                ]}>
+                  {groupInfo.photo ? (
+                    <Image source={{ uri: groupInfo.photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <Ionicons
+                      name="people-circle-outline"
+                      size={36}
+                      color="#94BA46"
+                    />
+                  )}
+                </View>
+
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Text style={[styles.headerName, { color: colors.text }]} numberOfLines={1}>
+                    {groupInfo.name}
+                  </Text>
+                  <Text style={styles.headerSubtitle} numberOfLines={1}>{membersSubtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.headerIconBtn} onPress={() => { setShowHeaderMenu(!showHeaderMenu); }}>
+                <Ionicons name="ellipsis-vertical" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+                {/* DETALLE DE INFO DEL MENSAJE (Leído por / Entregado a) */}
+        {showMsgInfo && activeMsg && selectedIds.length === 0 && (
+          <View style={[styles.infoOverlay, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
+            <Text style={[styles.infoTitle, { color: colors.text }]}>Información del mensaje</Text>
+            {/* Nota: como los mensajes solo guardan un booleano read/delivered
+                (no un detalle por integrante), acá mostramos un resumen
+                genérico en vez de nombres puntuales. Para una vista tipo
+                WhatsApp ("leído por Ana, Carlos...") habría que guardar un
+                array readBy/deliveredTo por mensaje. */}
+            <View style={styles.infoLine}>
+              <Ionicons name="checkmark-done" size={16} color="#00A3FF" />
+              <Text style={[styles.infoLabel, { color: colors.text }]}>Leído: </Text>
+              <Text style={{ color: '#888' }}>{activeMsg?.read ? 'Sí' : 'Aún no'}</Text>
+            </View>
+            <View style={styles.infoLine}>
+              <Ionicons name="checkmark" size={16} color="#888" />
+              <Text style={[styles.infoLabel, { color: colors.text }]}>Entregado: </Text>
+              <Text style={{ color: '#888' }}>{activeMsg?.delivered ? 'Sí' : 'Aún no'}</Text>
+            </View>
+            <TouchableOpacity style={styles.infoCloseBtn} onPress={() => setShowMsgInfo(false)}>
+              <Text style={styles.infoCloseText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* MENÚ DESPLEGABLE DEL HEADER (3 Puntos) */}
+        {showHeaderMenu && (
+          <View style={[styles.dropdownMenu, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: isDark ? '#333' : '#CCC' }]}>
+            <TouchableOpacity style={styles.dropdownItem} onPress={handleOpenGroupInfo}>
+              <Text style={[styles.dropdownItemText, { color: colors.text }]}>Info del grupo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); Alert.alert('Buscar', 'Buscar en la conversación'); }}>
+              <Text style={[styles.dropdownItemText, { color: colors.text }]}>Buscar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); Alert.alert('Archivos', 'Multimedia, enlaces y archivos'); }}>
+              <Text style={[styles.dropdownItemText, { color: colors.text }]}>Archivos, enlaces y fotos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); Alert.alert('Silenciar', 'Silenciar notificaciones'); }}>
+              <Text style={[styles.dropdownItemText, { color: colors.text }]}>Silenciar notificaciones</Text>
+            </TouchableOpacity>
+            
+            {/* Opción MÁS */}
+            <TouchableOpacity 
+              style={[styles.dropdownItem, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} 
+              onPress={() => setShowMoreSubMenu(!showMoreSubMenu)}
+            >
+              <Text style={[styles.dropdownItemText, { color: colors.text }]}>Más</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.text} />
+            </TouchableOpacity>
+
+            {/* SUB-MENÚ MÁS */}
+            {showMoreSubMenu && (
+              <View style={[styles.subDropdownMenu, { backgroundColor: isDark ? '#2C2C2C' : '#F5F5F5', borderColor: isDark ? '#444' : '#DDD' }]}>
+                <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); setMessages([]); }}>
+                  <Text style={[styles.dropdownItemText, { color: colors.text }]}>Vaciar chat</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); Alert.alert('Reportar', 'Grupo reportado'); }}>
+                  <Text style={[styles.dropdownItemText, { color: '#a70d0d', fontWeight: 'bold' }]}>Reportar grupo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.dropdownItem} onPress={handleLeaveGroup}>
+                  <Text style={[styles.dropdownItemText, { color: '#a70d0d', fontWeight: 'bold' }]}>Salir del grupo</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* LISTA DE MENSAJES */}
+        {loading ? (
+          <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ flex: 1 }} />
+        ) : (
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMessageItem}
+              // Fuerza el re-render de las burbujas ya montadas cuando
+              // terminan de cargar los nombres/fotos de los integrantes
+              // (membersMap llega async, después del primer render).
+              extraData={membersMap}
+              contentContainerStyle={styles.messagesList}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={15}
+              windowSize={10}
+              initialNumToRender={20}
+              style={{ flex: 1 }}
+            />
+            {!!editingMessageId && (
+              <View
+                pointerEvents="none"
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }}
+              />
+            )}
+          </View>
+        )}
+
+        {/* INPUT DE MENSAJE */}
+
+          {/* Menú desplegable de Clip (Adjuntos) */}
+          {showAttachmentMenu && (
+            <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border, bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 58 }]}>
+              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
+                <Ionicons name="camera" size={27} color={GREEN_ACCENT} />
+                <Text style={[styles.attachmentText, { color: colors.text }]}>Cámara</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenGallery}>
+                <Ionicons name="images" size={27} color={GREEN_ACCENT} />
+                <Text style={[styles.attachmentText, { color: colors.text }]}>Galería</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleOpenFiles}>
+                <Ionicons name="document-text" size={27} color={GREEN_ACCENT} />
+                <Text style={[styles.attachmentText, { color: colors.text }]}>Archivos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachmentItem} onPress={handleSendLocation}>
+                <Ionicons name="location" size={27} color={GREEN_ACCENT} />
+                <Text style={[styles.attachmentText, { color: colors.text }]}>Ubicación</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); handleOpenGroupInfo(); }}>
+                <Ionicons name="people" size={27} color={GREEN_ACCENT} />
+                <Text style={[styles.attachmentText, { color: colors.text }]}>Ver grupo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isLocked ? (
+            // 🔒 VISTA DE GRABACIÓN BLOQUEADA (Imagen 2)
+            <Animated.View style={[styles.lockedRecordContainer, {
+                backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
+                borderColor: isDark ? '#2C2C2C' : '#E0E0E0',
+                bottom: Math.max(keyboardHeight + 60, insets.bottom + 10),
+                transform: [{ translateY: lockSlideAnim }],
+                opacity: lockOpacityAnim,
+              }]}>
+              <View style={styles.recordTopRow}>
+                <Text style={[styles.recordSeconds, { color: colors.text }]}>
+                  {formatTime(recordSeconds)}
+                </Text>
+
+                {/* Waveform oscilante */}
+                <View style={styles.waveformContainer}>
+                  {waveBarAnims.map((anim, i) => (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        styles.waveBar,
+                        { backgroundColor: isPaused ? '#888' : GREEN_ACCENT, transform: [{ scaleY: anim }] },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* Botones de acción inferiores */}
+              <View style={styles.recordActionRow}>
+                {/* Descartar */}
+                <TouchableOpacity
+                  onPress={() => stopAndSendRecording(true)}
+                  style={[styles.recordDiscardButton, { backgroundColor: isDark ? 'rgba(255,59,48,0.15)' : 'rgba(255,59,48,0.10)' }]}
+                >
+                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                </TouchableOpacity>
+
+                {/* Pausar / Reanudar */}
+                <TouchableOpacity
+                  onPress={togglePauseRecording}
+                  style={[styles.recordPausePill, { backgroundColor: isDark ? '#2C2C2C' : '#E4E4E4' }]}
+                >
+                  <Ionicons name={isPaused ? "play" : "pause"} size={18} color={colors.text} />
+                  <Text style={[styles.recordPauseLabel, { color: colors.text }]}>
+                    {isPaused ? 'Reanudar' : 'Pausar'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Enviar */}
+                <TouchableOpacity onPress={() => stopAndSendRecording(false)} style={[styles.recordSendButton, { backgroundColor: GREEN_ACCENT }]}>
+                  <Feather name="arrow-up" size={28} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          ) : (
+            // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
+            <>
+              {/* Vista previa de edición — mismo estilo que la de respuesta */}
+              {!!editingMessageId && (
+                <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                  <View style={styles.replyPreviewAccent} />
+                  <View style={styles.replyPreviewTextWrap}>
+                    <Text style={styles.replyPreviewTitle} numberOfLines={1}>
+                      Editando mensaje
+                    </Text>
+                    <Text style={[styles.replyPreviewText, { color: colors.text }]} numberOfLines={1}>
+                      {inputText}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleCancelEdit} style={styles.replyPreviewCloseBtn}>
+                    <Ionicons name="close" size={20} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Vista previa de respuesta — estilo WhatsApp, arriba del input */}
+              {!!replyingTo && (
+                <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                  <View style={styles.replyPreviewAccent} />
+                  <View style={styles.replyPreviewTextWrap}>
+                    <Text style={styles.replyPreviewTitle} numberOfLines={1}>
+                      {replyingTo.sender === 'me' ? 'Tú' : resolveMemberName(replyingTo.rawSender)}
+                    </Text>
+                    <Text style={[styles.replyPreviewText, { color: colors.text }]} numberOfLines={1}>
+                      {replyingTo.text || (replyingTo.type && replyingTo.type !== 'text' ? `📎 ${replyingTo.type}` : '')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleCancelReply} style={styles.replyPreviewCloseBtn}>
+                    <Ionicons name="close" size={20} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
+              {isRecording ? (
+                // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
+                <Animated.View style={[styles.recordHintBar, {
+                    backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
+                    transform: [{ translateX: cancelSlideAnim }],
+                  }]}>
+                  <Text style={[styles.recordSeconds, { color: colors.text }]}>
+                    {formatTime(recordSeconds)}
+                  </Text>
+                  <View style={styles.cancelHintRow}>
+                    <Ionicons name="chevron-back" size={16} color={isDark ? '#999' : '#777'} />
+                    <Text style={[styles.cancelHintText, { color: isDark ? '#999' : '#777' }]}>
+                      Desliza para cancelar
+                    </Text>
+                  </View>
+                </Animated.View>
+              ) : (
+                <View style={[styles.textInputWrapper, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
+                  <TouchableOpacity onPress={() => setShowCustomCamera(true)}>
+                    <Ionicons name="camera-outline" size={24} color={GREEN_ACCENT} style={{ marginLeft: 8 }} />
+                  </TouchableOpacity>
+
+                  <TextInput
+                    ref={textInputRef}
+                    placeholder={editingMessageId ? "Editar mensaje..." : "Mensaje"}
+                    placeholderTextColor="#888"
+                    value={inputText}
+                    onChangeText={setInputText}
+                    style={[styles.textInput, { color: colors.text }]}
+                    multiline
+                  />
+
+                  <TouchableOpacity onPress={() => {Keyboard.dismiss(); setShowAttachmentMenu(!showAttachmentMenu); setShowHeaderMenu(false); }}>
+                    <Feather name="paperclip" size={20} color={GREEN_ACCENT} style={{ marginRight: 8 }} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!isRecording && inputText.trim().length > 0 ? (
+                // Botón Enviar texto normal
+                <TouchableOpacity 
+                  onPress={handleSend}
+                  style={[styles.actionButton, { backgroundColor: GREEN_ACCENT }]}
+                >
+                  <Feather name="arrow-up" size={28} color="#FFF" />
+                </TouchableOpacity>
+              ) : (
+                // Botón Micrófono: SIEMPRE el mismo elemento (no se desmonta al
+                // empezar a grabar), para no perder el gesto de touchMove/touchEnd
+                <View style={{ position: 'relative' }}>
+                  {isRecording && (
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.lockIndicator,
+                        {
+                          backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
+                          transform: [{ translateY: lockBounceAnim }],
+                        },
+                      ]}
+                    >
+                      <Ionicons name="lock-closed" size={15} color={GREEN_ACCENT} />
+                      <Ionicons name="chevron-up" size={13} color={GREEN_ACCENT} style={{ marginTop: 2 }} />
+                    </Animated.View>
+                  )}
+
+                  <View
+                    onTouchStart={mediaViewerVisible ? undefined : handleTouchStart}
+                    onTouchMove={mediaViewerVisible ? undefined : handleTouchMove}
+                    onTouchEnd={mediaViewerVisible ? undefined : handleTouchEnd}
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: GREEN_ACCENT },
+                      isRecording && styles.actionButtonRecording,
+                    ]}
+                  >
+                    <Ionicons name="mic" size={24} color="#FFF" />
+                  </View>
+                </View>
+              )}
+            </View>
+            </>
+          )}
+          <CustomCameraModal
+          visible={showCustomCamera}
+          onClose={() => setShowCustomCamera(false)}
+          onSend={handleSendCustomMediaList}
+          username={chatName}
+        />
+      </View>
+    </TouchableWithoutFeedback>
+
+      {toastMessage && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, { opacity: toastOpacity }]}
+        >
+          <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
+
+      {showDeleteConfirm && (
+        <Animated.View style={[styles.deleteConfirm, {
+          opacity: deleteConfirmOpacity,
+            backgroundColor: isDark ? '#1C1C1C' : '#FFF',
+            borderColor: colors.border,
+            bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 100,
+          }]}>
+          <Text style={[styles.deleteConfirmText, { color: colors.text }]}>
+            ¿Deseas eliminar {selectedIds.length > 1 ? 'estos ' + selectedIds.length + ' mensajes' : 'este mensaje'}?
+          </Text>
+          {selectionSender === 'other' && (
+            <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: '#888', textAlign: 'center' }}>
+              Se eliminará{selectedIds.length > 1 ? 'n' : ''} solo para ti. El resto del grupo podrá seguir viéndolo{selectedIds.length > 1 ? 's' : ''}.
+            </Text>
+          )}
+          <View style={styles.deleteConfirmActions}>
+            <TouchableOpacity onPress={handleCancelDelete} style={[styles.deleteConfirmBtn, { backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2' }]}>
+              <Text style={[styles.deleteConfirmBtnText, { color: colors.text }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleConfirmDelete} style={[styles.deleteConfirmBtn, { backgroundColor: '#a70d0d' }]}>
+              <Ionicons name="trash" size={18} color="#FFF" />
+              <Text style={[styles.deleteConfirmBtnText, { color: '#FFF', fontWeight: 'bold' }]}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
+      <Modal visible={!!mediaPreview} animationType="slide" transparent={false} onRequestClose={() => setMediaPreview(null)}>
+        <View style={{ flex: 1, backgroundColor: '#111' }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
+            <TouchableOpacity onPress={() => setMediaPreview(null)}>
+              <Ionicons name="close" size={28} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Nunito-Bold' }}>
+              {mediaPreview?.assets?.length > 1 ? `${mediaPreview.assets.length} elementos` : 'Vista previa'}
+            </Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          {/* Preview principal */}
+          <FlatList
+            data={mediaPreview?.assets || []}
+            keyExtractor={(_, i) => String(i)}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item: asset }) => {
+              const isVideo = (asset.mimeType || asset.type || '').startsWith('video');
+              return (
+                <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.62, justifyContent: 'center', alignItems: 'center' }}>
+                  <Image
+                    source={{ uri: asset.uri }}
+                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.62 }}
+                    resizeMode="contain"
+                  />
+                  {isVideo && (
+                    <View style={{ position: 'absolute', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.85)" />
+                    </View>
+                  )}
+                </View>
+              );
+            }}
+          />
+
+          {/* Thumbnails si hay más de 1 */}
+          {(mediaPreview?.assets?.length || 0) > 1 && (
+            <FlatList
+              data={mediaPreview?.assets || []}
+              keyExtractor={(_, i) => `th-${i}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 12, gap: 6, paddingVertical: 8 }}
+              renderItem={({ item: asset }) => (
+                <Image
+                  source={{ uri: asset.uri }}
+                  style={{ width: 56, height: 56, borderRadius: 8, borderWidth: 1.5, borderColor: GREEN_ACCENT }}
+                  resizeMode="cover"
+                />
+              )}
+            />
+          )}
+
+          {/* Input de caption + botón enviar */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 12,
+            paddingBottom: Math.max(insets.bottom + 8, 16),
+            paddingTop: 8,
+            gap: 10,
+            backgroundColor: '#1A1A1A',
+          }}>
+            <TextInput
+              placeholder="Agregar un comentario..."
+              placeholderTextColor="#888"
+              value={mediaPreview?.caption || ''}
+              onChangeText={(t) => setMediaPreview(prev => ({ ...prev, caption: t }))}
+              style={{
+                flex: 1,
+                color: '#FFF',
+                fontSize: 15,
+                fontFamily: 'Nunito-Regular',
+                backgroundColor: '#2C2C2C',
+                borderRadius: 24,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                maxHeight: 100,
+              }}
+              multiline
+            />
+            <TouchableOpacity
+              onPress={handleSendMediaPreview}
+              style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: GREEN_ACCENT, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Feather name="arrow-up" size={26} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* INFO DEL GRUPO: foto, nombre, integrantes y opción de salir */}
+      <Modal visible={showGroupInfoModal} animationType="slide" transparent={false} onRequestClose={() => setShowGroupInfoModal(false)}>
+        <View style={{ flex: 1, backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
+            <TouchableOpacity onPress={() => setShowGroupInfoModal(false)} style={{ marginRight: 12 }}>
+              <Ionicons name="arrow-back" size={26} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 18, fontFamily: 'Nunito-Bold', color: colors.text }}>Info del grupo</Text>
+          </View>
+
+          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+            <View style={{
+              width: 96, height: 96, borderRadius: 48,
+              backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0',
+              justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 12,
+            }}>
+              {groupInfo.photo ? (
+                <Image source={{ uri: groupInfo.photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              ) : (
+                <Ionicons name="people-circle-outline" size={80} color="#94BA46" />
+              )}
+            </View>
+            <Text style={{ fontSize: 20, fontFamily: 'Nunito-Bold', color: colors.text }}>{groupInfo.name}</Text>
+            <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: isDark ? '#888' : '#777', marginTop: 4 }}>
+              {(groupInfo.participants || []).length} {(groupInfo.participants || []).length === 1 ? 'integrante' : 'integrantes'}
+            </Text>
+          </View>
+
+          <FlatList
+            data={groupInfo.participants || []}
+            keyExtractor={(uid) => uid}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+            renderItem={({ item: uid }) => {
+              const member = membersMap[uid];
+              const isSelf = uid === auth.currentUser?.uid;
+              const isAdmin = (groupInfo.admins || []).includes(uid);
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
+                  <View style={{
+                    width: 44, height: 44, borderRadius: 22,
+                    backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0',
+                    justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12,
+                  }}>
+                    {member?.profilePicture ? (
+                      <Image source={{ uri: member.profilePicture }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="person-circle-outline" size={38} color="#94BA46" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: colors.text }} numberOfLines={1}>
+                      {isSelf ? 'Tú' : (member?.name || 'Usuario')}
+                    </Text>
+                    {!!member?.username && (
+                      <Text style={{ fontSize: 12, fontFamily: 'Nunito-Regular', color: isDark ? '#888' : '#777' }} numberOfLines={1}>
+                        @{member.username}
+                      </Text>
+                    )}
+                  </View>
+                  {isAdmin && (
+                    <Text style={{ fontSize: 12, fontFamily: 'Nunito-Bold', color: GREEN_ACCENT }}>Admin</Text>
+                  )}
+                </View>
+              );
+            }}
+          />
+
+          <TouchableOpacity
+            onPress={handleLeaveGroup}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+              paddingVertical: 16, marginHorizontal: 16, marginBottom: Math.max(insets.bottom, 16),
+              borderRadius: 12, backgroundColor: isDark ? '#2C1414' : '#FBE9E9',
+            }}
+          >
+            <Ionicons name="exit-outline" size={20} color="#a70d0d" />
+            <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: '#a70d0d' }}>Salir del grupo</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <MediaViewerModal
+        visible={mediaViewerVisible}
+        items={flatMediaItems}
+        initialIndex={mediaViewerIndex}
+        onClose={() => setMediaViewerVisible(false)}
+      />
+    </View>
+  );
+}

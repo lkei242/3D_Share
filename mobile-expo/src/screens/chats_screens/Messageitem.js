@@ -23,6 +23,8 @@ const MessageItem = React.memo(({
   otherProfilePicture,
   myProfilePicture,
   isEditing,
+  isGroup,
+  senderName,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -202,6 +204,16 @@ const MessageItem = React.memo(({
           { backgroundColor: isMe ? myBubbleBgColor : otherBubbleBgColor },
           isMe ? { borderBottomRightRadius: 2 } : { borderBottomLeftRadius: 2 },
         ]}>
+        {isGroup && !isMe && !!senderName && (
+          <Text style={{
+            fontSize: 12,
+            fontFamily: 'Nunito-Bold',
+            color: '#94BA46',
+            marginBottom: 2,
+          }}>
+            {senderName}
+          </Text>
+        )}
         {!!item.replyTo && (
           <View style={[styles.replyQuoteBox, { backgroundColor: isMe ? 'rgba(255,255,255,0.16)' : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)') }]}>
             <View style={[styles.replyQuoteAccent, { backgroundColor: isMe ? '#FFF' : GREEN_ACCENT }]} />
@@ -269,7 +281,7 @@ const MessageItem = React.memo(({
               const isWide = count >= 3;
 
               return (
-                <View style={{ borderRadius: 10, overflow: 'hidden', marginHorizontal: -10, marginTop: -6 }}>
+                <View style={{ borderRadius: 10, overflow: 'hidden', marginHorizontal: isGroup && !isMe && !!senderName ? 0 : -10, marginTop: isGroup && !isMe && !!senderName ? 4 : -6 }}>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, width: 260 }}>
                     {visibleItems.map((mi, idx) => {
                       const isLast = idx === maxVisible - 1 && extraCount > 0;
@@ -320,7 +332,7 @@ const MessageItem = React.memo(({
             <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
               <Image
                 source={{ uri: item.mediaUrl }}
-                style={[styles.mediaThumb, { marginHorizontal: -10, marginTop: -6 }]}
+                style={[styles.mediaThumb, { marginHorizontal: isGroup && !isMe && !!senderName ? 0 : -10, marginTop: isGroup && !isMe && !!senderName ? 4 : -6 }]}
                 resizeMode="cover"
               />
               {!!item.caption && (
@@ -333,7 +345,7 @@ const MessageItem = React.memo(({
             <TouchableOpacity onPress={handleMediaPress} activeOpacity={0.85}>
               <Image
                 source={{ uri: getVideoThumbnail(item.mediaUrl) }}
-                style={[styles.mediaThumb, { marginHorizontal: -10, marginTop: -6 }]}
+                style={[styles.mediaThumb, { marginHorizontal: isGroup && !isMe && !!senderName ? 0 : -10, marginTop: isGroup && !isMe && !!senderName ? 4 : -6 }]}
                 resizeMode="cover"
               />
               <View style={styles.mediaPlayOverlay}>
@@ -398,6 +410,8 @@ const MessageItem = React.memo(({
   prev.item.id === next.item.id && 
   prev.item.text === next.item.text && 
   prev.isEditing === next.isEditing &&
+  prev.isGroup === next.isGroup &&
+  prev.senderName === next.senderName &&
   prev.item.caption === next.item.caption &&
   prev.item.read === next.item.read && 
   prev.item.delivered === next.item.delivered &&
