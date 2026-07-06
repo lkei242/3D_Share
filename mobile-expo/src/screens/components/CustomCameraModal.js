@@ -12,9 +12,9 @@ import {
   Dimensions,
   PanResponder,
   Platform,
-  SafeAreaView,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
@@ -69,7 +69,7 @@ const VideoPreview = ({ uri }) => {
   );
 };
 
-export default function CustomCameraModal({ visible, onClose, onSend, username }) {
+export default function CustomCameraModal({ visible, onClose, onSend }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [currentStep, setCurrentStep] = useState('camera'); // 'camera' | 'editor'
   const [activeTab, setActiveTab] = useState('foto'); // 'foto' | 'video'
@@ -339,7 +339,7 @@ export default function CustomCameraModal({ visible, onClose, onSend, username }
               mode={cameraMode}
             />
 
-            {/* Controles superiores */}
+            {/* Controles superiores — posición absoluta, no compite por espacio flex */}
             <View style={styles.topControls}>
               <TouchableOpacity onPress={() => capturedMedia.length > 0 ? setCurrentStep('editor') : onClose()}>
                 <Ionicons name="close" size={28} color="#FFF" />
@@ -349,46 +349,51 @@ export default function CustomCameraModal({ visible, onClose, onSend, username }
               </TouchableOpacity>
             </View>
 
-            {/* Controles inferiores */}
-            <View style={styles.bottomControls}>
-              {/* Thumbnails de fotos ya tomadas */}
-              {capturedMedia.length > 0 && (
-                <TouchableOpacity style={styles.galleryPreview} onPress={() => setCurrentStep('editor')}>
-                  <Image source={{ uri: capturedMedia[capturedMedia.length - 1].uri }} style={styles.galleryThumb} />
-                  <View style={styles.galleryBadge}>
-                    <Text style={styles.galleryBadgeText}>{capturedMedia.length}</Text>
-                  </View>
+            {/* Bloque inferior: captura+flip encima, tabs debajo (encima de la nav bar) */}
+            <View style={styles.bottomSection}>
+              {/* Controles de captura */}
+              <View style={styles.bottomControls}>
+                {/* Thumbnails de fotos ya tomadas */}
+                {capturedMedia.length > 0 ? (
+                  <TouchableOpacity style={styles.galleryPreview} onPress={() => setCurrentStep('editor')}>
+                    <Image source={{ uri: capturedMedia[capturedMedia.length - 1].uri }} style={styles.galleryThumb} />
+                    <View style={styles.galleryBadge}>
+                      <Text style={styles.galleryBadgeText}>{capturedMedia.length}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.galleryPlaceholder} />
+                )}
+
+                {/* Botón de Captura */}
+                <TouchableOpacity
+                  onPress={handleCapturePress}
+                  onLongPress={handleCaptureLongPress}
+                  onPressOut={handleCapturePressOut}
+                  style={styles.captureRing}
+                  activeOpacity={0.8}
+                >
+                  <View style={[
+                    styles.captureCenter,
+                    { backgroundColor: isRecording ? '#FF3B30' : '#94BA46' }
+                  ]} />
                 </TouchableOpacity>
-              )}
 
-              {/* Botón de Captura */}
-              <TouchableOpacity
-                onPress={handleCapturePress}
-                onLongPress={handleCaptureLongPress}
-                onPressOut={handleCapturePressOut}
-                style={styles.captureRing}
-                activeOpacity={0.8}
-              >
-                <View style={[
-                  styles.captureCenter,
-                  { backgroundColor: isRecording ? '#FF3B30' : '#25D366' }
-                ]} />
-              </TouchableOpacity>
+                {/* Cambiar cámara */}
+                <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')} style={styles.flipBtn}>
+                  <Ionicons name="camera-reverse" size={28} color="#FFF" />
+                </TouchableOpacity>
+              </View>
 
-              {/* Cambiar cámara */}
-              <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-                <Ionicons name="camera-reverse" size={28} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Selector de Pestañas Foto/Video */}
-            <View style={styles.tabContainer}>
-              <TouchableOpacity onPress={() => setActiveTab('video')} style={styles.tabItem}>
-                <Text style={[styles.tabText, activeTab === 'video' && styles.tabTextActive]}>Video</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setActiveTab('foto')} style={styles.tabItem}>
-                <Text style={[styles.tabText, activeTab === 'foto' && styles.tabTextActive]}>Foto</Text>
-              </TouchableOpacity>
+              {/* Selector de Pestañas Foto/Video — debajo de captura, encima de la nav bar */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity onPress={() => setActiveTab('video')} style={styles.tabItem}>
+                  <Text style={[styles.tabText, activeTab === 'video' && styles.tabTextActive]}>Video</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActiveTab('foto')} style={styles.tabItem}>
+                  <Text style={[styles.tabText, activeTab === 'foto' && styles.tabTextActive]}>Foto</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ) : (
@@ -569,11 +574,7 @@ export default function CustomCameraModal({ visible, onClose, onSend, username }
                     </TouchableOpacity>
                   )}
                 />
-                
-                {/* Nombre de usuario destinatario */}
-                <View style={styles.usernamePill}>
-                  <Text style={styles.usernameText}>{username || 'Chat'}</Text>
-                </View>
+
               </View>
             </View>
 
@@ -610,16 +611,41 @@ const styles = StyleSheet.create({
   closeBtn: { position: 'absolute', top: 40, left: 20 },
 
   // Cámara
-  cameraContainer: { flex: 1, justifyContent: 'space-between', paddingVertical: 20 },
-  topControls: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
-  bottomControls: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 },
+  cameraContainer: { flex: 1 },
+  topControls: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  // Bloque inferior: pegado al fondo, respeta el inset de la nav bar via SafeAreaView
+  bottomSection: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 8,
+  },
+  bottomControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
+  flipBtn: { width: 45, alignItems: 'center' },
+  galleryPlaceholder: { width: 45, height: 45 },
   captureRing: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   captureCenter: { width: 68, height: 68, borderRadius: 34 },
   galleryPreview: { width: 45, height: 45, borderRadius: 8, borderWidth: 1.5, borderColor: '#FFF', overflow: 'hidden', position: 'relative' },
   galleryThumb: { width: '100%', height: '100%' },
   galleryBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#25D366', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
   galleryBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  tabContainer: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 10 },
+  tabContainer: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
   tabItem: { paddingVertical: 6, paddingHorizontal: 12 },
   tabText: { color: '#AAA', fontSize: 15, fontFamily: 'Nunito-Bold' },
   tabTextActive: { color: '#FFF', borderBottomWidth: 2, borderBottomColor: '#25D366', paddingBottom: 2 },
@@ -665,6 +691,4 @@ const styles = StyleSheet.create({
   carouselThumb: { width: '100%', height: '100%' },
   videoIconBadge: { position: 'absolute', bottom: 2, left: 2 },
   deleteThumbBtn: { position: 'absolute', top: -4, right: -4, zIndex: 5 },
-  usernamePill: { backgroundColor: '#222', borderRadius: 15, paddingVertical: 6, paddingHorizontal: 12, justifyContent: 'center' },
-  usernameText: { color: '#FFF', fontSize: 13, fontFamily: 'Nunito-Bold' },
 });
