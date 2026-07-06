@@ -178,7 +178,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             <Image source={{ uri: authorProfilePicture }} style={styles.avatarImage} />
           ) : (
             <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
-              <Ionicons name="person-circle-outline" size={38} color="#94BA46" />
+              <Ionicons name="person-circle-outline" size={26} color="#94BA46" />
             </View>
           )}
         </View>
@@ -203,7 +203,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
       <View
         style={{
           flex: 1,
-          height: pageHeight - 70,
+          height: pageHeight - 48,
         }}
       >
         {/* POST MEDIA CAROUSEL */}
@@ -251,7 +251,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
         <View style={styles.interactionBar}>
           <View style={styles.leftIcons}>
             <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
-              <Feather name="thumbs-up" size={22} color={liked ? '#9DBD3F' : colors.text} />
+              <MaterialCommunityIcons name={liked ? 'thumb-up' : 'thumb-up-outline'} size={22} color={liked ? '#9DBD3F' : colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -268,7 +268,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             </View>
           </View>
           <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
-            <Feather name="bookmark" size={22} color={saved ? '#9DBD3F' : colors.text} />
+            <MaterialCommunityIcons name={saved ? 'bookmark' : 'bookmark-outline'} size={22} color={saved ? '#9DBD3F' : colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -311,8 +311,10 @@ export default function PostDetailScreen({ route, navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
   const currentUser = auth.currentUser;
-  const HEADER_HEIGHT = 50;
-  const PAGE_HEIGHT = screenHeight - insets.top - HEADER_HEIGHT;
+  const [containerH, setContainerH] = useState(screenHeight - insets.top);
+  const [headerH, setHeaderH] = useState(50);
+  const PAGE_HEIGHT = containerH - headerH;
+  const layoutReady = useRef(false);
   const [postsList, setPostsList] = useState(posts);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -329,6 +331,14 @@ export default function PostDetailScreen({ route, navigation }) {
   if (!post) return null;
 
   const flatListRef = useRef(null);
+
+  useEffect(() => {
+    if (flatListRef.current && validIndex > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: validIndex, animated: false });
+      }, 100);
+    }
+  }, [containerH, headerH]);
 
   const onScrollToIndexFailed = useCallback((info) => {
     if (flatListRef.current) {
@@ -483,9 +493,9 @@ export default function PostDetailScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.container, { backgroundColor: colors.card, paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: colors.card, paddingTop: insets.top }]} onLayout={(e) => setContainerH(e.nativeEvent.layout.height)}>
         {/* HEADER */}
-        <View style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
+        <View onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)} style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={26} color={colors.text} />
           </TouchableOpacity>
@@ -497,7 +507,7 @@ export default function PostDetailScreen({ route, navigation }) {
           ref={flatListRef}
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingBottom: 20,
+            paddingBottom: 0,
           }}
           data={postsList}
           keyExtractor={(item) => item.id}
@@ -632,7 +642,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   backButton: { padding: 4 },
@@ -646,14 +656,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   avatarContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
     overflow: 'hidden',
   },
   avatarImage: {
@@ -661,15 +671,15 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   avatarFallback: {
-    width: 40.7,
-    height: 40.7,
-    borderRadius: 20,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  userNameContainer: { marginLeft: 10, flex: 1 },
-  userNameText: { fontSize: 15, fontWeight: '600' },
-  userHandleText: { fontSize: 13 },
+  userNameContainer: { marginLeft: 8, flex: 1 },
+  userNameText: { fontSize: 13, fontWeight: '600' },
+  userHandleText: { fontSize: 11 },
   imageWrapper: {
     width: screenWidth,
     flex: 1,
@@ -701,21 +711,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   leftIcons: { flexDirection: 'row', alignItems: 'center' },
-  iconButton: { marginRight: 16 },
+  iconButton: { marginRight: 14 },
   viewsContainer: { flexDirection: 'row', alignItems: 'center' },
-  viewsText: { fontSize: 13, marginLeft: 4 },
+  viewsText: { fontSize: 12, marginLeft: 3 },
   descriptionCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 12,
-    borderRadius: 10,
+    marginHorizontal: 12,
+    marginBottom: 6,
+    padding: 10,
+    borderRadius: 8,
   },
-  descriptionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  descriptionText: { fontSize: 14, lineHeight: 20 },
+  descriptionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
+  descriptionText: { fontSize: 13, lineHeight: 18 },
   seeMoreText: { fontSize: 14, fontWeight: '700', color: '#9DBD3F' },
   webLinkRow: {
     flexDirection: 'row',
