@@ -359,7 +359,16 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
 
             {/* Controles superiores — posición absoluta, no compite por espacio flex */}
             <View style={styles.topControls}>
-              <TouchableOpacity onPress={() => capturedMedia.length > 0 ? setCurrentStep('editor') : onClose()}>
+              <TouchableOpacity onPress={() => {
+                if (capturedMedia.length > 0) {
+                  Alert.alert('Descartar', '¿Descartar todas las fotos tomadas?', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Descartar', style: 'destructive', onPress: () => onClose() },
+                  ]);
+                } else {
+                  onClose();
+                }
+              }}>
                 <Ionicons name="close" size={28} color="#FFF" />
               </TouchableOpacity>
               <TouchableOpacity onPress={toggleFlash}>
@@ -419,7 +428,12 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editorContainer}>
             {/* Header de edición */}
             <View style={styles.editorHeader}>
-              <TouchableOpacity onPress={() => setCurrentStep('camera')}>
+              <TouchableOpacity onPress={() => {
+                Alert.alert('Descartar', '¿Descartar todas las fotos tomadas?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Descartar', style: 'destructive', onPress: () => onClose() },
+                ]);
+              }}>
                 <Ionicons name="close" size={28} color="#FFF" />
               </TouchableOpacity>
 
