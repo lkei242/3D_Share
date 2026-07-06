@@ -15,7 +15,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -71,6 +71,7 @@ const VideoPreview = ({ uri }) => {
 
 export default function CustomCameraModal({ visible, onClose, onSend }) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [currentStep, setCurrentStep] = useState('camera'); // 'camera' | 'editor'
   const [activeTab, setActiveTab] = useState('foto'); // 'foto' | 'video'
   const [cameraMode, setCameraMode] = useState('picture'); // 'picture' | 'video'
@@ -101,6 +102,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
   useEffect(() => {
     if (visible) {
       requestPermission();
+      requestMicPermission();
       setCurrentStep('camera');
       setCapturedMedia([]);
       setActiveIdx(0);
@@ -161,23 +163,39 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
   };
 
   const startRecording = async () => {
-    if (cameraRef.current) {
-      try {
-        setIsRecording(true);
-        const video = await cameraRef.current.recordAsync({
-          maxDuration: 60,
-        });
-        const newItem = { uri: video.uri, type: 'video', caption: '' };
-        const newList = [...capturedMedia, newItem];
-        setCapturedMedia(newList);
-        setActiveIdx(newList.length - 1);
-        resetEditorState();
-        setCurrentStep('editor');
-      } catch (e) {
-        console.log(e);
-      } finally {
-        setIsRecording(false);
-      }
+    if (!cameraRef.current) return;
+
+    // Grabar video requiere permiso de micrófono además del de cámara,
+    // aunque no se use audio. Sin esto, recordAsync() rechaza en silencio.
+    let hasMicPermission = micPermission?.granted;
+    if (!hasMicPermission) {
+      const result = await requestMicPermission();
+      hasMicPermission = result?.granted;
+    }
+    if (!hasMicPermission) {
+      Alert.alert(
+        'Permiso requerido',
+        'Se necesita acceso al micrófono para grabar video.'
+      );
+      return;
+    }
+
+    try {
+      setIsRecording(true);
+      const video = await cameraRef.current.recordAsync({
+        maxDuration: 60,
+      });
+      const newItem = { uri: video.uri, type: 'video', caption: '' };
+      const newList = [...capturedMedia, newItem];
+      setCapturedMedia(newList);
+      setActiveIdx(newList.length - 1);
+      resetEditorState();
+      setCurrentStep('editor');
+    } catch (e) {
+      console.log('Error grabando video:', e);
+      Alert.alert('Error', 'No se pudo grabar el video.');
+    } finally {
+      setIsRecording(false);
     }
   };
 
