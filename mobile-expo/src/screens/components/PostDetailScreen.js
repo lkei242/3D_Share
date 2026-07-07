@@ -47,6 +47,7 @@ import {
   increment,
 } from 'firebase/firestore';
 import { formatViews } from '../config/formatViews';
+import { emitViewIncrement } from '../config/ViewsBus';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -376,6 +377,13 @@ export default function PostDetailScreen({ route, navigation }) {
           createdAt: new Date(),
         });
         await updateDoc(postRef, { vistas: increment(1) });
+
+        // 🆕 Reflejar el nuevo conteo localmente (por si se scrollea entre posts acá mismo)
+        setPostsList(prev =>
+          prev.map(p => (p.id === postId ? { ...p, views: (p.views || 0) + 1 } : p))
+        );
+        // 🆕 Avisarle a HomeScreen (u otra pantalla) que este post sumó una vista
+        emitViewIncrement(postId);
       }
     } catch (error) {
       console.log('Error incrementando vista:', error);

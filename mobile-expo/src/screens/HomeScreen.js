@@ -1,9 +1,10 @@
 // src/screens/HomeScreen.js
-import React, { useState, useEffect, useRef } from 'react'; // ← agregado useRef
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // ← agregado useRef, useCallback
 import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { getBlockedUids } from './config/userActions';
+import { subscribeViewIncrement } from './config/ViewsBus';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -139,7 +140,7 @@ const isFirstMediaVideo = firstMedia?.type === 'video';
         </Text>
         <View style={styles.cardStats}>
           <MaterialCommunityIcons name="chart-bar" size={16} color={isDark ? "#aaa" : "#666"} />
-          <Text style={[styles.statsText, { color: isDark ? "#888" : "#555" }]}>{item.views}</Text>
+          <Text style={[styles.statsText, { color: isDark ? "#888" : "#555" }]}>{formatViews(item.views)}</Text>
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
             <MaterialCommunityIcons
               name={saved ? "bookmark" : "bookmark-outline"}
@@ -167,12 +168,37 @@ export default function HomeScreen({ navigation }) {
   const [blockedUids, setBlockedUids] = useState([]);
   const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
 
-  const handlePostPress = (post) => {
+  const handlePostPress = useCallback((post) => {
     navigation.navigate('PostDetail', {
       post,
-      posts,
+      posts: postsListRef.current, // 🆕 leemos del ref, no del state directamente
     });
+  }, [navigation]);
+
+  // 🆕 Ref espejo de "posts": permite que handlePostPress siempre tenga
+  // la lista actualizada sin que handlePostPress (y por lo tanto renderItem)
+  // tenga que recrearse cada vez que "posts" cambia de referencia
+  // (por ejemplo, cada vez que se suma una vista).
+  // Nota: se llama "postsListRef" (y no "postsRef") para no chocar con la
+  // variable local "postsRef" que ya se usa dentro de fetchPosts para la
+  // colección de Firestore.
+  const postsListRef = useRef(posts);
+  useEffect(() => {
+    postsListRef.current = posts;
+  }, [posts]);
+
+  // 🆕 Actualiza el contador de vistas de un post puntual sin refetchear todo el feed
+  const updatePostViews = (postId) => {
+    setPosts(prev =>
+      prev.map(p => (p.id === postId ? { ...p, views: (p.views || 0) + 1 } : p))
+    );
   };
+
+  // 🆕 Escuchar incrementos de vistas emitidos desde PostDetailScreen
+  useEffect(() => {
+    const unsubscribe = subscribeViewIncrement(updatePostViews);
+    return unsubscribe;
+  }, []);
 
   const [lastVisible, setLastVisible] = useState(null);
 
@@ -230,7 +256,7 @@ export default function HomeScreen({ navigation }) {
               title: data.titulo || 'Sin título',
               image: mediaArray.length > 0 ? mediaArray[0].url : 'https://picsum.photos/seed/placeholder/400/300',
               price: data.precio ? `${data.precio}$` : null,
-              views: formatViews(data.vistas || 0),
+              views: data.vistas || 0,
               totalImages: mediaArray.length,
               media: mediaArray,
               hasVideo: mediaArray.some(m => m.type === 'video'),
@@ -300,7 +326,7 @@ export default function HomeScreen({ navigation }) {
       onPress={() => handlePostPress(item)}
       isVisible={visibleItems.has(item.id)} // 🆕 Pasar si es visible
     />
-  ), [posts, visibleItems]);
+  ), [visibleItems, handlePostPress]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
