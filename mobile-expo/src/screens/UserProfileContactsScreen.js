@@ -16,7 +16,7 @@ import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { followUser, unfollowUser, checkIfFollowing } from './config/userActions';
+import { followUser, unfollowUser, checkIfFollowing, getBlockedUids } from './config/userActions';
 
 const { width } = Dimensions.get('window');
 const PAGE_WIDTH = width;
@@ -41,9 +41,10 @@ export default function UserProfileContactsScreen({ route, navigation }) {
 
   const fetchFollowers = useCallback(async () => {
     try {
+      const blockedUids = await getBlockedUids(userId);
       const q = query(collection(db, 'followers'), where('userId', '==', userId));
       const snapshot = await getDocs(q);
-      const followerIds = snapshot.docs.map(d => d.data().followerId);
+      const followerIds = snapshot.docs.map(d => d.data().followerId).filter(uid => !blockedUids.includes(uid));
 
       const data = [];
       for (const uid of followerIds) {
@@ -67,9 +68,10 @@ export default function UserProfileContactsScreen({ route, navigation }) {
 
   const fetchFollowing = useCallback(async () => {
     try {
+      const blockedUids = await getBlockedUids(userId);
       const q = query(collection(db, 'followers'), where('followerId', '==', userId));
       const snapshot = await getDocs(q);
-      const followingIds = snapshot.docs.map(d => d.data().userId);
+      const followingIds = snapshot.docs.map(d => d.data().userId).filter(uid => !blockedUids.includes(uid));
 
       const data = [];
       for (const uid of followingIds) {
@@ -94,6 +96,10 @@ export default function UserProfileContactsScreen({ route, navigation }) {
   const fetchMutualFriends = useCallback(async () => {
     if (!currentUser) return;
     try {
+      const myBlockedUids = await getBlockedUids(currentUser.uid);
+      const theirBlockedUids = await getBlockedUids(userId);
+      const allBlocked = [...new Set([...myBlockedUids, ...theirBlockedUids])];
+
       const myFollowingQ = query(collection(db, 'followers'), where('followerId', '==', currentUser.uid));
       const myFollowingSnap = await getDocs(myFollowingQ);
       const myFollowingIds = myFollowingSnap.docs.map(d => d.data().userId);
@@ -102,7 +108,7 @@ export default function UserProfileContactsScreen({ route, navigation }) {
       const theirFollowingSnap = await getDocs(theirFollowingQ);
       const theirFollowingIds = theirFollowingSnap.docs.map(d => d.data().userId);
 
-      const mutualIds = myFollowingIds.filter(uid => theirFollowingIds.includes(uid));
+      const mutualIds = myFollowingIds.filter(uid => theirFollowingIds.includes(uid) && !allBlocked.includes(uid));
 
       const data = [];
       for (const uid of mutualIds) {

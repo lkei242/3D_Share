@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ===================== SEGUIR / DEJAR DE SEGUIR =====================
@@ -49,6 +49,101 @@ export const getFollowersCount = async (targetUid) => {
   } catch (error) {
     console.log('Error fetching followers count:', error);
     return 0;
+  }
+};
+
+// ===================== DENUNCIAR USUARIO =====================
+
+export const reportUser = async (reporterUid, reportedUid, reason) => {
+  if (!reporterUid || !reportedUid) return false;
+  try {
+    // Usamos addDoc (ID autogenerado) en vez de setDoc con ID fijo.
+    // Con un ID fijo (`${reporterUid}_${reportedUid}`), la segunda vez que el
+    // mismo usuario denuncia al mismo usuario, Firestore ya no lo trata como
+    // "create" sino como "update" (el doc ya existe), y como las reglas de
+    // /userReports solo permiten create/read/delete (no update), la escritura
+    // se rechaza con "Missing or insufficient permissions". Con addDoc cada
+    // denuncia es siempre un documento nuevo, así que siempre pasa por la
+    // regla de "create".
+    await addDoc(collection(db, 'userReports'), {
+      reporterId: reporterUid,
+      reportedId: reportedUid,
+      reason: reason || '',
+      createdAt: new Date(),
+    });
+    return true;
+  } catch (error) {
+    console.log('Error reporting user:', error);
+    return false;
+  }
+};
+
+// ===================== DENUNCIAR PUBLICACIÓN =====================
+
+export const reportPost = async (reporterUid, postId, reason) => {
+  if (!reporterUid || !postId) return false;
+  try {
+    await addDoc(collection(db, 'postReports'), {
+      reporterId: reporterUid,
+      postId: postId,
+      reason: reason || '',
+      createdAt: new Date(),
+    });
+    return true;
+  } catch (error) {
+    console.log('Error reporting post:', error);
+    return false;
+  }
+};
+
+// ===================== SILENCIAR / DESILENCIAR =====================
+
+export const checkIfMuted = async (mutedByUid, targetUid) => {
+  if (!mutedByUid || !targetUid) return false;
+  try {
+    const muteDoc = await getDoc(doc(db, 'muted', `${mutedByUid}_${targetUid}`));
+    return muteDoc.exists();
+  } catch (error) {
+    console.log('Error checking mute status:', error);
+    return false;
+  }
+};
+
+export const muteUser = async (mutedByUid, targetUid) => {
+  if (!mutedByUid || !targetUid) return false;
+  try {
+    await setDoc(doc(db, 'muted', `${mutedByUid}_${targetUid}`), {
+      userId: mutedByUid,
+      mutedId: targetUid,
+      createdAt: new Date(),
+    });
+    return true;
+  } catch (error) {
+    console.log('Error muting user:', error);
+    return false;
+  }
+};
+
+export const unmuteUser = async (mutedByUid, targetUid) => {
+  if (!mutedByUid || !targetUid) return false;
+  try {
+    await deleteDoc(doc(db, 'muted', `${mutedByUid}_${targetUid}`));
+    return true;
+  } catch (error) {
+    console.log('Error unmuting user:', error);
+    return false;
+  }
+};
+
+export const getMutedUids = async (mutedByUid) => {
+  if (!mutedByUid) return [];
+  try {
+    const q = query(collection(db, 'muted'), where('userId', '==', mutedByUid));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data().mutedId);
+  } catch (error) {
+    console.log('Error fetching muted users:', error);
+    return [];
   }
 };
 

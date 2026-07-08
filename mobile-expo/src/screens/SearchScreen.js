@@ -22,6 +22,7 @@ import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { auth } from './config/firebase';
 import { getBlockedUids } from './config/userActions';
+import { getMutedUids } from './config/userActions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 // 🆕 SDK de Google AdMob para anuncios nativos
@@ -96,6 +97,7 @@ export default function SearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [blockedUids, setBlockedUids] = useState([]);
+  const [mutedUids, setMutedUids] = useState([]);
   const [visibleItems, setVisibleItems] = useState(new Set());
 
   // 🆕 Pool de anuncios nativos precargados. Usamos un ref para tener siempre
@@ -151,6 +153,13 @@ export default function SearchScreen({ navigation }) {
     if (!user) return;
     const blocked = await getBlockedUids(user.uid);
     setBlockedUids(blocked);
+  };
+
+  const fetchMutedUsers = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const muted = await getMutedUids(user.uid);
+    setMutedUids(muted);
   };
 
   const fetchPosts = async (reset = false) => {
@@ -261,6 +270,7 @@ export default function SearchScreen({ navigation }) {
     setLastVisible(null);
     setHasMore(true);
     await fetchBlockedUsers();
+    await fetchMutedUsers();
     await Promise.all([fetchPosts(true), fetchUsers()]);
     setRefreshing(false);
   };
@@ -270,6 +280,7 @@ export default function SearchScreen({ navigation }) {
     const unsubscribe = navigation.addListener('focus', () => {
       if (!hasFetched.current) {
         fetchBlockedUsers().then(() => {
+          fetchMutedUsers();
           fetchPosts(true);
           fetchUsers();
         });
@@ -281,13 +292,13 @@ export default function SearchScreen({ navigation }) {
 
   const filteredPosts = useMemo(() =>
     posts.filter(post =>
-      !blockedUids.includes(post.author) && (
+      !blockedUids.includes(post.author) && !mutedUids.includes(post.author) && (
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (post.authorProfileName && post.authorProfileName.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (post.authorUsername && post.authorUsername.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     ),
-    [posts, blockedUids, searchQuery]
+    [posts, blockedUids, mutedUids, searchQuery]
   );
 
   const filteredUsers = useMemo(() =>

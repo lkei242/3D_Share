@@ -18,7 +18,9 @@ const POPOVER_WIDTH = 220;
 const MARGIN = 10; // margen mínimo al borde de la pantalla
 
 const MENU_ITEMS_OTHER = [
-  { key: 'block', label: 'Bloquear usuario', icon: 'ban-outline', color: '#E74C3C', bold: true },
+  { key: 'mute',   label: 'Silenciar usuario',  icon: 'volume-mute-outline',    color: null, bold: false },
+  { key: 'report', label: 'Denunciar publicación', icon: 'flag-outline',         color: '#E74C3C', bold: false },
+  { key: 'block',  label: 'Bloquear usuario',   icon: 'ban-outline',            color: '#E74C3C', bold: true },
 ];
 
 const MENU_ITEMS_OWN = [
@@ -41,10 +43,21 @@ const ARROW_SIZE = 8;
  *   onOptionPress — (key: string) => void
  *   anchorPosition — { x, y, width, height }  ← posición del botón en pantalla
  */
-export default function PostMenuModal({ visible, onClose, isOwnPost, onOptionPress, anchorPosition }) {
+export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, isBlocked, reportLabel, onOptionPress, anchorPosition }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
-  const items = isOwnPost ? MENU_ITEMS_OWN : MENU_ITEMS_OTHER;
+
+  const muteItem = isMuted
+    ? { key: 'unmute', label: 'Dejar de silenciar', icon: 'volume-high-outline', color: null, bold: false }
+    : { key: 'mute',   label: 'Silenciar usuario',  icon: 'volume-mute-outline',    color: null, bold: false };
+
+  const reportItem = { key: 'report', label: reportLabel || 'Denunciar publicación', icon: 'flag-outline', color: '#E74C3C', bold: false };
+
+  const blockItem = isBlocked
+    ? { key: 'unblock', label: 'Desbloquear usuario', icon: 'lock-open-outline',    color: null, bold: false }
+    : { key: 'block',   label: 'Bloquear usuario',   icon: 'ban-outline',           color: '#E74C3C', bold: true };
+
+  const items = isOwnPost ? MENU_ITEMS_OWN : [muteItem, reportItem, blockItem];
 
   const scaleAnim   = React.useRef(new Animated.Value(0.85)).current;
   const opacityAnim = React.useRef(new Animated.Value(0)).current;

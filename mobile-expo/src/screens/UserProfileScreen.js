@@ -1,5 +1,5 @@
 // src/screens/UserProfileScreen.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
   Linking,
   Alert,
   Share,
+  Modal,
+  TouchableWithoutFeedback,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -19,7 +22,10 @@ import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/v
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
-import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser } from './config/userActions';
+import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser, muteUser, unmuteUser, checkIfMuted, reportUser } from './config/userActions';
+import { emitBlockUser } from './config/BlockBus';
+import { emitMuteUser } from './config/MuteBus';
+import PostMenuModal from './components/PostMenuModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
@@ -39,6 +45,14 @@ export default function UserProfileScreen({ route, navigation }) {
   const [followingCount, setFollowingCount] = useState(0);
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [blockModalVisible, setBlockModalVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
   const [pinnedPosts, setPinnedPosts] = useState([]);
   const [userNotFound, setUserNotFound] = useState(false);
   const [otherProfiles, setOtherProfiles] = useState([]);
@@ -56,6 +70,17 @@ export default function UserProfileScreen({ route, navigation }) {
   });
 
   const currentUser = auth.currentUser;
+  const moreButtonRef = useRef(null);
+
+  const showToast = (message) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToastMessage(''));
+    }, 3000);
+  };
 
   const handlePostPress = (post) => {
     navigation.navigate('PostDetail', { post, posts });
@@ -182,6 +207,12 @@ export default function UserProfileScreen({ route, navigation }) {
     setIsBlocked(blocked);
   }, [currentUser?.uid, userId]);
 
+  const fetchMuted = useCallback(async () => {
+    if (!currentUser) return;
+    const muted = await checkIfMuted(currentUser.uid, userId);
+    setIsMuted(muted);
+  }, [currentUser?.uid, userId]);
+
   const handleBlock = () => {
     if (isBlocked) {
       Alert.alert(
@@ -288,7 +319,8 @@ export default function UserProfileScreen({ route, navigation }) {
     fetchFollowersCount();
     fetchFollowingCount();
     fetchBlocked();
-  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount, fetchFollowingCount, fetchBlocked]);
+    fetchMuted();
+  }, [fetchUserProfile, fetchUserPosts, checkFollowing, fetchFollowersCount, fetchFollowingCount, fetchBlocked, fetchMuted]);
 
   const renderGrid = () => {
     if (loading) {
@@ -559,7 +591,16 @@ export default function UserProfileScreen({ route, navigation }) {
         </Text>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleBlock}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            ref={moreButtonRef}
+            onPress={() => {
+              moreButtonRef.current?.measureInWindow((x, y, width, height) => {
+                setMenuAnchor({ x, y, width, height });
+                setMenuVisible(true);
+              });
+            }}
+          >
             <Feather name="more-vertical" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -692,6 +733,180 @@ export default function UserProfileScreen({ route, navigation }) {
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       />
+      <PostMenuModal
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        isOwnPost={false}
+        isMuted={isMuted}
+        isBlocked={isBlocked}
+        reportLabel="Denunciar usuario"
+        anchorPosition={menuAnchor}
+        onOptionPress={(key) => {
+          if (key === 'mute') {
+            Alert.alert(
+              'Silenciar usuario',
+              `¿Querés silenciar a ${profileName}? No verás sus publicaciones en tu feed.`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Silenciar',
+                  onPress: async () => {
+                    const ok = await muteUser(currentUser.uid, userId);
+                    if (ok) {
+                      emitMuteUser(userId);
+                      setIsMuted(true);
+                      setMenuVisible(false);
+                    }
+                  },
+                },
+              ]
+            );
+          }
+          if (key === 'unmute') {
+            unmuteUser(currentUser.uid, userId).then(() => {
+              setIsMuted(false);
+              setMenuVisible(false);
+            });
+          }
+          if (key === 'report') {
+            setMenuVisible(false);
+            setReportModalVisible(true);
+          }
+          if (key === 'block') {
+            setMenuVisible(false);
+            setBlockModalVisible(true);
+          }
+          if (key === 'unblock') {
+            setMenuVisible(false);
+            unblockUser(currentUser.uid, userId).then(() => {
+              setIsBlocked(false);
+            });
+          }
+        }}
+      />
+      <Modal visible={reportModalVisible} transparent animationType="slide" onRequestClose={() => setReportModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setReportModalVisible(false)}>
+          <View style={styles.reportOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                
+                {/* Botón de cerrar */}
+                <TouchableOpacity 
+                  style={styles.reportCloseBtn} 
+                  onPress={() => setReportModalVisible(false)} 
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
+                </TouchableOpacity>
+
+                {/* Encabezado con ícono */}
+                <View style={styles.reportHeader}>
+                  <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#3A2020' : '#FFEBEE' }]}>
+                    <Feather name="flag" size={22} color="#E53935" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: colors.text }]}>Reportar usuario</Text>
+                  <Text style={[styles.reportSubtitle, { color: isDark ? '#8E8E93' : '#666' }]}>
+                    Ayúdanos a entender el problema con @{username}
+                  </Text>
+                </View>
+
+                {/* Lista de opciones agrupada */}
+                <View style={[styles.reportOptionsWrapper, { backgroundColor: isDark ? '#2C2C2E' : '#F8F8F8' }]}>
+                  {[
+                    'Acoso o intimidación',
+                    'Spam',
+                    'Suplantación de identidad',
+                    'Discurso de odio',
+                    'Contenido sexual o desnudos',
+                    'Estafas o fraude',
+                    'Violación de la privacidad',
+                  ].map((reason, index, arr) => (
+                    <TouchableOpacity
+                      key={reason}
+                      style={[
+                        styles.reportOption,
+                        { borderBottomColor: isDark ? '#3A3A3C' : '#E5E5EA' },
+                        index === arr.length - 1 && { borderBottomWidth: 0 }
+                      ]}
+                      onPress={() => {
+                        setReportModalVisible(false);
+                        reportUser(currentUser.uid, userId, reason);
+                        showToast(`Usuario '${profileName}' denunciado`);
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Text style={[styles.reportOptionText, { color: colors.text }]}>{reason}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={isDark ? '#48484A' : '#C7C7CC'} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal visible={blockModalVisible} transparent animationType="slide" onRequestClose={() => setBlockModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setBlockModalVisible(false)}>
+          <View style={styles.reportOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <TouchableOpacity 
+                  style={styles.reportCloseBtn} 
+                  onPress={() => setBlockModalVisible(false)} 
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
+                </TouchableOpacity>
+
+                <View style={styles.reportHeader}>
+                  <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#3A2020' : '#FFEBEE' }]}>
+                    <Ionicons name="ban-outline" size={24} color="#E53935" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: colors.text }]}>Bloquear usuario</Text>
+                  <Text style={[styles.reportSubtitle, { color: isDark ? '#8E8E93' : '#666' }]}>
+                    Si bloqueás a @{username}, no verás sus publicaciones y no podrán interactuar con vos.
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#E53935', borderRadius: 12, paddingVertical: 16, marginHorizontal: 12, marginTop: 8 }}
+                  onPress={() => {
+                    // Actualización optimista: cerramos el modal y reflejamos
+                    // el bloqueo al instante; las llamadas a Firestore se
+                    // resuelven en segundo plano.
+                    const wasFollowing = isFollowing;
+                    setIsBlocked(true);
+                    setBlockModalVisible(false);
+                    if (wasFollowing) {
+                      setIsFollowing(false);
+                      setFollowersCount(prev => Math.max(0, prev - 1));
+                    }
+                    emitBlockUser(userId);
+                    (async () => {
+                      const [isFollowing2] = await Promise.all([
+                        checkIfFollowing(currentUser.uid, userId),
+                        blockUser(currentUser.uid, userId),
+                      ]);
+                      if (isFollowing2) {
+                        await unfollowUser(currentUser.uid, userId);
+                      }
+                    })();
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Text style={{ color: '#FFFFFF', fontFamily: 'Nunito-Bold', fontSize: 15, textAlign: 'center' }}>Bloquear</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      {toastMessage !== '' && (
+        <Animated.View style={[styles.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
+          <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -1024,5 +1239,99 @@ const styles = StyleSheet.create({
   profileUrl: {
     fontSize: 13,
     fontFamily: 'Nunito-Regular',
+  },
+  // POP-UP / MODAL DE REPORTE
+  reportOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20, // Bordes más redondeados y modernos
+    padding: 24,
+    paddingTop: 16,
+    // Sombras para iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    // Elevación para Android
+    elevation: 15,
+  },
+  reportCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  reportHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 12,
+  },
+  reportIconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  reportSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 10,
+  },
+  reportOptionsWrapper: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  reportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  reportOptionText: {
+    fontSize: 15,
+    fontFamily: 'Nunito-SemiBold',
+    flex: 1,
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27AE60',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 10,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+    flex: 1,
   },
 });

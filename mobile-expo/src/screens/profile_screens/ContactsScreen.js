@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { getBlockedUids, unblockUser } from '../config/userActions';
+import { subscribeBlockUser } from '../config/BlockBus';
 
 const { width } = Dimensions.get('window');
 const PAGE_WIDTH = width - 40;
@@ -93,24 +94,28 @@ export default function ContactsScreen({ navigation, route }) {
   const fetchFollowing = useCallback(async () => {
     if (!profileUserId) return;
     try {
+      const blockedUids = await getBlockedUids(profileUserId);
       const q = query(collection(db, 'followers'), where('followerId', '==', profileUserId));
       const snapshot = await getDocs(q);
-      const followingIds = snapshot.docs.map(doc => doc.data().userId);
+      const followingIds = snapshot.docs.map(doc => doc.data().userId).filter(uid => !blockedUids.includes(uid));
 
-      const followingData = [];
-      for (const uid of followingIds) {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
+      const followingDocs = await Promise.all(
+        followingIds.map(uid => getDoc(doc(db, 'users', uid)))
+      );
+      const followingData = followingDocs
+        .map((userDoc, i) => {
+          if (!userDoc.exists()) return null;
           const data = userDoc.data();
-          followingData.push({
+          const uid = followingIds[i];
+          return {
             id: uid,
-            uid: uid,
+            uid,
             name: data.profileName || data.username || 'Usuario',
             username: data.username || 'usuario',
             profilePicture: data.profilePicture || '',
-          });
-        }
-      }
+          };
+        })
+        .filter(Boolean);
       setFollowing(followingData);
     } catch (error) {
       console.log('Error fetching following:', error);
@@ -121,24 +126,28 @@ export default function ContactsScreen({ navigation, route }) {
   const fetchFollowers = useCallback(async () => {
     if (!profileUserId) return;
     try {
+      const blockedUids = await getBlockedUids(profileUserId);
       const q = query(collection(db, 'followers'), where('userId', '==', profileUserId));
       const snapshot = await getDocs(q);
-      const followerIds = snapshot.docs.map(doc => doc.data().followerId);
+      const followerIds = snapshot.docs.map(doc => doc.data().followerId).filter(uid => !blockedUids.includes(uid));
 
-      const followersData = [];
-      for (const uid of followerIds) {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
+      const followerDocs = await Promise.all(
+        followerIds.map(uid => getDoc(doc(db, 'users', uid)))
+      );
+      const followersData = followerDocs
+        .map((userDoc, i) => {
+          if (!userDoc.exists()) return null;
           const data = userDoc.data();
-          followersData.push({
+          const uid = followerIds[i];
+          return {
             id: uid,
-            uid: uid,
+            uid,
             name: data.profileName || data.username || 'Usuario',
             username: data.username || 'usuario',
             profilePicture: data.profilePicture || '',
-          });
-        }
-      }
+          };
+        })
+        .filter(Boolean);
       setFollowers(followersData);
     } catch (error) {
       console.log('Error fetching followers:', error);
@@ -150,20 +159,23 @@ export default function ContactsScreen({ navigation, route }) {
     if (!currentUser) return;
     try {
       const blockedUids = await getBlockedUids(currentUser.uid);
-      const blockedData = [];
-      for (const uid of blockedUids) {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
+      const blockedDocs = await Promise.all(
+        blockedUids.map(uid => getDoc(doc(db, 'users', uid)))
+      );
+      const blockedData = blockedDocs
+        .map((userDoc, i) => {
+          if (!userDoc.exists()) return null;
           const data = userDoc.data();
-          blockedData.push({
+          const uid = blockedUids[i];
+          return {
             id: uid,
-            uid: uid,
+            uid,
             name: data.profileName || data.username || 'Usuario',
             username: data.username || 'usuario',
             profilePicture: data.profilePicture || '',
-          });
-        }
-      }
+          };
+        })
+        .filter(Boolean);
       setBlocked(blockedData);
     } catch (error) {
       console.log('Error fetching blocked users:', error);
@@ -184,19 +196,49 @@ export default function ContactsScreen({ navigation, route }) {
     Promise.all(promises).finally(() => setLoading(false));
   }, [fetchFollowing, fetchFollowers, fetchBlocked, isOwnProfile]);
 
+  useEffect(() => {
+    const unsub = subscribeBlockUser((blockedUid) => {
+      // Actualización optimista: sacamos al usuario bloqueado de las listas
+      // ya mismo, sin esperar el refetch a Firestore (que puede tardar,
+      // sobre todo con muchos contactos).
+      if (blockedUid) {
+        setFollowers(prev => prev.filter(u => u.uid !== blockedUid));
+        setFollowing(prev => prev.filter(u => u.uid !== blockedUid));
+      }
+      // Refetch en segundo plano para traer los datos completos
+      // (por ejemplo, para que aparezca en la pestaña de bloqueados).
+      fetchFollowers();
+      fetchFollowing();
+      if (isOwnProfile) fetchBlocked();
+    });
+    return unsub;
+  }, [fetchFollowers, fetchFollowing, fetchBlocked, isOwnProfile]);
+
   const handleTabPress = (index) => {
     setActiveTab(index);
     scrollViewRef.current?.scrollTo({ x: index * PAGE_WIDTH, animated: true });
   };
 
   const renderBlockedItem = ({ item }) => (
-    <View
+    <TouchableOpacity
       style={[
         styles.userRow,
         {
           backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.WHITE,
         }
       ]}
+      onPress={() => {
+        if (item.uid === currentUser?.uid) {
+          navigation.navigate('MainTabs', { screen: 'Profile' });
+        } else {
+          navigation.navigate('UserProfile', {
+            userId: item.uid,
+            profileName: item.name,
+            username: item.username,
+            profilePicture: item.profilePicture,
+          });
+        }
+      }}
     >
       {item.profilePicture ? (
         <Image source={{ uri: item.profilePicture }} style={styles.avatarImage} />
@@ -215,11 +257,11 @@ export default function ContactsScreen({ navigation, route }) {
       </View>
       <TouchableOpacity
         style={[styles.unblockButton, { backgroundColor: isDark ? '#3A2020' : '#FFE0E0' }]}
-        onPress={() => handleUnblock(item.uid)}
+        onPress={(e) => { e.stopPropagation(); handleUnblock(item.uid); }}
       >
         <Text style={styles.unblockText}>Desbloquear</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   const handleScrollEnd = (event) => {

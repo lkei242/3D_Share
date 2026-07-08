@@ -4,7 +4,10 @@ import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, se
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { getBlockedUids } from './config/userActions';
+import { getMutedUids } from './config/userActions';
 import { subscribeViewIncrement } from './config/ViewsBus';
+import { subscribeBlockUser } from './config/BlockBus';
+import { subscribeMuteUser } from './config/MuteBus';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
@@ -166,6 +169,7 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [blockedUids, setBlockedUids] = useState([]);
+  const [mutedUids, setMutedUids] = useState([]);
   const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
 
   const handlePostPress = useCallback((post) => {
@@ -200,6 +204,22 @@ export default function HomeScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeBlockUser((blockedUid) => {
+      setBlockedUids(prev => [...prev, blockedUid]);
+      setPosts(prev => prev.filter(p => p.author !== blockedUid));
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeMuteUser((mutedUid) => {
+      setMutedUids(prev => [...prev, mutedUid]);
+      setPosts(prev => prev.filter(p => p.author !== mutedUid));
+    });
+    return unsubscribe;
+  }, []);
+
   const [lastVisible, setLastVisible] = useState(null);
 
   const fetchBlockedUsers = async () => {
@@ -207,6 +227,13 @@ export default function HomeScreen({ navigation }) {
     if (!user) return;
     const blocked = await getBlockedUids(user.uid);
     setBlockedUids(blocked);
+  };
+
+  const fetchMutedUsers = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const muted = await getMutedUids(user.uid);
+    setMutedUids(muted);
   };
 
   const fetchPosts = async (reset = false) => {
@@ -267,7 +294,7 @@ export default function HomeScreen({ navigation }) {
               authorUsername: authorInfo.username,
               authorProfilePicture: authorInfo.profilePicture,
           };
-      }).filter(p => !blockedUids.includes(p.author));
+      }).filter(p => !blockedUids.includes(p.author) && !mutedUids.includes(p.author));
       const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
       setLastVisible(lastVisibleDoc);
       if (reset) {
@@ -288,6 +315,7 @@ export default function HomeScreen({ navigation }) {
     setLastVisible(null);
     setHasMore(true);
     await fetchBlockedUsers();
+    await fetchMutedUsers();
     await fetchPosts(true);
     setRefreshing(false);
   };
@@ -297,14 +325,11 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isFirstFocus.current) {
-        // Primer ingreso a Home: cargamos el feed desde cero.
         isFirstFocus.current = false;
-        Promise.all([fetchBlockedUsers(), fetchPosts(true)]);
+        Promise.all([fetchBlockedUsers(), fetchMutedUsers(), fetchPosts(true)]);
       } else {
-        // Volvimos de otra pantalla (ej: PostDetail). No reseteamos
-        // el feed para no perder lo que ya se cargó con el scroll
-        // infinito; solo refrescamos la lista de bloqueados.
         fetchBlockedUsers();
+        fetchMutedUsers();
       }
     });
     return unsubscribe;

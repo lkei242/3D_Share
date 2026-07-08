@@ -17,12 +17,13 @@ import {
   Modal,
   Alert,
   Linking,
+  TouchableWithoutFeedback,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
-import { blockUser } from '../config/userActions';
 import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
@@ -48,6 +49,9 @@ import {
 } from 'firebase/firestore';
 import { formatViews } from '../config/formatViews';
 import { emitViewIncrement } from '../config/ViewsBus';
+import { emitBlockUser } from '../config/BlockBus';
+import { emitMuteUser } from '../config/MuteBus';
+import { muteUser, unmuteUser, checkIfMuted, checkIfBlocked, blockUser, unblockUser, unfollowUser, checkIfFollowing, reportPost } from '../config/userActions';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -328,6 +332,23 @@ export default function PostDetailScreen({ route, navigation }) {
   const [menuPost, setMenuPost] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [infoPostId, setInfoPostId] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportPostData, setReportPostData] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToastMessage(''));
+    }, 3000);
+  };
 
   if (!post) return null;
 
@@ -477,10 +498,18 @@ export default function PostDetailScreen({ route, navigation }) {
     }
   }, [currentUser, navigation]);
 
-  const handleMorePress = useCallback((anchor, post) => {
+  const handleMorePress = useCallback(async (anchor, post) => {
+    let muted = false;
+    let blocked = false;
+    if (currentUser && post.author !== currentUser.uid) {
+      muted = await checkIfMuted(currentUser.uid, post.author);
+      blocked = await checkIfBlocked(currentUser.uid, post.author);
+    }
+    setIsMuted(muted);
+    setIsBlocked(blocked);
     setMenuAnchor(anchor);
     setMenuPost(post);
-  }, []);
+  }, [currentUser]);
 
   const renderPostItem = useCallback(({ item }) => (
     <PostItem
@@ -553,8 +582,41 @@ export default function PostDetailScreen({ route, navigation }) {
         visible={menuPost !== null}
         onClose={() => setMenuPost(null)}
         isOwnPost={currentUser && menuPost?.author === currentUser.uid}
+        isMuted={isMuted}
+        isBlocked={isBlocked}
         anchorPosition={menuAnchor}
         onOptionPress={(key) => {
+          if (key === 'mute') {
+            Alert.alert(
+              'Silenciar usuario',
+              `¿Querés silenciar a ${menuPost?.authorProfileName || 'este usuario'}? No verás sus publicaciones en tu feed.`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Silenciar',
+                  onPress: async () => {
+                    const ok = await muteUser(currentUser.uid, menuPost.author);
+                    if (ok) {
+                      emitMuteUser(menuPost.author);
+                      setMenuPost(null);
+                      navigation.goBack();
+                    }
+                  },
+                },
+              ]
+            );
+          }
+          if (key === 'unmute') {
+            unmuteUser(currentUser.uid, menuPost.author).then(() => {
+              setMenuPost(null);
+              navigation.goBack();
+            });
+          }
+          if (key === 'report') {
+            setMenuPost(null);
+            setReportPostData(menuPost);
+            setReportModalVisible(true);
+          }
           if (key === 'block') {
             Alert.alert(
               'Bloquear usuario',
@@ -564,16 +626,32 @@ export default function PostDetailScreen({ route, navigation }) {
                 {
                   text: 'Bloquear',
                   style: 'destructive',
-                  onPress: async () => {
-                    const ok = await blockUser(currentUser.uid, menuPost.author);
-                    if (ok) {
-                      setMenuPost(null);
-                      navigation.goBack();
-                    }
+                  onPress: () => {
+                    // Actualización optimista: avisamos y salimos ya mismo,
+                    // sin esperar a que vuelvan las llamadas a Firestore.
+                    const targetUid = menuPost.author;
+                    emitBlockUser(targetUid);
+                    setMenuPost(null);
+                    navigation.goBack();
+                    (async () => {
+                      const [isFollowing] = await Promise.all([
+                        checkIfFollowing(currentUser.uid, targetUid),
+                        blockUser(currentUser.uid, targetUid),
+                      ]);
+                      if (isFollowing) {
+                        await unfollowUser(currentUser.uid, targetUid);
+                      }
+                    })();
                   },
                 },
               ]
             );
+          }
+          if (key === 'unblock') {
+            unblockUser(currentUser.uid, menuPost.author).then(() => {
+              setIsBlocked(false);
+              setMenuPost(null);
+            });
           }
           if (key === 'delete') {
             Alert.alert(
@@ -634,6 +712,71 @@ export default function PostDetailScreen({ route, navigation }) {
         postId={infoPostId}
         onClose={() => setInfoPostId(null)}
       />
+      <Modal visible={reportModalVisible} transparent animationType="slide" onRequestClose={() => setReportModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setReportModalVisible(false)}>
+          <View style={styles.reportOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <TouchableOpacity
+                  style={styles.reportCloseBtn}
+                  onPress={() => setReportModalVisible(false)}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
+                </TouchableOpacity>
+
+                <View style={styles.reportHeader}>
+                  <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#3A2020' : '#FFEBEE' }]}>
+                    <Feather name="flag" size={22} color="#E53935" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: colors.text }]}>Denunciar publicación</Text>
+                  <Text style={[styles.reportSubtitle, { color: isDark ? '#8E8E93' : '#666' }]}>
+                    Ayúdanos a entender el problema con esta publicación
+                  </Text>
+                </View>
+
+                <View style={[styles.reportOptionsWrapper, { backgroundColor: isDark ? '#2C2C2E' : '#F8F8F8' }]}>
+                  {[
+                    'Acoso o intimidación',
+                    'Discurso de odio',
+                    'Contenido sexual o desnudos',
+                    'Violencia o contenido gráfico',
+                    'Estafas o fraude',
+                    'Información falsa o engañosa',
+                    'Spam',
+                  ].map((reason, index, arr) => (
+                    <TouchableOpacity
+                      key={reason}
+                      style={[
+                        styles.reportOption,
+                        { borderBottomColor: isDark ? '#3A3A3C' : '#E5E5EA' },
+                        index === arr.length - 1 && { borderBottomWidth: 0 }
+                      ]}
+                      onPress={() => {
+                        setReportModalVisible(false);
+                        if (reportPostData) {
+                          reportPost(currentUser.uid, reportPostData.id, reason);
+                        }
+                        showToast('Publicación denunciada');
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Text style={[styles.reportOptionText, { color: colors.text }]}>{reason}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={isDark ? '#48484A' : '#C7C7CC'} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      {toastMessage !== '' && (
+        <Animated.View style={[styles.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
+          <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -741,5 +884,96 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 6,
   },
-  webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' }
+  webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' },
+  reportOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+    paddingTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  reportCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  reportHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 12,
+  },
+  reportIconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontFamily: 'Nunito-Bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  reportSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 10,
+  },
+  reportOptionsWrapper: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  reportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  reportOptionText: {
+    fontSize: 15,
+    fontFamily: 'Nunito-SemiBold',
+    flex: 1,
+  },
+  toast: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27AE60',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 10,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Nunito-Bold',
+    flex: 1,
+  },
 });
