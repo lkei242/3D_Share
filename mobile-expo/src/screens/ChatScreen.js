@@ -3,6 +3,7 @@ import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { deleteMediaFromCloudinary } from './config/mediaHelper';
 import { auth, db } from './config/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs, getDoc, doc, arrayUnion, arrayRemove, deleteDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getUserMessagePreference, checkMutualFollow, sendMessageRequest, getMessageRequest } from './config/userActions';
 import {
   View,
   Text,
@@ -146,7 +147,26 @@ export default function ChatScreen({ navigation }) {
           });
         }
       }
-      setFollowingUsers(usersData);
+      // Filtrar usuarios con restricción de mensajes
+      const filteredUsers = [];
+      for (const u of usersData) {
+        const pref = await getUserMessagePreference(u.uid);
+        if (pref) {
+          filteredUsers.push(u);
+        } else {
+          const isMutual = await checkMutualFollow(user.uid, u.uid);
+          if (isMutual) {
+            filteredUsers.push(u);
+          } else {
+            const existingReq = await getMessageRequest(user.uid, u.uid);
+            if (existingReq && existingReq.status === 'approved') {
+              filteredUsers.push(u);
+            }
+          }
+        }
+      }
+      setFollowingUsers(filteredUsers);
+
     } catch (err) {
       console.log('Error al cargar seguidos para chat:', err);
     } finally {
@@ -171,7 +191,38 @@ export default function ChatScreen({ navigation }) {
       });
       return;
     }
-    // 2. Buscar en Firestore un chat eliminado por el usuario actual (para restaurar)
+    // Verificar si el usuario destino tiene restricción de mensajes
+    const targetPref = await getUserMessagePreference(targetUser.uid);
+    if (!targetPref) {
+      const isMutual = await checkMutualFollow(user.uid, targetUser.uid);
+      if (!isMutual) {
+        const existingRequest = await getMessageRequest(user.uid, targetUser.uid);
+        if (!existingRequest || existingRequest.status !== 'approved') {
+          if (existingRequest && existingRequest.status === 'pending') {
+            Alert.alert('Solicitud pendiente', 'Ya enviaste una solicitud a este usuario. Esperá a que la apruebe.');
+          } else {
+            Alert.alert(
+              'Mensajes restringidos',
+              'Este usuario tiene habilitada la función de mensajes por follow mutuo, por lo cual no puedes chatear con él a menos que él te siga o que apruebe tu solicitud de mensaje',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Enviar solicitud de mensaje',
+                  style: 'default',
+                  onPress: async () => {
+                    const ok = await sendMessageRequest(user.uid, targetUser.uid);
+                    if (ok) Alert.alert('Solicitud enviada', 'Tu solicitud de mensaje fue enviada. Esperá a que el usuario la apruebe.');
+                  },
+                },
+              ]
+            );
+          }
+          setShowNewChatModal(false);
+          return;
+        }
+      }
+    }
+    // Buscar en Firestore un chat eliminado por el usuario actual (para restaurar)
     try {
       const q = query(collection(db, 'chats'), where('participants', 'array-contains', user.uid));
       const snap = await getDocs(q);
@@ -829,7 +880,7 @@ export default function ChatScreen({ navigation }) {
             <Text style={[styles.headerTitle, { color: colors.text }]}>Chats</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.solicitudesButton}>
+        <TouchableOpacity style={styles.solicitudesButton} onPress={() => navigation.navigate('MessageRequests')}>
           <Text style={[styles.solicitudesText, { color: colors.text }]}>Solicitudes</Text>
         </TouchableOpacity>
       </View>

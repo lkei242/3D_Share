@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, addDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ===================== SEGUIR / DEJAR DE SEGUIR =====================
@@ -195,5 +195,142 @@ export const getBlockedUids = async (blockerUid) => {
   } catch (error) {
     console.log('Error fetching blocked users:', error);
     return [];
+  }
+};
+
+// ===================== SOLICITUDES DE MENSAJE =====================
+
+export const sendMessageRequest = async (senderId, receiverId) => {
+  if (!senderId || !receiverId) return false;
+  try {
+    await setDoc(doc(db, 'messageRequests', `${senderId}_${receiverId}`), {
+      senderId,
+      receiverId,
+      status: 'pending',
+      createdAt: new Date(),
+    });
+    return true;
+  } catch (error) {
+    console.log('Error sending message request:', error);
+    return false;
+  }
+};
+
+export const getMessageRequest = async (senderId, receiverId) => {
+  if (!senderId || !receiverId) return null;
+  try {
+    const docRef = await getDoc(doc(db, 'messageRequests', `${senderId}_${receiverId}`));
+    if (docRef.exists()) return { id: docRef.id, ...docRef.data() };
+    return null;
+  } catch (error) {
+    console.log('Error getting message request:', error);
+    return null;
+  }
+};
+
+export const approveMessageRequest = async (docId) => {
+  try {
+    await updateDoc(doc(db, 'messageRequests', docId), { status: 'approved', updatedAt: new Date() });
+    return true;
+  } catch (error) {
+    console.log('Error approving message request:', error);
+    return false;
+  }
+};
+
+export const rejectMessageRequest = async (docId) => {
+  try {
+    await updateDoc(doc(db, 'messageRequests', docId), { status: 'rejected', updatedAt: new Date() });
+    return true;
+  } catch (error) {
+    console.log('Error rejecting message request:', error);
+    return false;
+  }
+};
+
+export const cancelMessageRequest = async (docId) => {
+  try {
+    await deleteDoc(doc(db, 'messageRequests', docId));
+    return true;
+  } catch (error) {
+    console.log('Error canceling message request:', error);
+    return false;
+  }
+};
+
+export const getSentRequests = async (userId) => {
+  if (!userId) return [];
+  try {
+    const q = query(collection(db, 'messageRequests'), where('senderId', '==', userId));
+    const snap = await getDocs(q);
+    return Promise.all(snap.docs.map(async (d) => {
+      const data = d.data();
+      const userDoc = await getDoc(doc(db, 'users', data.receiverId));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      return {
+        id: d.id,
+        userId: data.receiverId,
+        name: userData.profileName || userData.username || 'Usuario',
+        username: userData.username || '',
+        profilePicture: userData.profilePicture || '',
+        status: data.status,
+        createdAt: data.createdAt,
+      };
+    }));
+  } catch (error) {
+    console.log('Error getting sent requests:', error);
+    return [];
+  }
+};
+
+export const getReceivedRequests = async (userId) => {
+  if (!userId) return [];
+  try {
+    const q = query(collection(db, 'messageRequests'), where('receiverId', '==', userId), where('status', '==', 'pending'));
+    const snap = await getDocs(q);
+    return Promise.all(snap.docs.map(async (d) => {
+      const data = d.data();
+      const userDoc = await getDoc(doc(db, 'users', data.senderId));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      return {
+        id: d.id,
+        userId: data.senderId,
+        name: userData.profileName || userData.username || 'Usuario',
+        username: userData.username || '',
+        profilePicture: userData.profilePicture || '',
+        status: data.status,
+        createdAt: data.createdAt,
+      };
+    }));
+  } catch (error) {
+    console.log('Error getting received requests:', error);
+    return [];
+  }
+};
+
+export const getUserMessagePreference = async (userId) => {
+  if (!userId) return true;
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      return data.allowMessagesWithoutMutualFollow !== false;
+    }
+    return true;
+  } catch (error) {
+    console.log('Error getting message preference:', error);
+    return true;
+  }
+};
+
+export const checkMutualFollow = async (uid1, uid2) => {
+  if (!uid1 || !uid2) return false;
+  try {
+    const doc1 = await getDoc(doc(db, 'followers', `${uid2}_${uid1}`));
+    const doc2 = await getDoc(doc(db, 'followers', `${uid1}_${uid2}`));
+    return doc1.exists() && doc2.exists();
+  } catch (error) {
+    console.log('Error checking mutual follow:', error);
+    return false;
   }
 };

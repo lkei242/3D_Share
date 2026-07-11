@@ -1,9 +1,11 @@
 // src/screens/profile_screens/PreferencesScreen.js
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../context/ThemeContext';
+import { auth, db } from '../config/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function PreferencesScreen({ navigation }) {
   const { colors } = useTheme();
@@ -15,6 +17,38 @@ export default function PreferencesScreen({ navigation }) {
   const [highQualityImages, setHighQualityImages] = useState(true);
   const [highQualityVideos, setHighQualityVideos] = useState(true);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [allowMessages, setAllowMessages] = useState(true);
+  const [loadingPref, setLoadingPref] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setAllowMessages(data.allowMessagesWithoutMutualFollow !== false);
+        }
+      } catch (e) {
+        console.log('Error loading message preference:', e);
+      } finally {
+        setLoadingPref(false);
+      }
+    })();
+  }, []);
+
+  const handleToggleMessages = async (value) => {
+    setAllowMessages(value);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      await updateDoc(doc(db, 'users', user.uid), { allowMessagesWithoutMutualFollow: value });
+    } catch (e) {
+      console.log('Error saving message preference:', e);
+      setAllowMessages(!value);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -39,6 +73,16 @@ export default function PreferencesScreen({ navigation }) {
             </Text>
             <Ionicons name="chevron-down" size={18} color={colors.text} />
           </TouchableOpacity>
+        </View>
+
+        {/* Permitir mensajes sin follow mutuo */}
+        <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
+          <Text style={[styles.label, { color: colors.text }]}>Permitir mensajes sin follow mutuo</Text>
+          <Switch
+            value={allowMessages}
+            onValueChange={handleToggleMessages}
+            trackColor={{ false: isDark ? '#555' : '#ccc', true: '#9DBD3F' }}
+          />
         </View>
 
         {/* Vista previa */}
