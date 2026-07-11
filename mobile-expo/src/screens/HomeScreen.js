@@ -1,6 +1,6 @@
 // src/screens/HomeScreen.js
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // ← agregado useRef, useCallback
-import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, doc, getDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { getBlockedUids } from './config/userActions';
@@ -170,6 +170,8 @@ export default function HomeScreen({ navigation }) {
   const [hasMore, setHasMore] = useState(true);
   const [blockedUids, setBlockedUids] = useState([]);
   const [mutedUids, setMutedUids] = useState([]);
+  const [followingUids, setFollowingUids] = useState([]);
+  const [hasFollowing, setHasFollowing] = useState(true);
   const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
 
   const handlePostPress = useCallback((post) => {
@@ -236,21 +238,62 @@ export default function HomeScreen({ navigation }) {
     setMutedUids(muted);
   };
 
+  const fetchFollowingUids = async () => {
+    const user = auth.currentUser;
+    if (!user) return [];
+    try {
+      const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+      const snap = await getDocs(q);
+      const uids = snap.docs.map(d => d.data().userId);
+      setFollowingUids(uids);
+      setHasFollowing(uids.length > 0);
+      return uids;
+    } catch (error) {
+      console.log('Error fetching following:', error);
+      setHasFollowing(false);
+      return [];
+    }
+  };
+
   const fetchPosts = async (reset = false) => {
     if (loading || (!hasMore && !reset)) return;
     setLoading(true);
     try {
-      const postsRef = collection(db, 'posts');
-      let q;
+      let uids = followingUids;
+      if (reset || uids.length === 0) {
+        uids = await fetchFollowingUids();
+      }
 
-      if (reset) {
-        q = query(postsRef, orderBy('createdAt', 'desc'), limit(10));
-      } else if (lastVisible) {
-        q = query(postsRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(10));
-      } else {
+      if (uids.length === 0) {
+        setPosts([]);
+        setHasMore(false);
         setLoading(false);
         return;
       }
+
+      const postsRef = collection(db, 'posts');
+      let q;
+
+      if (uids.length <= 30) {
+        if (reset) {
+          q = query(postsRef, where('autor', 'in', uids), orderBy('createdAt', 'desc'), limit(10));
+        } else if (lastVisible) {
+          q = query(postsRef, where('autor', 'in', uids), orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(10));
+        } else {
+          setLoading(false);
+          return;
+        }
+      } else {
+        if (reset) {
+          q = query(postsRef, orderBy('createdAt', 'desc'), limit(50));
+        } else if (lastVisible) {
+          q = query(postsRef, orderBy('createdAt', 'desc'), startAfter(lastVisible), limit(50));
+        } else {
+          setLoading(false);
+          return;
+        }
+      }
+
       const documentSnapshots = await getDocs(q);
 
       const authorUids = [...new Set(documentSnapshots.docs.map(d => d.data().autor).filter(Boolean))];
@@ -294,7 +337,7 @@ export default function HomeScreen({ navigation }) {
               authorUsername: authorInfo.username,
               authorProfilePicture: authorInfo.profilePicture,
           };
-      }).filter(p => !blockedUids.includes(p.author) && !mutedUids.includes(p.author));
+      }).filter(p => uids.includes(p.author) && !blockedUids.includes(p.author) && !mutedUids.includes(p.author));
       const lastVisibleDoc = documentSnapshots.docs[documentSnapshots.docs.length - 1];
       setLastVisible(lastVisibleDoc);
       if (reset) {
@@ -302,7 +345,8 @@ export default function HomeScreen({ navigation }) {
       } else {
         setPosts(prev => [...prev, ...newPosts]);
       }
-      setHasMore(documentSnapshots.docs.length === 10);
+      const pageSize = uids.length <= 30 ? 10 : 50;
+      setHasMore(documentSnapshots.docs.length === pageSize);
     } catch (error) {
       console.log("Error cargando posts de Firestore:", error);
     } finally {
@@ -326,10 +370,15 @@ export default function HomeScreen({ navigation }) {
     const unsubscribe = navigation.addListener('focus', () => {
       if (isFirstFocus.current) {
         isFirstFocus.current = false;
-        Promise.all([fetchBlockedUsers(), fetchMutedUsers(), fetchPosts(true)]);
+        Promise.all([fetchBlockedUsers(), fetchMutedUsers(), fetchFollowingUids().then(() => fetchPosts(true))]);
       } else {
         fetchBlockedUsers();
         fetchMutedUsers();
+        fetchFollowingUids().then(() => {
+          setLastVisible(null);
+          setHasMore(true);
+          fetchPosts(true);
+        });
       }
     });
     return unsubscribe;
@@ -401,6 +450,23 @@ export default function HomeScreen({ navigation }) {
           />
         }
         ListFooterComponent={loading ? <ActivityIndicator size="large" color="#546F1C" style={{ marginVertical: 15 }} /> : null}
+        ListEmptyComponent={!loading ? (
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons
+              name={hasFollowing ? "account-group-outline" : "account-plus-outline"}
+              size={70}
+              color={isDark ? '#555' : '#bbb'}
+            />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {hasFollowing ? 'Sin publicaciones por ahora' : 'No sigues a nadie'}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: isDark ? '#888' : '#999' }]}>
+              {hasFollowing
+                ? 'Tus seguidores no tienen publicaciones recientes.'
+                : 'Busca usuarios y sigue sus perfiles para ver sus publicaciones aquí.'}
+            </Text>
+          </View>
+        ) : null}
       />
     </View>
   );
@@ -500,5 +566,24 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     padding: 2,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+    paddingHorizontal: 30,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: 'Nunito-Bold',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontFamily: 'Nunito-Regular',
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
