@@ -21,6 +21,7 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
@@ -616,7 +617,7 @@ export default function PostDetailScreen({ route, navigation }) {
         </View>
 
       <View style={{ flex: 1 }}>
-        <FlatList
+        <FlashList
           ref={flatListRef}
           style={{ flex: 1 }}
           contentContainerStyle={{
@@ -625,7 +626,7 @@ export default function PostDetailScreen({ route, navigation }) {
           data={postsList}
           keyExtractor={(item) => item.id}
           initialScrollIndex={validIndex}
-          initialNumToRender={1}
+          estimatedItemSize={PAGE_HEIGHT}
           renderItem={renderPostItem}
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
@@ -633,12 +634,9 @@ export default function PostDetailScreen({ route, navigation }) {
           scrollEventThrottle={16}
           horizontal={false}
           showsVerticalScrollIndicator={false}
-          removeClippedSubviews={true}
-          windowSize={7}
           onEndReached={loadMorePosts}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 20 }} /> : null}
-          onScrollToIndexFailed={onScrollToIndexFailed}
           keyboardShouldPersistTaps="handled"
         />
           {!isReady && (

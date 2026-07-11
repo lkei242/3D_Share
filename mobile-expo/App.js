@@ -58,6 +58,7 @@ import UserProfileScreen from './src/screens/UserProfileScreen';
 import UserProfileContactsScreen from './src/screens/UserProfileContactsScreen';
 import ChatDetailGroupScreen from './src/screens/chats_screens/ChatDetailGroup';
 import BroadcastDetailScreen from './src/screens/chats_screens/BroadcastDetail';
+import MessageRequestsScreen from './src/screens/chats_screens/MessageRequestsScreen';
 
 const MiTemaClaro = {
   ...DefaultTheme,
@@ -198,6 +199,7 @@ function AppContent() {
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetailGroup" component={ChatDetailGroupScreen} options={{ headerShown: false }} />
           <Stack.Screen name="BroadcastDetail" component={BroadcastDetailScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MessageRequests" component={MessageRequestsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

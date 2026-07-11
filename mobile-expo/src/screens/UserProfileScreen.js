@@ -22,7 +22,8 @@ import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/v
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
-import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser, muteUser, unmuteUser, checkIfMuted, reportUser } from './config/userActions';
+import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser, 
+muteUser, unmuteUser, checkIfMuted, reportUser, getUserMessagePreference, checkMutualFollow, sendMessageRequest, getMessageRequest } from './config/userActions';
 import { emitBlockUser } from './config/BlockBus';
 import { emitMuteUser } from './config/MuteBus';
 import PostMenuModal from './components/PostMenuModal';
@@ -49,6 +50,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [requestModalVisible, setRequestModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showToastIcon, setShowToastIcon] = useState(true);
@@ -291,6 +293,39 @@ export default function UserProfileScreen({ route, navigation }) {
       showToast('Para mandar un mensaje a cualquier usuario primero debes seguirlo', false);
       return;
     }
+    // Verificar restricción de mensajes del usuario destino
+    const targetPref = await getUserMessagePreference(userId);
+    if (!targetPref) {
+      const isMutual = await checkMutualFollow(currentUser.uid, userId);
+      if (!isMutual) {
+        const existingRequest = await getMessageRequest(currentUser.uid, userId);
+        if (existingRequest && existingRequest.status === 'pending') {
+          showToast('Ya enviaste una solicitud a este usuario. Esperá a que la apruebe.');
+          return;
+        }
+        if (existingRequest && existingRequest.status === 'approved') {
+          // Proceder normalmente
+        } else {
+          setRequestModalVisible(true);
+          return;(
+            'Mensajes restringidos',
+            'Este usuario tiene habilitada la función de mensajes por follow mutuo, por lo cual no puedes chatear con él a menos que él te siga o que apruebe tu solicitud de mensaje',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Enviar solicitud de mensaje',
+                style: 'default',
+                onPress: async () => {
+                  const ok = await sendMessageRequest(currentUser.uid, userId);
+                  if (ok) showToast('Solicitud de mensaje enviada');
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+    }
     try {
       // Buscar un chat existente con esta persona
       const q = query(
@@ -308,7 +343,6 @@ export default function UserProfileScreen({ route, navigation }) {
       });
 
       if (existingChatDoc) {
-        // Chat existente → navegar con ese id
         navigation.navigate('ChatDetail', {
           chatId: existingChatDoc.id,
           name: profileName || username,
@@ -317,7 +351,6 @@ export default function UserProfileScreen({ route, navigation }) {
           otherUid: userId,
         });
       } else {
-        // Buscar chat eliminado (para restaurarlo)
         const deletedChatDoc = snap.docs.find(d => {
           const data = d.data();
           const deletedBy = data.deletedBy || [];
@@ -328,7 +361,6 @@ export default function UserProfileScreen({ route, navigation }) {
           const deletedBy = deletedChatDoc.data().deletedBy || [];
           const otherDeleted = deletedBy.includes(userId);
           if (otherDeleted) {
-            // Ambos eliminaron → navegar con null para que se cree uno nuevo
             navigation.navigate('ChatDetail', {
               chatId: null,
               name: profileName || username,
@@ -338,7 +370,6 @@ export default function UserProfileScreen({ route, navigation }) {
               isNewChat: true,
             });
           } else {
-            // Solo yo eliminé → restaurar
             await updateDoc(deletedChatDoc.ref, { deletedBy: arrayRemove(currentUser.uid) });
             navigation.navigate('ChatDetail', {
               chatId: deletedChatDoc.id,
@@ -349,7 +380,6 @@ export default function UserProfileScreen({ route, navigation }) {
             });
           }
         } else {
-          // No existe chat → navegar con null (se crea al primer mensaje)
           navigation.navigate('ChatDetail', {
             chatId: null,
             name: profileName || username,
@@ -977,6 +1007,56 @@ export default function UserProfileScreen({ route, navigation }) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+            {/* Modal de solicitud de mensaje (restricción) */}
+      <Modal visible={requestModalVisible} transparent animationType="slide" onRequestClose={() => setRequestModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setRequestModalVisible(false)}>
+          <View style={styles.reportOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <TouchableOpacity 
+                  style={styles.reportCloseBtn} 
+                  onPress={() => setRequestModalVisible(false)} 
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
+                </TouchableOpacity>
+
+                <View style={styles.reportHeader}>
+                  <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#1A2E1A' : '#E8F5E9' }]}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={24} color="#4CAF50" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: colors.text }]}>Mensajes restringidos</Text>
+                  <Text style={[styles.reportSubtitle, { color: isDark ? '#8E8E93' : '#666' }]}>
+                    Este usuario tiene habilitada la función de mensajes por follow mutuo, por lo cual no puedes chatear con él a menos que él te siga o que apruebe tu solicitud de mensaje
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, marginHorizontal: 12 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: isDark ? '#2C2C2C' : '#F2F2F2', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                    onPress={() => setRequestModalVisible(false)}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={{ color: colors.text, fontFamily: 'Nunito-Bold', fontSize: 15 }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#4CAF50', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                    onPress={async () => {
+                      const ok = await sendMessageRequest(currentUser.uid, userId);
+                      setRequestModalVisible(false);
+                      if (ok) showToast('Solicitud de mensaje enviada');
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontFamily: 'Nunito-Bold', fontSize: 15 }}>Enviar solicitud</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {toastMessage !== '' && (
         <Animated.View style={[styles.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
           {showToastIcon && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
