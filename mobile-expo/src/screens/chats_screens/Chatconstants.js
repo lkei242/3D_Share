@@ -22,3 +22,13 @@ export const formatTime = (secs) => {
   const seconds = secs % 60;
   return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 };
+
+export const canEditMessage = (msg) => {
+  if (!msg) return false;
+  // Tipos que nunca se editan
+  if (msg.type === 'location' || msg.type === 'file' || msg.type === 'audio') return false;
+  // Media sin caption = no tiene texto que editar
+  if ((msg.type === 'image' || msg.type === 'video' || msg.type === 'media_group') && !msg.caption) return false;
+  // Texto plano o media con caption = editable
+  return true;
+};

@@ -43,7 +43,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 
-import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './Chatconstants';
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime, canEditMessage } from './Chatconstants';
 import styles from './Chatstyles';
 import MessageItem from './Messageitem';
 import MediaViewerModal from './Mediaviewer';
@@ -687,7 +687,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
   };
 
   const handleStartEdit = () => {
-    if (!activeMsg || activeMsg.sender !== 'me') return;
+    if (!activeMsg || activeMsg.sender !== 'me' || !canEditMessage(activeMsg)) return;
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
     setReplyingTo(null);
@@ -971,7 +971,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
   return (
     <View style={{ flex: 1 }}>
       <TouchableWithoutFeedback onPress={closeAllMenus}>
-        <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* HEADER MULTI-SELECCIÓN O NORMAL */}
           {selectedIds.length > 0 ? (
             <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
@@ -985,14 +985,6 @@ export default function BroadcastDetailScreen({ route, navigation }) {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                 {selectedIds.length === 1 && (
-                  <TouchableOpacity style={styles.toolIcon} onPress={handleReply}>
-                    <Ionicons name="arrow-undo" size={28} color={colors.text} />
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.toolIcon} onPress={handleFavorite}>
-                  <Ionicons name={activeMsg?.isFavorite ? 'star' : 'star-outline'} size={28} color={colors.text} />
-                </TouchableOpacity>
-                {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
                   <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
                     <Ionicons name="pencil" size={28} color={colors.text} />
                   </TouchableOpacity>
@@ -1008,7 +1000,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
               </View>
             </View>
           ) : (
-            <View style={[styles.header, { paddingBottom: 12 }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
               <View style={styles.headerLeft}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 8 }}>
                   <Ionicons name="arrow-back" size={26} color={colors.text} />
@@ -1303,7 +1295,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
 
       {/* Modal de Info */}
       <Modal visible={showInfoModal} animationType="slide" transparent onRequestClose={() => setShowInfoModal(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', paddingBottom: insets.bottom }}>
           <View style={{ backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingTop: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: '#88888844', paddingBottom: 12, marginBottom: 8 }}>
               <Text style={{ fontSize: 20, fontFamily: 'Nunito-Bold', color: colors.text }}>{broadcastInfo.name}</Text>
