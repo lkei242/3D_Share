@@ -207,6 +207,12 @@ const saveAccountToStorage = async (user, password) => {
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+          <Text style={[styles.forgotPassword, { color: isDark ? '#94BA46' : '#546F1C' }]}>
+            ¿Olvidaste tu contraseña?
+          </Text>
+        </TouchableOpacity>
+
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: isDark ? '#333' : '#D0D0D0' }]} />
           <Text style={[styles.dividerText, { color: isDark ? '#888' : '#999' }]}>o</Text>
@@ -305,6 +311,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Light',
   },
 
+  forgotPassword: {
+    textAlign: 'center',
+    fontSize: 14,
+    marginTop: 14,
+    fontFamily: 'Nunito-Bold',
+  },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
