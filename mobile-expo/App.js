@@ -49,6 +49,7 @@ import PresentationScreen from './src/screens/profile_screens/Informacion_de_la_
 import EditNameScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditNameScreen';
 import EditPhoneScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen';
 import EditBirthDateScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen';
+import EditEmailScreen from './src/screens/profile_screens/Informacion_de_la_cuenta/EditEmailScreen';
 import ChatDetailsScreen from './src/screens/chats_screens/ChatDetailsScreen';
 import PostDetailScreen from './src/screens/components/PostDetailScreen';
 import EditPostScreen from './src/screens/EditPostScreen';
@@ -191,6 +192,7 @@ function AppContent() {
           <Stack.Screen name="EditNameScreen" component={EditNameScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditPhoneScreen" component={EditPhoneScreen} options={{ headerShown: false }} />
           <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="EditEmailScreen" component={EditEmailScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetailGroup" component={ChatDetailGroupScreen} options={{ headerShown: false }} />
           <Stack.Screen name="BroadcastDetail" component={BroadcastDetailScreen} options={{ headerShown: false }} />

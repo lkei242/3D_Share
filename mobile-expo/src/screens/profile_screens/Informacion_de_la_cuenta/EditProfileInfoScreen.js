@@ -18,6 +18,7 @@ export default function EditProfileInfoScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
@@ -26,6 +27,9 @@ export default function EditProfileInfoScreen({ navigation }) {
   const fetchUserData = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
+
+    const providers = user.providerData.map((p) => p.providerId);
+    setIsGoogleUser(providers.includes('google.com'));
 
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -94,15 +98,38 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Email (solo lectura) */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text }]}>Correo electrónico</Text>
-          <View style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}>
-            <Text style={[styles.valueText, { color: isDark ? '#ccc' : '#444' }]}>
-              {email || 'Ingrese su correo'}
+        {/* Email */}
+        {isGoogleUser ? (
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: colors.text }]}>Correo electrónico</Text>
+              <Ionicons name="logo-google" size={16} color={isDark ? '#AAA' : '#666'} />
+            </View>
+            <View style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}>
+              <Text style={[styles.valueText, { color: isDark ? '#ccc' : '#444' }]}>
+                {email || 'Ingrese su correo'}
+              </Text>
+            </View>
+            <Text style={[styles.hint, { color: isDark ? '#666' : '#999' }]}>
+              No podés cambiar el correo de una cuenta de Google
             </Text>
           </View>
-        </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.field}
+            onPress={() => navigation.navigate('EditEmailScreen', { currentEmail: email })}
+          >
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: colors.text }]}>Correo electrónico</Text>
+              <Ionicons name="chevron-forward" size={18} color={isDark ? '#AAA' : '#666'} />
+            </View>
+            <View style={[styles.input, { backgroundColor: isDark ? '#1E1E1E' : '#F5F5F5', borderColor: isDark ? '#333' : '#DCDCDC' }]}>
+              <Text style={[styles.valueText, { color: isDark ? '#ccc' : '#444' }]}>
+                {email || 'Ingrese su correo'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Teléfono */}
         <TouchableOpacity
@@ -195,6 +222,12 @@ const styles = StyleSheet.create({
   valueText: {
     fontSize: 15,
     fontFamily: 'Nunito-Light',
+  },
+  hint: {
+    fontSize: 12,
+    fontFamily: 'Nunito-Light',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   advancedLink: {
     flexDirection: 'row',

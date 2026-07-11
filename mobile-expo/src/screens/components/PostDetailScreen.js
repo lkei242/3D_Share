@@ -336,6 +336,7 @@ export default function PostDetailScreen({ route, navigation }) {
   const [isBlocked, setIsBlocked] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportPostData, setReportPostData] = useState(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
@@ -348,6 +349,34 @@ export default function PostDetailScreen({ route, navigation }) {
     toastTimeoutRef.current = setTimeout(() => {
       Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToastMessage(''));
     }, 3000);
+  };
+
+  const handleDeletePost = async () => {
+    try {
+      const postId = menuPost.id;
+      await deleteDoc(doc(db, 'posts', postId));
+      const allMedia = menuPost.media || (menuPost.image ? [{ url: menuPost.image, type: 'image' }] : []);
+      for (const m of allMedia) {
+        deleteMediaFromCloudinary(m.url).catch(() => {});
+      }
+      const collections = ['likes', 'views', 'saved', 'comments'];
+      for (const col of collections) {
+        try {
+          const q = query(collection(db, col), where('postId', '==', postId));
+          const snap = await getDocs(q);
+          for (const d of snap.docs) {
+            try { await deleteDoc(d.ref); } catch (e) {}
+          }
+        } catch (e) {}
+      }
+      setDeleteModalVisible(false);
+      setMenuPost(null);
+      navigation.goBack();
+    } catch (error) {
+      console.log('Error eliminando publicación:', error);
+      setDeleteModalVisible(false);
+      showToast('Error al eliminar la publicación');
+    }
   };
 
   if (!post) return null;
@@ -654,42 +683,8 @@ export default function PostDetailScreen({ route, navigation }) {
             });
           }
           if (key === 'delete') {
-            Alert.alert(
-              'Eliminar publicación',
-              '¿Querés eliminar esta publicación? Esta acción no se puede deshacer.',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                  text: 'Eliminar',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      const postId = menuPost.id;
-                      await deleteDoc(doc(db, 'posts', postId));
-                      const allMedia = menuPost.media || (menuPost.image ? [{ url: menuPost.image, type: 'image' }] : []);
-                      for (const m of allMedia) {
-                        deleteMediaFromCloudinary(m.url).catch(() => {});
-                      }
-                      const collections = ['likes', 'views', 'saved', 'comments'];
-                      for (const col of collections) {
-                        try {
-                          const q = query(collection(db, col), where('postId', '==', postId));
-                          const snap = await getDocs(q);
-                          for (const d of snap.docs) {
-                            try { await deleteDoc(d.ref); } catch (e) {}
-                          }
-                        } catch (e) {}
-                      }
-                      setMenuPost(null);
-                      navigation.goBack();
-                    } catch (error) {
-                      console.log('Error eliminando publicación:', error);
-                      Alert.alert('Error', 'No se pudo eliminar la publicación. Revisá tu conexión o intentá de nuevo.');
-                    }
-                  },
-                },
-              ]
-            );
+            setMenuPost(null);
+            setDeleteModalVisible(true);
           }
           if (key === 'edit') {
             setMenuPost(null);
@@ -765,6 +760,50 @@ export default function PostDetailScreen({ route, navigation }) {
                       <Ionicons name="chevron-forward" size={18} color={isDark ? '#48484A' : '#C7C7CC'} />
                     </TouchableOpacity>
                   ))}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal visible={deleteModalVisible} transparent animationType="slide" onRequestClose={() => setDeleteModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setDeleteModalVisible(false)}>
+          <View style={styles.reportOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <TouchableOpacity
+                  style={styles.reportCloseBtn}
+                  onPress={() => setDeleteModalVisible(false)}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
+                </TouchableOpacity>
+
+                <View style={styles.reportHeader}>
+                  <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#3A2020' : '#FFEBEE' }]}>
+                    <Ionicons name="trash-outline" size={24} color="#E53935" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: colors.text }]}>Eliminar publicación</Text>
+                  <Text style={[styles.reportSubtitle, { color: isDark ? '#8E8E93' : '#666' }]}>
+                    ¿Querés eliminar esta publicación? Esta acción no se puede deshacer.
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 12, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                    onPress={() => setDeleteModalVisible(false)}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={{ color: colors.text, fontFamily: 'Nunito-Bold', fontSize: 15 }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#E53935', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                    onPress={handleDeletePost}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontFamily: 'Nunito-Bold', fontSize: 15 }}>Eliminar</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </TouchableWithoutFeedback>

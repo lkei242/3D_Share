@@ -13,7 +13,7 @@ const MAX_SCALE = 4;
 
 // Umbral mínimo de inclinación para considerar que el celular realmente se giró
 // (evita que tiemble si está casi plano sobre una mesa).
-const TILT_THRESHOLD = 0.2;
+const TILT_THRESHOLD = 0.35;
 
 // Una sola "página" del visor: imagen o video con pinch-to-zoom + pan,
 // y doble-tap como atajo rápido para alternar zoom.
@@ -86,7 +86,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   useEffect(() => {
     if (item.type !== 'image' || !isActive) return;
 
-    Accelerometer.setUpdateInterval(200);
+    Accelerometer.setUpdateInterval(350);
     const subscription = Accelerometer.addListener(({ x, y }) => {
       const magnitude = Math.sqrt(x * x + y * y);
       if (magnitude < TILT_THRESHOLD) return; // celular casi plano, ignoramos
@@ -332,7 +332,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
 };
 
 // Modal con swipe horizontal entre todas las fotos/videos/archivos del chat
-const MediaViewerModal = ({ visible, items, initialIndex, onClose }) => {
+const MediaViewerModal = ({ visible, items, initialIndex, onClose, hideCounter }) => {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
@@ -357,9 +357,11 @@ const MediaViewerModal = ({ visible, items, initialIndex, onClose }) => {
             <TouchableOpacity onPress={onClose} style={styles.mediaViewerCloseBtn}>
               <Ionicons name="close" size={28} color="#FFF" />
             </TouchableOpacity>
-            <Text style={styles.mediaViewerCounter}>
-              {items.length > 0 ? `${currentIndex + 1} / ${items.length}` : ''}
-            </Text>
+            {!hideCounter && items.length > 1 && (
+              <Text style={styles.mediaViewerCounter}>
+                {`${currentIndex + 1} / ${items.length}`}
+              </Text>
+            )}
           </View>
 
           {visible && (

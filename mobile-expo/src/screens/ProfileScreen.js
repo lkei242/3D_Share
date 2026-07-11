@@ -26,10 +26,11 @@ import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import MediaViewerModal from './chats_screens/Mediaviewer';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 18) / 3;
-const TABS = ['Publicaciones', 'Etiquetas', 'Contactos'];
+const TABS = ['Publicaciones', 'Contactos'];
 
 // ============================================================
 // 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
@@ -77,6 +78,7 @@ export default function ProfileScreen({ navigation }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [pinnedPosts, setPinnedPosts] = useState([]);
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
 
   const [otherProfiles, setOtherProfiles] = useState([]);
@@ -696,12 +698,6 @@ export default function ProfileScreen({ navigation }) {
         return renderGrid();
       case 'Contactos':
         return renderContactsTab();
-      case 'Etiquetas':
-        return (
-          <Text style={[styles.emptyText, { color: isDark ? '#666' : '#AAA' }]}>
-            Sin etiquetas aún
-          </Text>
-        );
       default:
         return null;
     }
@@ -770,7 +766,7 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.profileSection}>
             {/* Fila: avatar + stats */}
             <View style={styles.avatarStatsRow}>
-              <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
+              <TouchableOpacity style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]} onPress={() => profilePicture && setImagePreviewVisible(true)}>
                 {profileLoading ? null : profilePicture ? (
                   <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
                 ) : (
@@ -788,7 +784,7 @@ export default function ProfileScreen({ navigation }) {
                     />
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
 
               <View style={styles.statsRow}>
                 <View style={styles.statsNumbers}>
@@ -985,6 +981,13 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
+      <MediaViewerModal
+        visible={imagePreviewVisible}
+        items={profilePicture ? [{ id: 'profile', mediaUrl: profilePicture, type: 'image' }] : []}
+        initialIndex={0}
+        onClose={() => setImagePreviewVisible(false)}
+        hideCounter
+      />
     </View>
   );
 }

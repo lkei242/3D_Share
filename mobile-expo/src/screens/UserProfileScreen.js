@@ -29,7 +29,7 @@ import PostMenuModal from './components/PostMenuModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 20) / 3;
-const TABS = ['Publicaciones', 'Etiquetas', 'Contactos'];
+const TABS = ['Publicaciones', 'Contactos'];
 
 export default function UserProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -537,13 +537,6 @@ export default function UserProfileScreen({ route, navigation }) {
               </View>
             )}
           </View>
-        );
-      
-      case 'Etiquetas':
-        return (
-          <Text style={[styles.emptyText, { color: isDark ? '#666' : '#AAA' }]}>
-            Sin etiquetas aún
-          </Text>
         );
       
       default:

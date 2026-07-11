@@ -27,20 +27,6 @@ export default function PreferencesScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {/* Idioma */}
-        <View style={[styles.languageRow, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
-          <Text style={[styles.label, { color: colors.text }]}>Idioma</Text>
-          <TouchableOpacity style={[
-            styles.languageButton,
-            {
-              backgroundColor: colors.card,
-              borderColor: isDark ? '#555' : '#CCC'
-            }
-          ]}>
-            <Text style={[styles.languageText, { color: colors.text }]}>ESPAÑOL</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Modo Oscuro */}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Modo Oscuro</Text>
@@ -131,24 +117,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-  },
-  languageRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-  },
-  languageButton: {
-    alignSelf: 'flex-end',
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  languageText: {
-    fontWeight: '600',
   },
   row: {
     flexDirection: 'row',

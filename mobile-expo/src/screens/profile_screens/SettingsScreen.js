@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useTheme } from '@react-navigation/native';
-import { Ionicons, AntDesign } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import MediaViewerModal from '../chats_screens/Mediaviewer';
 
 export default function SettingsScreen({ navigation }) {
   const { colors } = useTheme();
@@ -111,33 +112,13 @@ export default function SettingsScreen({ navigation }) {
       </ScrollView>
       )}
 
-      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setModalVisible(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
-            {userData?.profilePicture ? (
-              <Image
-                source={{ uri: userData.profilePicture }}
-                style={styles.fullImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.fullImageFallback}>
-                <Ionicons name="person-circle-outline" size={200} color="#94BA46" />
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <AntDesign name="close" size={24} color="#FFF" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <MediaViewerModal
+        visible={modalVisible}
+        items={userData?.profilePicture ? [{ id: 'profile', mediaUrl: userData.profilePicture, type: 'image' }] : []}
+        initialIndex={0}
+        onClose={() => setModalVisible(false)}
+        hideCounter
+      />
     </View>
   );
 }
@@ -201,35 +182,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fullImage: {
-    width: '90%',
-    height: '80%',
-    borderRadius: 10,
-  },
-  fullImageFallback: {
-    width: '90%',
-    height: '80%',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
   },
 });
