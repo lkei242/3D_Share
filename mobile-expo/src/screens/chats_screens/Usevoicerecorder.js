@@ -25,7 +25,7 @@ import { formatTime } from './Chatconstants';
 //
 // Se usa así dentro de ChatDetailsScreen.js:
 //   const recorder = useVoiceRecorder(ensureChatId);
-export default function useVoiceRecorder(ensureChatId) {
+export default function useVoiceRecorder(ensureChatId, customSaveCallback = null) {
   const [isLocked, setIsLocked] = useState(false);
   const waveBarAnims = useRef(
     Array.from({ length: 22 }, () => new Animated.Value(0.3))
@@ -205,25 +205,28 @@ export default function useVoiceRecorder(ensureChatId) {
       }
 
       const durationText = formatTime(duration);
-      const activeChatId = await ensureChatId();
-      const messagesRef = collection(db, `chats/${activeChatId}/messages`);
-      await addDoc(messagesRef, {
-        text: 'Nota de voz',
-        type: 'audio',
-        mediaUrl: uploadData.url,
-        audioDuration: durationText,
-        sender: user.uid,
-        createdAt: serverTimestamp(),
-        read: false,
-        isFavorite: false
-      });
-
-      const chatRef = doc(db, `chats/${activeChatId}`);
-      await updateDoc(chatRef, {
-        lastMessage: `🎙️ Nota de voz (${durationText})`,
-        lastMessageTime: serverTimestamp(),
-        lastSender: user.uid
-      });
+      if (customSaveCallback) {
+        await customSaveCallback(uploadData.url, durationText, duration);
+      } else {
+        const activeChatId = await ensureChatId();
+        const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+        await addDoc(messagesRef, {
+          text: 'Nota de voz',
+          type: 'audio',
+         mediaUrl: uploadData.url,
+         audioDuration: durationText,
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false
+        });
+        const chatRef = doc(db, `chats/${activeChatId}`);
+        await updateDoc(chatRef, {
+          lastMessage: `🎙️ Nota de voz (${durationText})`,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid
+        });
+      }
 
     } catch (err) {
       console.log('Error deteniendo grabación:', err);

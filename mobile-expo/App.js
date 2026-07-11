@@ -55,6 +55,7 @@ import EditPostScreen from './src/screens/EditPostScreen';
 import UserProfileScreen from './src/screens/UserProfileScreen';
 import UserProfileContactsScreen from './src/screens/UserProfileContactsScreen';
 import ChatDetailGroupScreen from './src/screens/chats_screens/ChatDetailGroup';
+import BroadcastDetailScreen from './src/screens/chats_screens/BroadcastDetail';
 
 const MiTemaClaro = {
   ...DefaultTheme,
@@ -192,6 +193,7 @@ function AppContent() {
           <Stack.Screen name="EditBirthDateScreen" component={EditBirthDateScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetail" component={ChatDetailsScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ChatDetailGroup" component={ChatDetailGroupScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="BroadcastDetail" component={BroadcastDetailScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
