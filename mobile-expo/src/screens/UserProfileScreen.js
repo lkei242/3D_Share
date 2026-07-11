@@ -21,7 +21,7 @@ import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
 import { formatViews } from './config/formatViews';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser, muteUser, unmuteUser, checkIfMuted, reportUser } from './config/userActions';
 import { emitBlockUser } from './config/BlockBus';
 import { emitMuteUser } from './config/MuteBus';
@@ -51,6 +51,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showToastIcon, setShowToastIcon] = useState(true);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
   const [pinnedPosts, setPinnedPosts] = useState([]);
@@ -72,9 +73,10 @@ export default function UserProfileScreen({ route, navigation }) {
   const currentUser = auth.currentUser;
   const moreButtonRef = useRef(null);
 
-  const showToast = (message) => {
+  const showToast = (message, showIcon = true) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToastMessage(message);
+    setShowToastIcon(showIcon);
     toastAnim.setValue(0);
     Animated.timing(toastAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     toastTimeoutRef.current = setTimeout(() => {
@@ -280,6 +282,87 @@ export default function UserProfileScreen({ route, navigation }) {
       });
     } catch (error) {
       console.log('Error al compartir:', error);
+    }
+  };
+
+  const handleMessagePress = async () => {
+    if (!currentUser || currentUser.uid === userId) return;
+    if (!isFollowing) {
+      showToast('Para mandar un mensaje a cualquier usuario primero debes seguirlo', false);
+      return;
+    }
+    try {
+      // Buscar un chat existente con esta persona
+      const q = query(
+        collection(db, 'chats'),
+        where('participants', 'array-contains', currentUser.uid)
+      );
+      const snap = await getDocs(q);
+      const existingChatDoc = snap.docs.find(d => {
+        const data = d.data();
+        return (
+          (data.participants || []).length === 2 &&
+          data.participants.includes(userId) &&
+          !(data.deletedBy || []).includes(currentUser.uid)
+        );
+      });
+
+      if (existingChatDoc) {
+        // Chat existente → navegar con ese id
+        navigation.navigate('ChatDetail', {
+          chatId: existingChatDoc.id,
+          name: profileName || username,
+          username: username,
+          profilePicture: profilePicture || '',
+          otherUid: userId,
+        });
+      } else {
+        // Buscar chat eliminado (para restaurarlo)
+        const deletedChatDoc = snap.docs.find(d => {
+          const data = d.data();
+          const deletedBy = data.deletedBy || [];
+          return data.participants?.includes(userId) && deletedBy.includes(currentUser.uid);
+        });
+
+        if (deletedChatDoc) {
+          const deletedBy = deletedChatDoc.data().deletedBy || [];
+          const otherDeleted = deletedBy.includes(userId);
+          if (otherDeleted) {
+            // Ambos eliminaron → navegar con null para que se cree uno nuevo
+            navigation.navigate('ChatDetail', {
+              chatId: null,
+              name: profileName || username,
+              username: username,
+              profilePicture: profilePicture || '',
+              otherUid: userId,
+              isNewChat: true,
+            });
+          } else {
+            // Solo yo eliminé → restaurar
+            await updateDoc(deletedChatDoc.ref, { deletedBy: arrayRemove(currentUser.uid) });
+            navigation.navigate('ChatDetail', {
+              chatId: deletedChatDoc.id,
+              name: profileName || username,
+              username: username,
+              profilePicture: profilePicture || '',
+              otherUid: userId,
+            });
+          }
+        } else {
+          // No existe chat → navegar con null (se crea al primer mensaje)
+          navigation.navigate('ChatDetail', {
+            chatId: null,
+            name: profileName || username,
+            username: username,
+            profilePicture: profilePicture || '',
+            otherUid: userId,
+            isNewChat: true,
+          });
+        }
+      }
+    } catch (err) {
+      console.log('Error al abrir chat:', err);
+      showToast('No se pudo abrir el chat');
     }
   };
 
@@ -685,7 +768,7 @@ export default function UserProfileScreen({ route, navigation }) {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.btnSecondary} activeOpacity={0.8} onPress={handleMessagePress}>
                   <Feather name="message-circle" size={16} color={isDark ? '#FFF' : '#333'} style={{ marginRight: 6 }} />
                   <Text style={[styles.btnSecondaryText, { color: isDark ? '#FFF' : '#333' }]}>
                     Mensaje
@@ -896,7 +979,7 @@ export default function UserProfileScreen({ route, navigation }) {
       </Modal>
       {toastMessage !== '' && (
         <Animated.View style={[styles.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
-          <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+          {showToastIcon && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
@@ -905,426 +988,73 @@ export default function UserProfileScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  // HEADER
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-  },
-  headerBtn: {
-    padding: 6,
-  },
-  headerUsername: {
-    flex: 1,
-    marginLeft: 18,
-    fontSize: 22,
-    fontFamily: 'Nunito-BoldItalic',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  // PERFIL
-  profileSection: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 4,
-  },
-  avatarStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  avatarWrapper: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    overflow: 'hidden',
-    marginRight: 1,
-  },
-  avatarFallback: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  statsRow: {
-    flex: 1,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  statsNumbers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 32,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontFamily: 'Nunito-Bold',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontFamily: 'Nunito-Regular',
-    marginTop: 3,
-    textAlign: 'center',
-  },
-  userHandle: {
-    fontSize: 16,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 2,
-    marginLeft: 10,
-  },
-  // NOMBRE Y BIO
-  profileName: {
-    fontSize: 17,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 6,
-  },
-  bioText: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  // BOTONES
-  buttonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  btnPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#9DBD3F',
-    borderRadius: 10,
-    paddingVertical: 10,
-  },
-  btnFollowing: {
-    backgroundColor: '#444',
-  },
-  btnBlocked: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    paddingVertical: 10,
-  },
-  btnBlockedText: {
-    fontFamily: 'Nunito-Bold',
-    fontSize: 14,
-  },
-  btnPrimaryText: {
-    color: '#FFF',
-    fontFamily: 'Nunito-Bold',
-    fontSize: 14,
-  },
-  btnSecondary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: 10,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: '#9DBD3F',
-  },
-  btnSecondaryText: {
-    fontFamily: 'Nunito-Bold',
-    fontSize: 14,
-  },
-  btnIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // TABS
-  tabsContainer: {
-    flexDirection: 'row',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2.5,
-    borderBottomColor: 'transparent',
-  },
-  tabText: {
-    fontSize: 13,
-    fontFamily: 'Nunito-Bold',
-  },
-  // CONTENIDO
-  tabContent: {
-    paddingHorizontal: 5,
-    paddingTop: 6,
-  },
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 4,
-  },
-  gridItem: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: 6,
-    overflow: 'hidden',
-    backgroundColor: '#333',
-  },
-  gridImage: {
-    width: '100%',
-    height: '100%',
-  },
-  pinBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#546F1C',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gridPriceTag: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  gridPriceText: {
-    color: '#fff',
-    fontSize: 10,
-    fontFamily: 'Nunito-Bold',
-  },
-  // CONTACTOS MEJORADOS
-  contactsContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 16,
-  },
-  contactsSection: {
-    marginBottom: 24,
-  },
-  contactsSectionTitle: {
-    fontSize: 16,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 12,
-    marginLeft: 4,
-  },
-  contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  contactIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  contactInfo: {
-    flex: 1,
-  },
-  contactLabel: {
-    fontSize: 12,
-    fontFamily: 'Nunito-Regular',
-    marginBottom: 2,
-  },
-  contactValue: {
-    fontSize: 15,
-    fontFamily: 'Nunito-Bold',
-  },
-  socialGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  socialButton: {
-    width: (screenWidth - 60) / 3,
-    aspectRatio: 1,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  socialButtonText: {
-    fontSize: 12,
-    fontFamily: 'Nunito-Bold',
-    marginTop: 8,
-  },
-  emptyContactsContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyContactsTitle: {
-    fontSize: 18,
-    fontFamily: 'Nunito-Bold',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyContactsSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 60,
-    fontSize: 15,
-    fontFamily: 'Nunito-Regular',
-  },
-  // Tus otros perfiles
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 10,
-  },
-  profileCardContent: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 15,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 2,
-  },
-  profileUrl: {
-    fontSize: 13,
-    fontFamily: 'Nunito-Regular',
-  },
-  // POP-UP / MODAL DE REPORTE
-  reportOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  reportModal: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 20, // Bordes más redondeados y modernos
-    padding: 24,
-    paddingTop: 16,
-    // Sombras para iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    // Elevación para Android
-    elevation: 15,
-  },
-  reportCloseBtn: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 10,
-  },
-  reportHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 12,
-  },
-  reportIconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  reportTitle: {
-    fontSize: 20,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  reportSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 10,
-  },
-  reportOptionsWrapper: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  reportOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  reportOptionText: {
-    fontSize: 15,
-    fontFamily: 'Nunito-SemiBold',
-    flex: 1,
-  },
-  toast: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#27AE60',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 10,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  toastText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'Nunito-Bold',
-    flex: 1,
-  },
+container:{flex:1},
+header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:8,paddingBottom:10,borderBottomWidth:1},
+headerBtn:{padding:6},
+headerUsername:{flex:1,marginLeft:18,fontSize:22,fontFamily:'Nunito-BoldItalic'},
+headerActions:{flexDirection:'row',alignItems:'center'},
+profileSection:{paddingHorizontal:16,paddingTop:20,paddingBottom:4},
+avatarStatsRow:{flexDirection:'row',alignItems:'center',marginBottom:14},
+avatarWrapper:{width:90,height:90,borderRadius:45,borderWidth:3,overflow:'hidden',marginRight:1},
+avatarFallback:{width:'100%',height:'100%',alignItems:'center',justifyContent:'center'},
+avatarImage:{width:'100%',height:'100%'},
+statsRow:{flex:1,alignItems:'flex-start',justifyContent:'center'},
+statsNumbers:{flexDirection:'row',alignItems:'center',justifyContent:'space-around',width:'100%',marginTop:4},
+statDivider:{width:1,height:32},
+statItem:{alignItems:'center',flex:1},
+statNumber:{fontSize:20,fontFamily:'Nunito-Bold'},
+statLabel:{fontSize:11,fontFamily:'Nunito-Regular',marginTop:3,textAlign:'center'},
+userHandle:{fontSize:16,fontFamily:'Nunito-Bold',marginBottom:2,marginLeft:10},
+profileName:{fontSize:17,fontFamily:'Nunito-Bold',marginBottom:6},
+bioText:{fontSize:14,fontFamily:'Nunito-Regular',lineHeight:20,marginBottom:16},
+buttonsRow:{flexDirection:'row',gap:8,marginBottom:8,marginTop:4},
+btnPrimary:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',backgroundColor:'#9DBD3F',borderRadius:10,paddingVertical:10},
+btnFollowing:{backgroundColor:'#444'},
+btnBlocked:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',borderRadius:10,paddingVertical:10},
+btnBlockedText:{fontFamily:'Nunito-Bold',fontSize:14},
+btnPrimaryText:{color:'#FFF',fontFamily:'Nunito-Bold',fontSize:14},
+btnSecondary:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',backgroundColor:'transparent',borderRadius:10,paddingVertical:10,borderWidth:1.5,borderColor:'#9DBD3F'},
+btnSecondaryText:{fontFamily:'Nunito-Bold',fontSize:14},
+btnIcon:{width:42,height:42,borderRadius:10,alignItems:'center',justifyContent:'center'},
+tabsContainer:{flexDirection:'row'},
+tab:{flex:1,paddingVertical:12,alignItems:'center',borderBottomWidth:2.5,borderBottomColor:'transparent'},
+tabText:{fontSize:13,fontFamily:'Nunito-Bold'},
+tabContent:{paddingHorizontal:5,paddingTop:6},
+gridContainer:{flexDirection:'row',flexWrap:'wrap',gap:4,marginTop:4},
+gridItem:{width:GRID_ITEM_SIZE,height:GRID_ITEM_SIZE,borderRadius:6,overflow:'hidden',backgroundColor:'#333'},
+gridImage:{width:'100%',height:'100%'},
+pinBadge:{position:'absolute',top:4,right:4,backgroundColor:'#546F1C',borderRadius:10,width:20,height:20,alignItems:'center',justifyContent:'center'},
+gridPriceTag:{position:'absolute',bottom:4,left:4,backgroundColor:'rgba(0,0,0,0.65)',borderRadius:4,paddingHorizontal:5,paddingVertical:2},
+gridPriceText:{color:'#fff',fontSize:10,fontFamily:'Nunito-Bold'},
+contactsContainer:{paddingHorizontal:12,paddingTop:16},
+contactsSection:{marginBottom:24},
+contactsSectionTitle:{fontSize:16,fontFamily:'Nunito-Bold',marginBottom:12,marginLeft:4},
+contactCard:{flexDirection:'row',alignItems:'center',padding:14,borderRadius:12,marginBottom:10},
+contactIconWrapper:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',marginRight:12},
+contactInfo:{flex:1},
+contactLabel:{fontSize:12,fontFamily:'Nunito-Regular',marginBottom:2},
+contactValue:{fontSize:15,fontFamily:'Nunito-Bold'},
+socialGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},
+socialButton:{width:(screenWidth-60)/3,aspectRatio:1,borderRadius:16,alignItems:'center',justifyContent:'center',marginBottom:10},
+socialButtonText:{fontSize:12,fontFamily:'Nunito-Bold',marginTop:8},
+emptyContactsContainer:{alignItems:'center',justifyContent:'center',paddingVertical:60,paddingHorizontal:40},
+emptyContactsTitle:{fontSize:18,fontFamily:'Nunito-Bold',marginTop:16,marginBottom:8,textAlign:'center'},
+emptyContactsSubtitle:{fontSize:14,fontFamily:'Nunito-Regular',textAlign:'center',lineHeight:20},
+emptyText:{textAlign:'center',marginTop:60,fontSize:15,fontFamily:'Nunito-Regular'},
+profileCard:{flexDirection:'row',alignItems:'center',borderWidth:1,borderRadius:12,paddingHorizontal:16,paddingVertical:14,marginBottom:10},
+profileCardContent:{flex:1},
+profileName:{fontSize:15,fontFamily:'Nunito-Bold',marginBottom:2},
+profileUrl:{fontSize:13,fontFamily:'Nunito-Regular'},
+reportOverlay:{flex:1,justifyContent:'center',alignItems:'center',padding:20},
+reportModal:{width:'100%',maxWidth:400,borderRadius:20,padding:24,paddingTop:16,shadowColor:'#000',shadowOffset:{width:0,height:10},shadowOpacity:0.25,shadowRadius:20,elevation:15},
+reportCloseBtn:{position:'absolute',top:16,right:16,zIndex:10},
+reportHeader:{alignItems:'center',marginBottom:24,marginTop:12},
+reportIconBadge:{width:60,height:60,borderRadius:30,alignItems:'center',justifyContent:'center',marginBottom:16},
+reportTitle:{fontSize:20,fontFamily:'Nunito-Bold',marginBottom:8,textAlign:'center'},
+reportSubtitle:{fontSize:14,fontFamily:'Nunito-Regular',textAlign:'center',lineHeight:20,paddingHorizontal:10},
+reportOptionsWrapper:{borderRadius:12,overflow:'hidden'},
+reportOption:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingVertical:16,paddingHorizontal:16,borderBottomWidth:1},
+reportOptionText:{fontSize:15,fontFamily:'Nunito-SemiBold',flex:1},
+toast:{position:'absolute',top:60,left:20,right:20,flexDirection:'row',alignItems:'center',backgroundColor:'#323232',paddingVertical:12,paddingHorizontal:16,borderRadius:10,gap:10,elevation:6,shadowColor:'#000',shadowOffset:{width:0,height:4},shadowOpacity:0.3,shadowRadius:6},
+toastText:{color:'#FFF',fontSize:14,fontFamily:'Nunito-Bold',flex:1},
 });

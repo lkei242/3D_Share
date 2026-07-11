@@ -54,18 +54,18 @@ import { emitMuteUser } from '../config/MuteBus';
 import { muteUser, unmuteUser, checkIfMuted, checkIfBlocked, blockUser, unblockUser, unfollowUser, checkIfFollowing, reportPost } from '../config/userActions';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const coverAspectCache = new Map();
+const savedStatusCache = new Map();
 
-// ============================================================
-// 🆕 COMPONENTE: VideoThumbnail (miniatura estática, no interactiva)
+// COMPONENTE: VideoThumbnail (miniatura estática, no interactiva)
 // El toque para reproducir/ver en grande lo maneja el TouchableOpacity
 // exterior del carrusel, igual que con las imágenes: así abrir un video
 // se siente idéntico a abrir una imagen (mismo modal, mismo gesto).
-// ============================================================
 const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
   const player = useVideoPlayer(uri, (playerInstance) => {
     playerInstance.loop = false;
     playerInstance.muted = true;
-    // No reproducir acá: esto es solo una miniatura (primer frame).
+    // No reproducir aca: esto es solo una miniatura (primer frame).
   });
 
   return (
@@ -92,9 +92,7 @@ const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
   );
 });
 
-// ============================================================
 // COMPONENTE: PostItem (un post individual, autónomo)
-// ============================================================
 const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress, onOpenMediaViewer }) {
   const currentUser = auth.currentUser;
   const [liked, setLiked] = useState(false);
@@ -105,15 +103,34 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
 
   useEffect(() => {
     if (!currentUser || !post) return;
+    if (savedStatusCache.has(post.id)) {
+      setSaved(savedStatusCache.get(post.id));
+      return;
+    }
     let cancelled = false;
     const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
     getDoc(savedRef).then((snap) => {
-      if (!cancelled) setSaved(snap.exists());
+      const exists = snap.exists();
+      savedStatusCache.set(post.id, exists);
+      if (!cancelled) setSaved(exists);
     });
     return () => { cancelled = true; };
   }, [post.id, currentUser?.uid]);
   const mediaList = post.media && post.media.length > 0 ? post.media : [{ url: post.image, type: 'image' }];
   const postViews = post.views || 0;
+
+  // 🆕 Relación de aspecto de la imagen de portada: usa cache si ya se conoce
+  const DEFAULT_ASPECT_RATIO = 4 / 5;
+  const [coverAspectRatio, setCoverAspectRatio] = useState(
+    () => coverAspectCache.get(mediaList[0]?.url) || DEFAULT_ASPECT_RATIO
+  );
+
+  const MIN_MEDIA_HEIGHT = pageHeight * 0.35;
+  const MAX_MEDIA_HEIGHT = pageHeight * 0.75;
+  const mediaHeight = Math.min(
+    Math.max(screenWidth / coverAspectRatio, MIN_MEDIA_HEIGHT),
+    MAX_MEDIA_HEIGHT
+  );
 
   const DESCRIPTION_LIMIT = 100;
   const fullDescription = post.description || 'Sin descripción adicional.';
@@ -155,6 +172,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
     if (saved) {
       await deleteDoc(savedRef);
       setSaved(false);
+      savedStatusCache.set(post.id, false); // 🆕
     } else {
       await setDoc(savedRef, {
         userId: currentUser.uid,
@@ -165,17 +183,12 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
         createdAt: new Date(),
       });
       setSaved(true);
+      savedStatusCache.set(post.id, true); // 🆕
     }
   };
 
   return (
-    <View
-      style={{
-        height: pageHeight,
-        backgroundColor: colors.background,
-        position: 'relative',
-      }}
-    >
+    <View style={{ backgroundColor: colors.background, position: 'relative' }}>
       {/* USER INFO */}
       <TouchableOpacity style={styles.userInfoRow} onPress={onAuthorPress} activeOpacity={0.7}>
         <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
@@ -205,14 +218,9 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
       </TouchableOpacity>
 
       {/* CONTENIDO SCROLLEABLE INTERNO */}
-      <View
-        style={{
-          flex: 1,
-          height: pageHeight - 48,
-        }}
-      >
+      <View>
         {/* POST MEDIA CAROUSEL */}
-        <View style={styles.imageWrapper}>
+        <View style={[styles.imageWrapper, { height: mediaHeight }]}>
           <FlatList
             data={mediaList}
             horizontal
@@ -238,7 +246,18 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                     </View>
                   )
                 ) : (
-                  <Image source={{ uri: item.url }} style={styles.postImage} resizeMode="cover" />
+                  <Image
+                    source={{ uri: item.url }}
+                    style={styles.postImage}
+                    resizeMode="cover"
+                    onLoad={index === 0 ? (e) => {
+                      const { width: w, height: h } = e.nativeEvent.source;
+                      if (w > 0 && h > 0) {
+                        coverAspectCache.set(item.url, w / h);
+                        setCoverAspectRatio(w / h);
+                      }
+                    } : undefined}
+                  />
                 )}
               </TouchableOpacity>
             )}
@@ -312,6 +331,12 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
 // ============================================================
 export default function PostDetailScreen({ route, navigation }) {
   const { post, posts = [] } = route.params;
+
+  // 🔧 El guard de "post inválido" tiene que ir ANTES de cualquier hook.
+  // Estaba después de ~24 hooks y antes de otros ~16, violando las
+  // Reglas de los Hooks (podía tirar "Rendered fewer hooks than expected").
+  if (!post) return null;
+
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
@@ -326,6 +351,7 @@ export default function PostDetailScreen({ route, navigation }) {
   const [lastVisiblePost, setLastVisiblePost] = useState(null);
   const initialIndex = postsList.findIndex((p) => p.id === post.id);
   const validIndex = initialIndex >= 0 ? initialIndex : 0;
+  const [isReady, setIsReady] = useState(validIndex === 0);
   const [mediaViewerPost, setMediaViewerPost] = useState(null);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
   const [commentsPost, setCommentsPost] = useState(null);
@@ -337,6 +363,7 @@ export default function PostDetailScreen({ route, navigation }) {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportPostData, setReportPostData] = useState(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletePostData, setDeletePostData] = useState(null); // 🔧 guarda el post a borrar (menuPost se vacía antes de confirmar)
   const [toastMessage, setToastMessage] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
@@ -352,10 +379,11 @@ export default function PostDetailScreen({ route, navigation }) {
   };
 
   const handleDeletePost = async () => {
+    if (!deletePostData) return; // 🔧 sin post guardado no hay nada que borrar
     try {
-      const postId = menuPost.id;
+      const postId = deletePostData.id;
       await deleteDoc(doc(db, 'posts', postId));
-      const allMedia = menuPost.media || (menuPost.image ? [{ url: menuPost.image, type: 'image' }] : []);
+      const allMedia = deletePostData.media || (deletePostData.image ? [{ url: deletePostData.image, type: 'image' }] : []);
       for (const m of allMedia) {
         deleteMediaFromCloudinary(m.url).catch(() => {});
       }
@@ -370,18 +398,18 @@ export default function PostDetailScreen({ route, navigation }) {
         } catch (e) {}
       }
       setDeleteModalVisible(false);
-      setMenuPost(null);
+      setDeletePostData(null);
       navigation.goBack();
     } catch (error) {
       console.log('Error eliminando publicación:', error);
       setDeleteModalVisible(false);
+      setDeletePostData(null);
       showToast('Error al eliminar la publicación');
     }
   };
 
-  if (!post) return null;
-
   const flatListRef = useRef(null);
+  const isLoadingMoreRef = useRef(false);
 
   useEffect(() => {
     if (flatListRef.current && validIndex > 0) {
@@ -393,17 +421,12 @@ export default function PostDetailScreen({ route, navigation }) {
 
   const onScrollToIndexFailed = useCallback((info) => {
     if (flatListRef.current) {
-      flatListRef.current.scrollToOffset({
-        offset: info.index * PAGE_HEIGHT,
-        animated: false,
-      });
+      const approxOffset = info.averageItemLength
+        ? info.averageItemLength * info.index
+        : PAGE_HEIGHT * info.index;
+      flatListRef.current.scrollToOffset({ offset: approxOffset, animated: false });
       setTimeout(() => {
-        if (flatListRef.current) {
-          flatListRef.current.scrollToIndex({
-            index: info.index,
-            animated: false,
-          });
-        }
+        flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
       }, 100);
     }
   }, [PAGE_HEIGHT]);
@@ -444,6 +467,7 @@ export default function PostDetailScreen({ route, navigation }) {
     viewableItems.forEach((item) => {
       if (item.isViewable && item.item?.id) {
         incrementView(item.item.id);
+        if (item.item.id === post.id) setIsReady(true); // 🆕 ya se asentó en el post correcto
       }
     });
   });
@@ -451,13 +475,14 @@ export default function PostDetailScreen({ route, navigation }) {
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 });
 
   const loadMorePosts = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (isLoadingMoreRef.current || !hasMore) return;
+    isLoadingMoreRef.current = true;
     setLoadingMore(true);
     try {
       const lastPost = postsList[postsList.length - 1];
-      if (!lastPost) { setLoadingMore(false); return; }
+      if (!lastPost) { return; }
       const lastDocSnap = await getDoc(doc(db, 'posts', lastPost.id));
-      if (!lastDocSnap.exists()) { setLoadingMore(false); return; }
+      if (!lastDocSnap.exists()) { return; }
       const q = query(
         collection(db, 'posts'),
         orderBy('createdAt', 'desc'),
@@ -483,27 +508,48 @@ export default function PostDetailScreen({ route, navigation }) {
         };
       });
       if (newDocs.length > 0) {
-        setPostsList(prev => [...prev, ...newDocs]);
+        setPostsList(prev => {
+          const existingIds = new Set(prev.map(p => p.id)); // 🆕 evita duplicados aunque se cuele una carga doble
+          const uniqueNewDocs = newDocs.filter(d => !existingIds.has(d.id));
+          return [...prev, ...uniqueNewDocs];
+        });
       }
       setHasMore(snap.docs.length === 10);
     } catch (e) {
       console.log('Error loading more posts:', e);
     } finally {
+      isLoadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, postsList]);
+  }, [hasMore, postsList]);
+
+  useEffect(() => {
+    postsList.forEach((p) => {
+      const coverItem = (p.media && p.media.length > 0) ? p.media[0] : { url: p.image, type: 'image' };
+      if (!coverItem.url || coverItem.type === 'video' || coverAspectCache.has(coverItem.url)) return;
+      Image.getSize(
+        coverItem.url,
+        (w, h) => { if (w > 0 && h > 0) coverAspectCache.set(coverItem.url, w / h); },
+        () => {}
+      );
+    });
+  }, [postsList]);
 
   const handlePostUpdated = useCallback((postId, updatedFields) => {
     setPostsList((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updatedFields } : p)));
   }, []);
 
-  const onScroll = useRef((e) => {
+  // 🔧 useCallback en vez de useRef: con useRef la función quedaba "congelada"
+  // con el postsList del primer render, así que nunca detectaba los posts
+  // cargados después con loadMorePosts. A diferencia de onViewableItemsChanged,
+  // el prop onScroll de FlatList no necesita mantener la misma identidad.
+  const onScroll = useCallback((e) => {
     const offsetY = e.nativeEvent.contentOffset.y;
     const index = Math.round(offsetY / PAGE_HEIGHT);
     if (postsList[index]?.id) {
       incrementView(postsList[index].id);
     }
-  });
+  }, [PAGE_HEIGHT, postsList]);
 
   const handleOpenMediaViewer = useCallback((post, index) => {
     setMediaViewerPost(post);
@@ -569,36 +615,41 @@ export default function PostDetailScreen({ route, navigation }) {
           <View style={{ width: 28 }} />
         </View>
 
+      <View style={{ flex: 1 }}>
         <FlatList
           ref={flatListRef}
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingBottom: 0,
+            paddingBottom: insets.bottom,
           }}
           data={postsList}
           keyExtractor={(item) => item.id}
           initialScrollIndex={validIndex}
           initialNumToRender={1}
-          getItemLayout={(data, index) => ({
-            length: PAGE_HEIGHT,
-            offset: PAGE_HEIGHT * index,
-            index,
-          })}
           renderItem={renderPostItem}
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
-          onScroll={onScroll.current}
+          onScroll={onScroll}
           scrollEventThrottle={16}
           horizontal={false}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={true}
-          windowSize={3}
+          windowSize={7}
           onEndReached={loadMorePosts}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 20 }} /> : null}
           onScrollToIndexFailed={onScrollToIndexFailed}
           keyboardShouldPersistTaps="handled"
         />
+          {!isReady && (
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }]}
+              pointerEvents="none"
+            >
+              <ActivityIndicator size="small" color="#546F1C" />
+            </View>
+          )}
+      </View>
       </View>
       <CommentModal
         visible={commentsPost !== null}
@@ -683,6 +734,7 @@ export default function PostDetailScreen({ route, navigation }) {
             });
           }
           if (key === 'delete') {
+            setDeletePostData(menuPost); // 🔧 se captura ANTES de vaciar menuPost
             setMenuPost(null);
             setDeleteModalVisible(true);
           }
@@ -766,14 +818,14 @@ export default function PostDetailScreen({ route, navigation }) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-      <Modal visible={deleteModalVisible} transparent animationType="slide" onRequestClose={() => setDeleteModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setDeleteModalVisible(false)}>
+      <Modal visible={deleteModalVisible} transparent animationType="slide" onRequestClose={() => { setDeleteModalVisible(false); setDeletePostData(null); }}>
+        <TouchableWithoutFeedback onPress={() => { setDeleteModalVisible(false); setDeletePostData(null); }}>
           <View style={styles.reportOverlay}>
             <TouchableWithoutFeedback>
               <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
                 <TouchableOpacity
                   style={styles.reportCloseBtn}
-                  onPress={() => setDeleteModalVisible(false)}
+                  onPress={() => { setDeleteModalVisible(false); setDeletePostData(null); }}
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 >
                   <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
@@ -792,7 +844,7 @@ export default function PostDetailScreen({ route, navigation }) {
                 <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 12, marginTop: 8 }}>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
-                    onPress={() => setDeleteModalVisible(false)}
+                    onPress={() => { setDeleteModalVisible(false); setDeletePostData(null); }}
                     activeOpacity={0.6}
                   >
                     <Text style={{ color: colors.text, fontFamily: 'Nunito-Bold', fontSize: 15 }}>Cancelar</Text>
@@ -824,195 +876,44 @@ export default function PostDetailScreen({ route, navigation }) {
 // ESTILOS
 // ============================================================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   backButton: { padding: 4 },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
+  headerTitle: { fontSize: 16, fontWeight: '700', letterSpacing: 1 },
   moreButton: { padding: 4 },
-  userInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  avatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarFallback: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  userInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 },
+  avatarContainer: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarFallback: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   userNameContainer: { marginLeft: 8, flex: 1 },
   userNameText: { fontSize: 13, fontWeight: '600' },
   userHandleText: { fontSize: 11 },
-  imageWrapper: {
-    width: screenWidth,
-    flex: 1,
-    position: 'relative',
-  },
+  imageWrapper: { width: screenWidth, position: 'relative' },
   postImage: { width: '100%', height: '100%' },
-  // 🆕 Estilos para el botón de play overlay
-  playButtonOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.15)', // Sombra sutil para resaltar el botón
-  },
-  priceOverlay: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
+  playButtonOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  priceOverlay: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   priceText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  interactionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
+  interactionBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6 },
   leftIcons: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginRight: 14 },
   viewsContainer: { flexDirection: 'row', alignItems: 'center' },
   viewsText: { fontSize: 12, marginLeft: 3 },
-  descriptionCard: {
-    marginHorizontal: 12,
-    marginBottom: 6,
-    padding: 10,
-    borderRadius: 8,
-  },
+  descriptionCard: { marginHorizontal: 12, marginBottom: 6, padding: 10, borderRadius: 8 },
   descriptionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
   descriptionText: { fontSize: 13, lineHeight: 18 },
   seeMoreText: { fontSize: 14, fontWeight: '700', color: '#9DBD3F' },
-  webLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 6,
-  },
+  webLinkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 },
   webLinkText: { fontSize: 13, color: '#9DBD3F', flex: 1, textDecorationLine: 'underline' },
-  reportOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  reportModal: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 20,
-    padding: 24,
-    paddingTop: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  reportCloseBtn: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 10,
-  },
-  reportHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 12,
-  },
-  reportIconBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  reportTitle: {
-    fontSize: 20,
-    fontFamily: 'Nunito-Bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  reportSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Nunito-Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 10,
-  },
-  reportOptionsWrapper: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  reportOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  reportOptionText: {
-    fontSize: 15,
-    fontFamily: 'Nunito-SemiBold',
-    flex: 1,
-  },
-  toast: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#27AE60',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 10,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  toastText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'Nunito-Bold',
-    flex: 1,
-  },
+  reportOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  reportModal: { width: '100%', maxWidth: 400, borderRadius: 20, padding: 24, paddingTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 15 },
+  reportCloseBtn: { position: 'absolute', top: 16, right: 16, zIndex: 10 },
+  reportHeader: { alignItems: 'center', marginBottom: 24, marginTop: 12 },
+  reportIconBadge: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  reportTitle: { fontSize: 20, fontFamily: 'Nunito-Bold', marginBottom: 8, textAlign: 'center' },
+  reportSubtitle: { fontSize: 14, fontFamily: 'Nunito-Regular', textAlign: 'center', lineHeight: 20, paddingHorizontal: 10 },
+  reportOptionsWrapper: { borderRadius: 12, overflow: 'hidden' },
+  reportOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1 },
+  reportOptionText: { fontSize: 15, fontFamily: 'Nunito-SemiBold', flex: 1 },
+  toast: { position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#27AE60', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, gap: 10, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
+  toastText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold', flex: 1 },
 });
