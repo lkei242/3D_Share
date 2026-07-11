@@ -41,7 +41,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 
-import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime } from './Chatconstants';
+import { GREEN_ACCENT, SCREEN_WIDTH, SCREEN_HEIGHT, getMediaCategory, formatTime, canEditMessage } from './Chatconstants';
 import styles from './Chatstyles';
 import MessageItem from './Messageitem';
 import MediaViewerModal from './Mediaviewer';
@@ -999,7 +999,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   };
 
   const handleStartEdit = () => {
-    if (!activeMsg || activeMsg.sender !== 'me') return;
+    if (!activeMsg || activeMsg.sender !== 'me' || !canEditMessage(activeMsg)) return;
     setInputText(activeMsg.text);
     setEditingMessageId(activeMsg.id);
     setReplyingTo(null);
@@ -1091,7 +1091,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               </TouchableOpacity>
 
               {/* Editar: solo si es 1 mensaje Y es mío */}
-              {selectedIds.length === 1 && activeMsg?.sender === 'me' && (
+              {selectedIds.length === 1 && activeMsg?.sender === 'me' && canEditMessage(activeMsg) && (
                 <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
                   <Ionicons name="pencil" size={28} color={colors.text} />
                 </TouchableOpacity>
