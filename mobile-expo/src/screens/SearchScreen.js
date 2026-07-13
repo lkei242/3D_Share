@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import CachedImage from './config/CachedImage';
 import { collection, query, orderBy, getDocs, limit, startAfter, where, documentId } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { formatViews } from './config/formatViews';
@@ -402,10 +403,9 @@ export default function SearchScreen({ navigation }) {
           {isFirstMediaVideo ? (
             <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
           ) : (
-            <Image
-              source={{ uri: item.image }}
+            <CachedImage
+              uri={item.image}
               style={styles.image}
-              resizeMode="cover"
             />
           )}
 
@@ -459,7 +459,7 @@ export default function SearchScreen({ navigation }) {
             <View style={styles.adFooter}>
               {ad.icon?.url ? (
                 <NativeAsset assetType={NativeAssetType.ICON}>
-                  <Image source={{ uri: ad.icon.url }} style={styles.adIcon} />
+                  <CachedImage uri={ad.icon.url} style={styles.adIcon} />
                 </NativeAsset>
               ) : null}
 
@@ -487,7 +487,7 @@ export default function SearchScreen({ navigation }) {
               style={styles.adSideCell}
               onPress={() => navigation.navigate('PostDetail', { post, posts: filteredPosts })}
             >
-              <Image source={{ uri: post.image }} style={styles.image} resizeMode="cover" />
+              <CachedImage uri={post.image} style={styles.image} />
             </TouchableOpacity>
           ))}
         </View>
@@ -518,7 +518,7 @@ export default function SearchScreen({ navigation }) {
       }}
     >
       {item.profilePicture ? (
-        <Image source={{ uri: item.profilePicture }} style={styles.userAvatar} />
+        <CachedImage uri={item.profilePicture} style={styles.userAvatar} />
       ) : (
         <View style={[styles.userAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
           <Ionicons
@@ -550,20 +550,41 @@ export default function SearchScreen({ navigation }) {
           source={require('../../assets/logo.png')}
           style={styles.logo}
         />
-        <View style={[styles.searchBar, { backgroundColor: isDark ? '#273500' : '#E8E8E8' }]}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={isDark ? '#FFF' : '#666'}
-          />
-          <TextInput
-            placeholder="Buscar publicaciones o usuarios..."
-            placeholderTextColor={isDark ? '#AAA' : '#888'}
-            style={[styles.input, { color: colors.text }]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        {isDark ? (
+          <LinearGradient
+            colors={['#546F1C', '#1C1C1C']}
+            locations={[0, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.searchBar}
+          >
+            <Feather name="search" size={20} color={'#FFFFFF'} style={styles.searchIcon} />
+            <TextInput
+              placeholder="Buscar publicaciones o usuarios..."
+              placeholderTextColor={'#FFFFFF'}
+              style={[styles.searchInput, { color: colors.text }]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </LinearGradient>
+        ) : (
+          <LinearGradient
+            colors={['#9DBD3F', '#ffffff']}
+            locations={[0, 1]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.searchBar}
+          >
+            <Feather name="search" size={20} color={'#121212'} style={styles.searchIcon} />
+            <TextInput
+              placeholder="Buscar publicaciones o usuarios..."
+              placeholderTextColor={'#121212'}
+              style={[styles.searchInput, { color: colors.text }]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </LinearGradient>
+        )}
       </View>
 
       {/* Tabs */}
@@ -679,13 +700,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    height: 40,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+    paddingHorizontal: 14,
+    height: 42,
   },
-  input: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
     flex: 1,
-    marginLeft: 8,
+    fontFamily: 'Nunito-Regular',
+    fontSize: 16,
     paddingVertical: 0,
   },
   tabsContainer: {

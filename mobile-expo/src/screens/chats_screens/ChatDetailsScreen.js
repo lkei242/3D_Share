@@ -73,7 +73,8 @@ export default function ChatDetailScreen({ route, navigation }) {
     name: chatName, 
     username: initialUsername, 
     profilePicture: initialProfilePicture,
-    otherUid
+    otherUid,
+    sharedPost: initialSharedPost,
   } = route.params;
 
   const [currentChatId, setCurrentChatId] = useState(chatId);
@@ -231,6 +232,29 @@ export default function ChatDetailScreen({ route, navigation }) {
     setMediaViewerVisible(true);
   }, [flatMediaItems]);
 
+  const handleOpenPost = useCallback((item) => {
+    const post = {
+      id: item.postId,
+      title: item.postTitle || '',
+      image: item.postImage || '',
+      price: item.postPrice || null,
+      author: item.postAuthor || '',
+      authorProfileName: item.postAuthorName || '',
+      authorUsername: item.postAuthorUsername || '',
+      authorProfilePicture: item.postAuthorProfilePicture || '',
+      media: item.postImage ? [{ url: item.postImage, type: 'image' }] : [],
+      description: '',
+      webLink: null,
+      views: 0,
+      totalImages: item.postImage ? 1 : 0,
+      hasVideo: false,
+    };
+    navigation.navigate('PostDetail', {
+      post,
+      posts: [post],
+    });
+  }, [navigation]);
+
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -354,6 +378,14 @@ export default function ChatDetailScreen({ route, navigation }) {
           locationAddress: data.locationAddress || null,
           mediaItems: data.mediaItems || null,
           caption: data.caption || null,
+          postId: data.postId || null,
+          postTitle: data.postTitle || null,
+          postImage: data.postImage || null,
+          postPrice: data.postPrice || null,
+          postAuthor: data.postAuthor || null,
+          postAuthorName: data.postAuthorName || null,
+          postAuthorUsername: data.postAuthorUsername || null,
+          postAuthorProfilePicture: data.postAuthorProfilePicture || null,
           replyTo: data.replyTo ? {
             ...data.replyTo,
             senderName: data.replyTo.senderId === auth.currentUser?.uid ? 'Tú' : chatName,
@@ -482,6 +514,52 @@ export default function ChatDetailScreen({ route, navigation }) {
       console.log("Error al enviar mensaje:", error);
     }
   };
+
+  // Auto-enviar publicación compartida desde PostDetailScreen
+  const sharedPostSent = useRef(false);
+  useEffect(() => {
+    if (!initialSharedPost || sharedPostSent.current) return;
+    if (!currentChatId && chatId) {
+      setCurrentChatId(chatId);
+    }
+    const doSend = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const activeChatId = await ensureChatId();
+        const messagesRef = collection(db, `chats/${activeChatId}/messages`);
+        const chatRef = doc(db, `chats/${activeChatId}`);
+        const post = initialSharedPost;
+        await addDoc(messagesRef, {
+          type: 'post',
+          text: `Publicación compartida: ${post.postTitle || ''}`,
+          postId: post.postId || post.id,
+          postTitle: post.postTitle || post.title,
+          postImage: post.postImage || post.image,
+          postPrice: post.postPrice || post.price,
+          postAuthor: post.postAuthor || post.author,
+          postAuthorName: post.postAuthorName || post.authorProfileName,
+          postAuthorUsername: post.postAuthorUsername || post.authorUsername || '',
+          postAuthorProfilePicture: post.postAuthorProfilePicture || post.authorProfilePicture || '',
+          sender: user.uid,
+          createdAt: serverTimestamp(),
+          read: false,
+          isFavorite: false,
+          delivered: false,
+        });
+        await updateDoc(chatRef, {
+          lastMessage: `📷 Publicación: ${post.postTitle || post.title || ''}`,
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+        });
+        sharedPostSent.current = true;
+        navigation.setParams({ sharedPost: undefined });
+      } catch (err) {
+        console.log('Error al compartir publicación:', err);
+      }
+    };
+    doSend();
+  }, [initialSharedPost, currentChatId, chatId]);
 
   const handleOpenCamera = async () => {
     setShowAttachmentMenu(false);
@@ -1030,11 +1108,12 @@ export default function ChatDetailScreen({ route, navigation }) {
         setShowMsgInfo={setShowMsgInfo}
         onOpenMedia={openMediaViewer}
         onSwipeReply={handleSwipeReply}
+        onOpenPost={handleOpenPost}
         otherProfilePicture={otherUser.profilePicture} 
         myProfilePicture={currentUserPic}
       />
     );
-  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, otherUser.profilePicture, currentUserPic, editingMessageId]);
+  }, [selectedIds, isDark, colors, chatName, openMediaViewer, handleSwipeReply, handleOpenPost, otherUser.profilePicture, currentUserPic, editingMessageId]);
 
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [mediaPreview, setMediaPreview] = useState(null); 

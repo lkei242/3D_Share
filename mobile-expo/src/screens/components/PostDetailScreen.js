@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
   Dimensions,
   TextInput,
@@ -19,12 +18,14 @@ import {
   Linking,
   TouchableWithoutFeedback,
   Animated,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../config/firebase';
+import CachedImage from '../config/CachedImage';
 import { deleteMediaFromCloudinary } from '../config/mediaHelper';
 import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
@@ -94,7 +95,7 @@ const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
 });
 
 // COMPONENTE: PostItem (un post individual, autónomo)
-const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress, onOpenMediaViewer }) {
+const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress, onOpenMediaViewer, onShare }) {
   const currentUser = auth.currentUser;
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -169,22 +170,27 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
 
   const handleSave = async () => {
     if (!currentUser || !post) return;
-    const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
-    if (saved) {
-      await deleteDoc(savedRef);
-      setSaved(false);
-      savedStatusCache.set(post.id, false); // 🆕
-    } else {
-      await setDoc(savedRef, {
-        userId: currentUser.uid,
-        postId: post.id,
-        postImage: post.image,
-        postTitle: post.title,
-        postAuthor: post.author,
-        createdAt: new Date(),
-      });
-      setSaved(true);
-      savedStatusCache.set(post.id, true); // 🆕
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+    savedStatusCache.set(post.id, !wasSaved);
+    try {
+      const savedRef = doc(db, 'saved', `${currentUser.uid}_${post.id}`);
+      if (wasSaved) {
+        await deleteDoc(savedRef);
+      } else {
+        await setDoc(savedRef, {
+          userId: currentUser.uid,
+          postId: post.id,
+          postImage: post.image,
+          postTitle: post.title,
+          postAuthor: post.author,
+          createdAt: new Date(),
+        });
+      }
+    } catch (error) {
+      console.log('Error al guardar:', error);
+      setSaved(wasSaved);
+      savedStatusCache.set(post.id, wasSaved);
     }
   };
 
@@ -194,7 +200,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
       <TouchableOpacity style={styles.userInfoRow} onPress={onAuthorPress} activeOpacity={0.7}>
         <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
           {authorProfilePicture ? (
-            <Image source={{ uri: authorProfilePicture }} style={styles.avatarImage} />
+            <CachedImage uri={authorProfilePicture} style={styles.avatarImage} />
           ) : (
             <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
               <Ionicons name="person-circle-outline" size={26} color="#94BA46" />
@@ -247,12 +253,11 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
                     </View>
                   )
                 ) : (
-                  <Image
-                    source={{ uri: item.url }}
+                  <CachedImage
+                    uri={item.url}
                     style={styles.postImage}
-                    resizeMode="cover"
                     onLoad={index === 0 ? (e) => {
-                      const { width: w, height: h } = e.nativeEvent.source;
+                      const { width: w, height: h } = e.source;
                       if (w > 0 && h > 0) {
                         coverAspectCache.set(item.url, w / h);
                         setCoverAspectRatio(w / h);
@@ -284,7 +289,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
             >
               <Feather name="message-circle" size={22} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity style={styles.iconButton} onPress={() => onShare && onShare(post)}>
               <Feather name="send" size={20} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.viewsContainer}>
@@ -353,6 +358,12 @@ export default function PostDetailScreen({ route, navigation }) {
   const initialIndex = postsList.findIndex((p) => p.id === post.id);
   const validIndex = initialIndex >= 0 ? initialIndex : 0;
   const [isReady, setIsReady] = useState(validIndex === 0);
+  useEffect(() => {
+    if (!isReady) {
+      const timer = setTimeout(() => setIsReady(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady]);
   const [mediaViewerPost, setMediaViewerPost] = useState(null);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
   const [commentsPost, setCommentsPost] = useState(null);
@@ -368,6 +379,12 @@ export default function PostDetailScreen({ route, navigation }) {
   const [toastMessage, setToastMessage] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
+
+  // --- Compartir publicación ---
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareContacts, setShareContacts] = useState([]);
+  const [loadingShareContacts, setLoadingShareContacts] = useState(false);
+  const [shareSearch, setShareSearch] = useState('');
 
   const showToast = (message) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -409,6 +426,126 @@ export default function PostDetailScreen({ route, navigation }) {
     }
   };
 
+  // --- Compartir publicación por chat ---
+  const handleOpenShare = useCallback(async () => {
+    setShareModalVisible(true);
+    setLoadingShareContacts(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      const followingIds = snapshot.docs.map(d => d.data().userId);
+      const contacts = [];
+      for (const uid of followingIds) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          let picUrl = data.profilePicture || '';
+          if (picUrl.startsWith('http://')) picUrl = picUrl.replace('http://', 'https://');
+          contacts.push({
+            id: uid,
+            uid,
+            name: data.profileName || data.username || 'Usuario',
+            username: data.username || '',
+            profilePicture: picUrl,
+          });
+        }
+      }
+      setShareContacts(contacts);
+    } catch (err) {
+      console.log('Error al cargar contactos:', err);
+    } finally {
+      setLoadingShareContacts(false);
+    }
+  }, []);
+
+  const handleSelectContact = async (contact) => {
+    setShareModalVisible(false);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Buscar si ya existe un chat con este contacto
+      const chatsRef = collection(db, 'chats');
+      const q = query(chatsRef, where('participants', 'array-contains', user.uid));
+      const snap = await getDocs(q);
+      let targetChatId = null;
+      let targetChatName = contact.name;
+      let targetChatUsername = contact.username;
+      let targetChatPic = contact.profilePicture;
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data();
+        const deletedBy = data.deletedBy || [];
+        if (deletedBy.includes(user.uid)) continue;
+        const otherUid = (data.participants || []).find(uid => uid !== user.uid);
+        if (otherUid === contact.uid) {
+          targetChatId = docSnap.id;
+          break;
+        }
+      }
+
+      // Si no existe, crear el chat ahora
+      if (!targetChatId) {
+        const newChatRef = await addDoc(collection(db, 'chats'), {
+          participants: [user.uid, contact.uid],
+          participantNames: [user.email, contact.name],
+          lastMessage: '',
+          lastMessageTime: serverTimestamp(),
+          lastSender: user.uid,
+          deletedBy: [],
+        });
+        targetChatId = newChatRef.id;
+      }
+
+      // Enviar la publicación como mensaje tipo 'post'
+      const messagesRef = collection(db, `chats/${targetChatId}/messages`);
+      const chatRef = doc(db, `chats/${targetChatId}`);
+      const postMsg = {
+        type: 'post',
+        text: `Publicación compartida: ${post.title || ''}`,
+        postId: post.id,
+        postTitle: post.title,
+        postImage: post.image,
+        postPrice: post.price,
+        postAuthor: post.author,
+        postAuthorName: post.authorProfileName || '',
+        postAuthorUsername: post.authorUsername || '',
+        postAuthorProfilePicture: post.authorProfilePicture || '',
+        sender: user.uid,
+        createdAt: serverTimestamp(),
+        read: false,
+        isFavorite: false,
+        delivered: false,
+      };
+      const msgRef = await addDoc(messagesRef, postMsg);
+      await updateDoc(msgRef, { delivered: true });
+      await updateDoc(chatRef, {
+        lastMessage: `📷 Publicación: ${post.title || ''}`,
+        lastMessageTime: serverTimestamp(),
+        lastSender: user.uid,
+      });
+
+      // Navegar al chat (el post ya se envió)
+      navigation.navigate('ChatDetail', {
+        chatId: targetChatId,
+        name: targetChatName,
+        username: targetChatUsername,
+        profilePicture: targetChatPic,
+        otherUid: contact.uid,
+      });
+    } catch (err) {
+      console.log('Error al compartir publicación:', err);
+      showToast('Error al compartir la publicación');
+    }
+  };
+
+  const filteredShareContacts = shareContacts.filter(c =>
+    !shareSearch.trim() ||
+    c.name.toLowerCase().includes(shareSearch.toLowerCase()) ||
+    c.username.toLowerCase().includes(shareSearch.toLowerCase())
+  );
+
   const flatListRef = useRef(null);
   const isLoadingMoreRef = useRef(false);
 
@@ -433,6 +570,8 @@ export default function PostDetailScreen({ route, navigation }) {
   }, [PAGE_HEIGHT]);
 
   const viewedPosts = useRef(new Set());
+  const viewQueueRef = useRef(new Set());
+  const viewTimerRef = useRef(null);
 
   const incrementView = async (postId) => {
     if (!currentUser || !postId || viewedPosts.current.has(postId)) return;
@@ -452,11 +591,9 @@ export default function PostDetailScreen({ route, navigation }) {
         });
         await updateDoc(postRef, { vistas: increment(1) });
 
-        // 🆕 Reflejar el nuevo conteo localmente (por si se scrollea entre posts acá mismo)
         setPostsList(prev =>
           prev.map(p => (p.id === postId ? { ...p, views: (p.views || 0) + 1 } : p))
         );
-        // 🆕 Avisarle a HomeScreen (u otra pantalla) que este post sumó una vista
         emitViewIncrement(postId);
       }
     } catch (error) {
@@ -464,11 +601,24 @@ export default function PostDetailScreen({ route, navigation }) {
     }
   };
 
+  const queueViewIncrement = (postId) => {
+    if (!currentUser || !postId || viewedPosts.current.has(postId)) return;
+    viewQueueRef.current.add(postId);
+    if (!viewTimerRef.current) {
+      viewTimerRef.current = setTimeout(async () => {
+        const batch = [...viewQueueRef.current];
+        viewQueueRef.current = new Set();
+        viewTimerRef.current = null;
+        await Promise.all(batch.map(pid => incrementView(pid)));
+      }, 3000);
+    }
+  };
+
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     viewableItems.forEach((item) => {
       if (item.isViewable && item.item?.id) {
-        incrementView(item.item.id);
-        if (item.item.id === post.id) setIsReady(true); // 🆕 ya se asentó en el post correcto
+        queueViewIncrement(item.item.id);
+        if (item.item.id === post.id) setIsReady(true);
       }
     });
   });
@@ -540,17 +690,17 @@ export default function PostDetailScreen({ route, navigation }) {
     setPostsList((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updatedFields } : p)));
   }, []);
 
-  // 🔧 useCallback en vez de useRef: con useRef la función quedaba "congelada"
-  // con el postsList del primer render, así que nunca detectaba los posts
-  // cargados después con loadMorePosts. A diferencia de onViewableItemsChanged,
-  // el prop onScroll de FlatList no necesita mantener la misma identidad.
+  const postsListRef = useRef(postsList);
+  useEffect(() => { postsListRef.current = postsList; }, [postsList]);
+
   const onScroll = useCallback((e) => {
     const offsetY = e.nativeEvent.contentOffset.y;
     const index = Math.round(offsetY / PAGE_HEIGHT);
-    if (postsList[index]?.id) {
-      incrementView(postsList[index].id);
+    const current = postsListRef.current;
+    if (current[index]?.id) {
+      queueViewIncrement(current[index].id);
     }
-  }, [PAGE_HEIGHT, postsList]);
+  }, [PAGE_HEIGHT]);
 
   const handleOpenMediaViewer = useCallback((post, index) => {
     setMediaViewerPost(post);
@@ -597,12 +747,13 @@ export default function PostDetailScreen({ route, navigation }) {
       onOpenMediaViewer={handleOpenMediaViewer}
       onOpenComments={handleOpenComments}
       onAuthorPress={() => handleAuthorPress(item.author, item.authorProfileName, item.authorUsername, item.authorProfilePicture)}
-      onMorePress={(anchor) => handleMorePress(anchor, item)}
+       onMorePress={(anchor) => handleMorePress(anchor, item)}
+       onShare={handleOpenShare}
       colors={colors}
       isDark={isDark}
       pageHeight={PAGE_HEIGHT}
     />
-  ), [currentUser, colors, isDark, PAGE_HEIGHT, handleOpenMediaViewer, handleOpenComments, handleAuthorPress, handleMorePress]);
+  ), [currentUser, colors, isDark, PAGE_HEIGHT, handleOpenMediaViewer, handleOpenComments, handleAuthorPress, handleMorePress, handleOpenShare]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -634,6 +785,7 @@ export default function PostDetailScreen({ route, navigation }) {
           scrollEventThrottle={16}
           horizontal={false}
           showsVerticalScrollIndicator={false}
+          drawDistance={PAGE_HEIGHT * 4}
           onEndReached={loadMorePosts}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#546F1C" style={{ marginVertical: 20 }} /> : null}
@@ -860,6 +1012,77 @@ export default function PostDetailScreen({ route, navigation }) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* MODAL COMPARTIR PUBLICACIÓN */}
+      <Modal visible={shareModalVisible} transparent animationType="slide" onRequestClose={() => setShareModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setShareModalVisible(false)}>
+          <View style={styles.shareOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.shareModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <View style={styles.shareHeader}>
+                  <TouchableOpacity onPress={() => setShareModalVisible(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                    <Ionicons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                  <Text style={[styles.shareTitle, { color: colors.text }]}>Compartir</Text>
+                  <View style={{ width: 24 }} />
+                </View>
+
+                <View style={[styles.shareSearchBar, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}>
+                  <Feather name="search" size={18} color={isDark ? '#8E8E93' : '#999'} />
+                  <TextInput
+                    placeholder="Buscar contactos..."
+                    placeholderTextColor={isDark ? '#8E8E93' : '#999'}
+                    style={[styles.shareSearchInput, { color: colors.text }]}
+                    value={shareSearch}
+                    onChangeText={setShareSearch}
+                  />
+                </View>
+
+                {loadingShareContacts ? (
+                  <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 40 }} />
+                ) : filteredShareContacts.length === 0 ? (
+                  <View style={styles.shareEmpty}>
+                    <Feather name="users" size={40} color={isDark ? '#48484A' : '#C7C7CC'} />
+                    <Text style={[styles.shareEmptyText, { color: isDark ? '#8E8E93' : '#999' }]}>
+                      {shareSearch.trim() ? 'No se encontraron contactos' : 'No seguís a nadie todavía'}
+                    </Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={filteredShareContacts}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                    showsVerticalScrollIndicator={false}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[styles.shareContactRow, { borderBottomColor: isDark ? '#2C2C2E' : '#F0F0F0' }]}
+                        onPress={() => handleSelectContact(item)}
+                        activeOpacity={0.6}
+                      >
+                        {item.profilePicture ? (
+                          <Image source={{ uri: item.profilePicture }} style={styles.shareAvatar} />
+                        ) : (
+                          <View style={[styles.shareAvatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }]}>
+                            <Ionicons name="person" size={20} color={isDark ? '#8E8E93' : '#999'} />
+                          </View>
+                        )}
+                        <View style={styles.shareContactInfo}>
+                          <Text style={[styles.shareContactName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                          {!!item.username && (
+                            <Text style={[styles.shareContactUsername, { color: isDark ? '#8E8E93' : '#999' }]} numberOfLines={1}>@{item.username}</Text>
+                          )}
+                        </View>
+                        <Feather name="chevron-right" size={18} color={isDark ? '#48484A' : '#C7C7CC'} />
+                      </TouchableOpacity>
+                    )}
+                  />
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {toastMessage !== '' && (
         <Animated.View style={[styles.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}>
           <Ionicons name="checkmark-circle" size={20} color="#FFF" />
@@ -914,4 +1137,20 @@ const styles = StyleSheet.create({
   reportOptionText: { fontSize: 15, fontFamily: 'Nunito-SemiBold', flex: 1 },
   toast: { position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#27AE60', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, gap: 10, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
   toastText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold', flex: 1 },
+
+  // Compartir publicación
+  shareOverlay: { flex: 1, justifyContent: 'flex-end' },
+  shareModal: { maxHeight: '80%', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 30 },
+  shareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  shareTitle: { fontSize: 18, fontFamily: 'Nunito-Bold', textAlign: 'center' },
+  shareSearchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 8 },
+  shareSearchInput: { flex: 1, marginLeft: 8, fontFamily: 'Nunito-Regular', fontSize: 15, paddingVertical: 0 },
+  shareEmpty: { alignItems: 'center', marginTop: 60 },
+  shareEmptyText: { fontSize: 15, fontFamily: 'Nunito-Regular', marginTop: 12 },
+  shareContactRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  shareAvatar: { width: 44, height: 44, borderRadius: 22 },
+  shareAvatarFallback: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  shareContactInfo: { flex: 1, marginLeft: 12 },
+  shareContactName: { fontSize: 15, fontFamily: 'Nunito-Bold' },
+  shareContactUsername: { fontSize: 13, fontFamily: 'Nunito-Regular', marginTop: 1 },
 });

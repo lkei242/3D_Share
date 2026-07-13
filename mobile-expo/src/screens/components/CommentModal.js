@@ -8,16 +8,14 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Keyboard,
   ActivityIndicator,
   Dimensions,
-  Animated,
-  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
+const { height: screenH } = Dimensions.get('window');
 import { auth, db } from '../config/firebase';
 import {
   collection,
@@ -29,128 +27,32 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
-const { height: screenH } = Dimensions.get('window');
-
 export default function CommentModal({ visible, post, onClose, isDark, colors }) {
-    const insets = useSafeAreaInsets();
-    const currentUser = auth.currentUser;
-    const [comments, setComments] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [text, setText] = useState('');
-    const [sending, setSending] = useState(false);
-    const inputRef = useRef(null);
-
-    const panY = useRef(new Animated.Value(screenH)).current;
-    const gestureStartY = useRef(0);
-    const onCloseRef = useRef(onClose);
-    onCloseRef.current = onClose;
-
-    const FULL_Y = -screenH * 0.9;
-    const NORMAL_Y = 0;
-    const CLOSE_Y = screenH;
-    
+  const insets = useSafeAreaInsets();
+  const currentUser = auth.currentUser;
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(panY, {
-        toValue: NORMAL_Y,
-        useNativeDriver: true,
-        damping: 22,
-        stiffness: 180,
-      }).start();
       fetchComments();
-      
     } else {
-      panY.setValue(CLOSE_Y);
+      setText('');
+      setKeyboardHeight(0);
     }
+
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
   }, [visible, post?.id]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gs) => {
-        const isVertical = Math.abs(gs.dy) > Math.abs(gs.dx);
-        // 🔥 CLAVE: Solo permitir deslizar hacia abajo (gs.dy > 0) y mayor al umbral
-        const isDownward = gs.dy > 6;
-        return isVertical && isDownward;
-      },
-      onPanResponderGrant: () => {
-        gestureStartY.current = panY._value || NORMAL_Y;
-      },
-      onPanResponderMove: (evt, gs) => {
-                const newY = gestureStartY.current + gs.dy;
-                // Doble seguridad: Math.max evita que suba por encima de NORMAL_Y
-                panY.setValue(Math.max(NORMAL_Y, Math.min(CLOSE_Y, newY)));
-            },
-            onPanResponderRelease: (evt, gs) => {
-        const currentY = panY._value || NORMAL_Y;
-        const velocity = gs.vy;
-
-        if (currentY > NORMAL_Y + 60 || velocity > 0.8) {
-            Animated.timing(panY, {
-            toValue: CLOSE_Y,
-            duration: 250,
-            useNativeDriver: true,
-            }).start(() => onCloseRef.current());
-            return;
-        }
-
-        Animated.spring(panY, {
-            toValue: NORMAL_Y,
-            useNativeDriver: true,
-            damping: 22,
-            stiffness: 180,
-        }).start();
-        },
-    })
-  ).current;
-
-    const handlePanResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-
-            onMoveShouldSetPanResponder: (_, gs) => gs.dy > 0,
-
-            onPanResponderGrant: () => {
-            gestureStartY.current = panY._value || NORMAL_Y;
-            },
-
-            onPanResponderMove: (evt, gs) => {
-            const newY = gestureStartY.current + gs.dy;
-            panY.setValue(Math.max(NORMAL_Y, Math.min(CLOSE_Y, newY)));
-            },
-
-            onPanResponderRelease: (evt, gs) => {
-            const velocity = gs.vy;
-            const currentY = panY._value || 0;
-
-            const shouldClose = currentY > 60 || velocity > 0.8;
-            const shouldExpand = currentY < -screenH * 0.2 || velocity < -0.8;
-
-            if (shouldClose) {
-                Animated.timing(panY, {
-                toValue: CLOSE_Y,
-                duration: 250,
-                useNativeDriver: true,
-                }).start(() => onCloseRef.current());
-                return;
-            }
-
-            if (shouldExpand) {
-                Animated.spring(panY, {
-                toValue: FULL_Y,
-                useNativeDriver: true,
-                }).start();
-                return;
-            }
-
-            Animated.spring(panY, {
-                toValue: NORMAL_Y,
-                useNativeDriver: true,
-            }).start();
-            },
-        })
-    ).current;
 
   const fetchComments = async () => {
     if (!post) return;
@@ -213,195 +115,165 @@ export default function CommentModal({ visible, post, onClose, isDark, colors })
   return (
     <Modal
       visible={visible}
-      animationType="none"
+      animationType="slide"
       transparent
-      onRequestClose={() =>
-        Animated.timing(panY, {
-          toValue: CLOSE_Y,
-          duration: 250,
-          useNativeDriver: true,
-        }).start(() => onCloseRef.current())
-      }
+      onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={{ flex: 1 }}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={() =>
-              Animated.timing(panY, {
-                toValue: CLOSE_Y,
-                duration: 250,
-                useNativeDriver: true,
-              }).start(() => onCloseRef.current())
-            }
-          />
+      <View style={[styles.container, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.panel, { backgroundColor: colors.background, paddingBottom: keyboardHeight }]}>
+          <View style={styles.handleBar} />
+          <View style={[styles.header, { borderBottomColor: isDark ? '#333' : '#ddd' }]}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Comentarios ({comments.length})
+            </Text>
+          </View>
 
-          <Animated.View
-            style={[
-              styles.modalPanel,
-              { backgroundColor: colors.background, transform: [{ translateY: panY }] },
-            ]}
-            
-          >
-            {/* Drag zone: handle bar + header — uses the eager responder */}
-            <View {...handlePanResponder.panHandlers}>
-              <View style={styles.handleBar} />
-              <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : '#ddd' }]}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  Comentarios ({comments.length})
+          {loading ? (
+            <ActivityIndicator size="large" color="#9DBD3F" style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.docId}
+              renderItem={renderComment}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 16 }}
+              ListEmptyComponent={
+                <Text style={[styles.emptyText, { color: isDark ? '#555' : '#bbb' }]}>
+                  Sé el primero en comentar
                 </Text>
-              </View>
-            </View>
+              }
+              keyboardShouldPersistTaps="handled"
+            />
+          )}
 
-            {loading ? (
-              <ActivityIndicator size="large" color="#9DBD3F" style={{ marginTop: 40 }} />
-            ) : (
-              <FlatList
-                data={comments}
-                keyExtractor={(item) => item.docId}
-                renderItem={renderComment}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ padding: 16 }}
-                ListEmptyComponent={
-                  <Text style={[styles.emptyText, { color: isDark ? '#555' : '#bbb' }]}>
-                    Sé el primero en comentar
-                  </Text>
-                }
-                keyboardShouldPersistTaps="handled"
-              />
-            )}
-
-            <View
+          <View
+            style={[
+              styles.inputRow,
+              {
+                borderTopColor: isDark ? '#333' : '#ddd',
+                backgroundColor: colors.background,
+                paddingBottom: insets.bottom + 8,
+              },
+            ]}
+          >
+            <TextInput
+              ref={inputRef}
               style={[
-                styles.inputRow,
+                styles.input,
                 {
-                  borderTopColor: isDark ? '#333' : '#ddd',
-                  backgroundColor: colors.background,
-                  paddingBottom: insets.bottom + 8,
+                  backgroundColor: isDark ? '#2C2C2C' : '#f0f0f0',
+                  color: colors.text,
                 },
               ]}
+              placeholder="Escribe un comentario..."
+              placeholderTextColor={isDark ? '#888' : '#999'}
+              value={text}
+              onChangeText={setText}
+              multiline
+            />
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+              style={[styles.sendBtn, { opacity: text.trim() && !sending ? 1 : 0.4 }]}
             >
-              <TextInput
-                ref={inputRef}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? '#2C2C2C' : '#f0f0f0',
-                    color: colors.text,
-                  },
-                ]}
-                placeholder="Escribe un comentario..."
-                placeholderTextColor={isDark ? '#888' : '#999'}
-                value={text}
-                onChangeText={setText}
-                multiline
-              />
-              <TouchableOpacity
-                onPress={handleSend}
-                disabled={!text.trim() || sending}
-                style={[styles.sendBtn, { opacity: text.trim() && !sending ? 1 : 0.4 }]}
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color="#9DBD3F" />
-                ) : (
-                  <Ionicons name="send" size={22} color="#9DBD3F" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
+              {sending ? (
+                <ActivityIndicator size="small" color="#9DBD3F" />
+              ) : (
+                <Ionicons name="send" size={22} color="#9DBD3F" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-    backdrop: {
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalPanel: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    handleBar: {
-        width: 40,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: '#ccc',
-        alignSelf: 'center',
-        marginTop: 12,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-    },
-    modalTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-    },
-    commentRow: {
-        flexDirection: 'row',
-        marginBottom: 16,
-    },
-    avatarSmall: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        borderWidth: 1,
-        overflow: 'hidden',
-        marginRight: 10,
-    },
-    avatarImageSmall: {
-        width: '100%',
-        height: '100%',
-    },
-    commentContent: {
-        flex: 1,
-    },
-    commentUser: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    commentText: {
-        fontSize: 14,
-        marginTop: 2,
-        lineHeight: 18,
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: 60,
-        fontSize: 15,
-    },
-    inputRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        paddingHorizontal: 12,
-        paddingTop: 8,
-        borderTopWidth: 1,
-    },
-    input: {
-        flex: 1,
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        fontSize: 14,
-        maxHeight: 80,
-    },
-    sendBtn: {
-        marginLeft: 8,
-        padding: 6,
-    },
+  container: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+  },
+  panel: {
+    height: screenH * 0.85,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#ccc',
+    alignSelf: 'center',
+    marginTop: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  commentRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  avatarSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  avatarImageSmall: {
+    width: '100%',
+    height: '100%',
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentUser: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  commentText: {
+    fontSize: 14,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 60,
+    fontSize: 15,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  input: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  sendBtn: {
+    marginLeft: 8,
+    padding: 6,
+  },
 });

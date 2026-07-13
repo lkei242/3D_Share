@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Pressable, Animated, Image, Linking, PanResponder } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { GREEN_ACCENT, getVideoThumbnail } from './Chatconstants';
 import styles from './Chatstyles';
 import AudioPlayer from './Audioplayer';
@@ -20,6 +20,7 @@ const MessageItem = React.memo(({
   setShowMsgInfo,
   onOpenMedia,
   onSwipeReply,
+  onOpenPost,
   otherProfilePicture,
   myProfilePicture,
   isEditing,
@@ -364,6 +365,54 @@ const MessageItem = React.memo(({
                 {item.fileName || item.text}
               </Text>
             </TouchableOpacity>
+          ) : item.type === 'post' ? (
+            <TouchableOpacity
+              onPress={() => {
+                if (selectedIds.length > 0) {
+                  onToggleSelect(item.id);
+                } else if (onOpenPost) {
+                  onOpenPost(item);
+                }
+              }}
+              activeOpacity={0.85}
+              style={{ borderRadius: 10, overflow: 'hidden', marginHorizontal: isGroup && !isMe && !!senderName ? 0 : -10, marginTop: isGroup && !isMe && !!senderName ? 4 : -6 }}
+            >
+              <View style={{ flexDirection: 'row', backgroundColor: isMe ? 'rgba(0,0,0,0.15)' : (isDark ? '#2A2A2A' : '#F5F5F5'), borderRadius: 10, overflow: 'hidden' }}>
+                {item.postImage ? (
+                  <Image source={{ uri: item.postImage }} style={{ width: 80, height: 80 }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: 80, height: 80, backgroundColor: isDark ? '#333' : '#DDD', justifyContent: 'center', alignItems: 'center' }}>
+                    <Feather name="image" size={28} color={isDark ? '#666' : '#999'} />
+                  </View>
+                )}
+                <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontFamily: 'Nunito-Bold', color: isMe ? '#FFF' : colors.text }} numberOfLines={2}>
+                    {item.postTitle || 'Publicación'}
+                  </Text>
+                  {!!item.postPrice && (
+                    <Text style={{ fontSize: 15, fontFamily: 'Nunito-Bold', color: isMe ? '#FFEE00' : GREEN_ACCENT }} numberOfLines={1}>
+                      {item.postPrice}
+                    </Text>
+                  )}
+                  {!!item.postAuthorName && (
+                    <Text style={{ fontSize: 11, fontFamily: 'Nunito-Regular', color: isMe ? 'rgba(255,255,255,0.7)' : '#888' }} numberOfLines={1}>
+                      {item.postAuthorName}
+                    </Text>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Feather name="external-link" size={11} color={isMe ? 'rgba(255,255,255,0.6)' : '#999'} />
+                    <Text style={{ fontSize: 11, fontFamily: 'Nunito-Regular', color: isMe ? 'rgba(255,255,255,0.6)' : '#999', marginLeft: 3 }}>
+                      Ver publicación
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              {!!item.text && (
+                <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: isMe ? '#FFF' : colors.text, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  {item.text}
+                </Text>
+              )}
+            </TouchableOpacity>
           ) : (
             <Text style={[styles.messageText, { color: isMe ? '#FFF' : colors.text }]}>
               {item.text}
@@ -423,7 +472,8 @@ const MessageItem = React.memo(({
   prev.isDark === next.isDark &&
   prev.otherProfilePicture === next.otherProfilePicture &&
   prev.myProfilePicture === next.myProfilePicture &&  
-  (prev.selectedIds.length > 0) === (next.selectedIds.length > 0)
+  (prev.selectedIds.length > 0) === (next.selectedIds.length > 0) &&
+  prev.onOpenPost === next.onOpenPost
 );
 
 export default MessageItem;

@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
+using BackendDotnet.Middleware;
+using BackendDotnet.Services;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
@@ -11,10 +14,18 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Agregar soporte para controladores
-builder.Services.AddControllers();
+const string firebaseProjectId = "dshare-6b84f";
 
-// 2. Configurar CORS (permitir cualquier origen, método y cabecera para desarrollo)
+// 1. Controladores + OpenAPI
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.SuppressModelStateInvalidFilter = false;
+    });
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi();
+
+// 2. CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -25,8 +36,10 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 3. Configurar la autenticación JWT Bearer con Firebase
-const string firebaseProjectId = "dshare-6b84f";
+// 3. HttpContextAccessor (para construir URIs en servicios)
+builder.Services.AddHttpContextAccessor();
+
+// 4. JWT Bearer con Firebase
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -41,17 +54,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// 4. Inicializar Firebase Admin SDK y registrar FirestoreDb
+// 5. Firebase Admin SDK + FirestoreDb
 string credentialsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "backend", "firebase-service-account.json");
 if (!File.Exists(credentialsPath))
 {
-    // Intentar buscar en el directorio base de ejecución
     credentialsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "firebase-service-account.json");
 }
 
 if (File.Exists(credentialsPath))
 {
-    // Establecer variable de entorno para Google Cloud SDK (Firestore)
     Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
 
     var rawCredential = GoogleCredential.FromFile(credentialsPath);
@@ -60,41 +71,57 @@ if (File.Exists(credentialsPath))
         "https://www.googleapis.com/auth/cloud-platform"
     );
 
-    // Inicializar FirebaseApp
-    FirebaseApp.Create(new AppOptions
-    {
-        Credential = rawCredential
-    });
-    Console.WriteLine($"🚀 Firebase Admin SDK inicializado usando credenciales en: {credentialsPath}");
+    FirebaseApp.Create(new AppOptions { Credential = rawCredential });
+    Console.WriteLine($"Firebase Admin SDK inicializado usando credenciales en: {credentialsPath}");
 
-    // Registrar FirestoreDb como Singleton con credenciales con scopes explícitos
     var firestoreDb = new FirestoreDbBuilder
     {
         ProjectId = firebaseProjectId,
         Credential = googleCredential
     }.Build();
     builder.Services.AddSingleton(firestoreDb);
-    Console.WriteLine("🚀 FirestoreDb registrado en el contenedor de servicios con scopes explícitos.");
+    Console.WriteLine("FirestoreDb registrado en el contenedor de servicios.");
 }
 else
 {
-    Console.WriteLine("⚠️ ADVERTENCIA: No se encontró el archivo firebase-service-account.json en la ruta especificada.");
+    Console.WriteLine("ADVERTENCIA: No se encontró el archivo firebase-service-account.json");
 }
 
-// 5. Configurar OpenAPI para documentación (opcional)
-builder.Services.AddEndpointsApiExplorer();
+// 6. Registrar servicios de negocio (arquitectura 3 capas)
+builder.Services.AddScoped<IPostService, PostService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<ILikeService, LikeService>();
+builder.Services.AddScoped<SeedService>();
 
 var app = builder.Build();
 
-// Configurar el pipeline HTTP
+// 7. Middleware global de errores (ANTES de todo)
+app.UseMiddleware<ExceptionMiddleware>();
+
+// 8. Pipeline HTTP
 app.UseCors("AllowAll");
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 
-// El middleware de autenticación DEBE ejecutarse antes de la autorización
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
+
+// 9. Seed de datos de prueba (asíncrono al inicio)
+try
+{
+    using var scope = app.Services.CreateScope();
+    var seedService = scope.ServiceProvider.GetRequiredService<SeedService>();
+    await seedService.SeedAsync();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"No se pudieron sembrar datos de prueba: {ex.Message}");
+}
 
 app.Run();

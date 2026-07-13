@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
+import CachedImage from './config/CachedImage';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -152,11 +153,18 @@ export default function ProfileScreen({ navigation }) {
     }
   }, []);
 
-  // Obtener posts del usuario desde Firestore
+  // Cache en memoria para las publicaciones del perfil
+  const postsCache = useRef({});
+
   const fetchUserPosts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
-    setLoading(true);
+    const cached = postsCache.current[user.uid];
+    if (cached) {
+      setPosts(cached.data);
+    } else {
+      setLoading(true);
+    }
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userData = userDoc.exists() ? userDoc.data() : {};
@@ -190,6 +198,7 @@ export default function ProfileScreen({ navigation }) {
           authorProfilePicture: authorPicture,
         };
       });
+      postsCache.current[user.uid] = { data: postsFormateados };
       setPosts(postsFormateados);
     } catch (error) {
       console.log('Error al cargar publicaciones de usuario:', error);
@@ -317,7 +326,7 @@ export default function ProfileScreen({ navigation }) {
               {isFirstMediaVideo ? (
                 <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
               ) : (
-                <Image source={{ uri: item.image }} style={styles.gridImage} />
+                <CachedImage uri={item.image} style={styles.gridImage} />
               )}
 
               {isFirstMediaVideo && (
@@ -768,7 +777,7 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.avatarStatsRow}>
               <TouchableOpacity style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]} onPress={() => profilePicture && setImagePreviewVisible(true)}>
                 {profileLoading ? null : profilePicture ? (
-                  <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+                  <CachedImage uri={profilePicture} style={styles.avatarImage} />
                 ) : (
                   <View
                     style={[

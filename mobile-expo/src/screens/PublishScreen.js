@@ -20,6 +20,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import CachedImage from './config/CachedImage';
 import CustomCameraModal from './components/CustomCameraModal';
 import { auth, db } from './config/firebase';
 import { API_URL } from './config/api';
@@ -80,7 +81,7 @@ const MediaPreviewItem = React.memo(function MediaPreviewItem({ item, onRemove, 
           nativeControls={false}
         />
       ) : (
-        <Image source={{ uri: item.uri }} style={styles.mediaImage} resizeMode="cover" />
+        <CachedImage uri={item.uri} style={styles.mediaImage} />
       )}
 
       {/* Badge de tipo (video) */}

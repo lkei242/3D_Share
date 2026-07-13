@@ -57,10 +57,11 @@ export default function SavedScreen({ navigation }) {
         {
           text: 'Quitar', style: 'destructive',
           onPress: async () => {
+            const removedDocs = [...selected];
+            setPosts(prev => prev.filter(p => !removedDocs.includes(p.docId)));
+            setSelected([]);
             try {
-              await Promise.all(selected.map(docId => deleteDoc(doc(db, 'saved', docId))));
-              setPosts(prev => prev.filter(p => !selected.includes(p.docId)));
-              setSelected([]);
+              await Promise.all(removedDocs.map(docId => deleteDoc(doc(db, 'saved', docId))));
             } catch (e) {
               console.log('Error removing saved:', e);
             }

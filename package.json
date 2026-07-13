@@ -1,0 +1,9 @@
+{
+  "name": "3d-share-backend",
+  "private": true,
+  "scripts": {
+    "dev:node": "cd backend && npm run dev",
+    "dev:dotnet": "cd backend-dotnet && dotnet run",
+    "dev": "npx concurrently -n NODE,DOTNET -c cyan,green \"npm run dev:node\" \"npm run dev:dotnet\""
+  }
+}

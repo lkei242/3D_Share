@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@react-navigation/native';
 import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth, db } from './config/firebase';
+import CachedImage from './config/CachedImage';
 import { formatViews } from './config/formatViews';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, setDoc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { checkIfFollowing, followUser, unfollowUser, getFollowersCount, checkIfBlocked, blockUser, unblockUser, 
@@ -460,7 +461,7 @@ export default function UserProfileScreen({ route, navigation }) {
               activeOpacity={0.85}
               onPress={() => handlePostPress(post)}
             >
-              <Image source={{ uri: post.image }} style={styles.gridImage} />
+              <CachedImage uri={post.image} style={styles.gridImage} />
               {isPinned && (
                 <View style={styles.pinBadge}>
                   <MaterialCommunityIcons name="pin" size={12} color="#FFF" />
@@ -723,7 +724,7 @@ export default function UserProfileScreen({ route, navigation }) {
             <View style={styles.avatarStatsRow}>
               <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
                 {profilePicture ? (
-                  <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+                  <CachedImage uri={profilePicture} style={styles.avatarImage} />
                 ) : (
                   <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#2A2A2A' : '#F0F0F0' }]}>
                     <Ionicons

@@ -72,7 +72,8 @@
           "iosAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-image"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

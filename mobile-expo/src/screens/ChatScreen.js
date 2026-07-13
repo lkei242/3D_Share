@@ -34,6 +34,7 @@ export default function ChatScreen({ navigation }) {
 
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [activeTab, setActiveTab] = useState(0);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -785,6 +786,16 @@ export default function ChatScreen({ navigation }) {
   // chats solo contiene individuales; groupChatsList viene de su propio listener
   const individualChats = useMemo(() => chats, [chats]);
   const currentList = activeTab === 0 ? individualChats : activeTab === 1 ? groupChatsList : broadcastLists;
+  const filteredList = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return currentList;
+    return currentList.filter(item =>
+      (item.name && item.name.toLowerCase().includes(q)) ||
+      (item.username && item.username.toLowerCase().includes(q)) ||
+      (item.username && ('@' + item.username.toLowerCase()).includes(q)) ||
+      (item.message && item.message.toLowerCase().includes(q))
+    );
+  }, [currentList, searchQuery]);
 
   const renderChatItem = React.useCallback(({ item }) => {
     const isGroup = item.kind === 'group';
@@ -940,7 +951,7 @@ export default function ChatScreen({ navigation }) {
           style={styles.searchContainer}
         >
           <Feather name="search" size={20} color={'#FFFFFF'} style={styles.searchIcon} />
-          <TextInput placeholder="Buscar chats" placeholderTextColor="#FFFFFF" style={[styles.searchInput, { color: colors.text }]} />
+          <TextInput placeholder="Buscar chats" placeholderTextColor="#FFFFFF" style={[styles.searchInput, { color: colors.text }]} value={searchQuery} onChangeText={setSearchQuery} />
         </LinearGradient>
       ) : (
         <LinearGradient
@@ -951,26 +962,28 @@ export default function ChatScreen({ navigation }) {
           style={styles.searchContainer}
         >
           <Feather name="search" size={20} color={'#121212'} style={styles.searchIcon} />
-          <TextInput placeholder="Buscar chats" placeholderTextColor="#121212" style={[styles.searchInput, { color: colors.text }]} />
+          <TextInput placeholder="Buscar chats" placeholderTextColor="#121212" style={[styles.searchInput, { color: colors.text }]} value={searchQuery} onChangeText={setSearchQuery} />
         </LinearGradient>
       )}
 
       {/* Lista de Chats (individual / grupos / difusión según la pestaña activa) */}
       {loading ? (
         <ActivityIndicator size="large" color={v1} style={{ marginTop: 50 }} />
-      ) : currentList.length === 0 ? (
+      ) : filteredList.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={[styles.emptyText, { color: isDark ? '#aaa' : '#666' }]}>
-            {activeTab === 0
-              ? 'No tenés chats todavía. Tocá el botón + para empezar uno.'
-              : activeTab === 1
-              ? 'No tenés grupos todavía. Tocá el botón + para crear uno.'
-              : 'No tenés listas de difusión todavía. Tocá el botón + para crear una.'}
+            {searchQuery.trim() ? 'No se encontraron chats con ese nombre.' : (
+              activeTab === 0
+                ? 'No tenés chats todavía. Tocá el botón + para empezar uno.'
+                : activeTab === 1
+                ? 'No tenés grupos todavía. Tocá el botón + para crear uno.'
+                : 'No tenés listas de difusión todavía. Tocá el botón + para crear una.'
+            )}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={currentList}
+          data={filteredList}
           keyExtractor={(item) => item.id}
           renderItem={renderChatItem}
           contentContainerStyle={styles.listContent}
