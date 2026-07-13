@@ -34,6 +34,7 @@ function TabButton({ active, onPress, children, isDark }) {
       style={styles.tabItem}
       activeOpacity={0.7}
       onPress={onPress}
+      hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
     >
       {/* Contenedor animable estándar para evitar fallos del driver nativo en LinearGradient */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20, overflow: 'hidden' }]}>

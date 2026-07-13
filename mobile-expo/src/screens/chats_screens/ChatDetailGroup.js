@@ -1851,7 +1851,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               ) : (
                 <Ionicons name="people-circle-outline" size={80} color="#94BA46" />
               )}
-            </View>y
+            </View>
             <Text style={{ fontSize: 20, fontFamily: 'Nunito-Bold', color: colors.text }}>{groupInfo.name}</Text>
             <Text style={{ fontSize: 13, fontFamily: 'Nunito-Regular', color: isDark ? '#888' : '#777', marginTop: 4 }}>
               {(groupInfo.participants || []).length} {(groupInfo.participants || []).length === 1 ? 'integrante' : 'integrantes'}

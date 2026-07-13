@@ -11,7 +11,7 @@ backend-dotnet/obj/
 
 # Secrets
 .env
-firebase-service-account.json
+
 
 # Word documents
 *.docx
