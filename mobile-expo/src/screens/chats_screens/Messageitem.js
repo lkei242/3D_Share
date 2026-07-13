@@ -6,8 +6,8 @@ import { GREEN_ACCENT, getVideoThumbnail } from './Chatconstants';
 import styles from './Chatstyles';
 import AudioPlayer from './Audioplayer';
 
-// Burbuja de mensaje individual: texto, audio, ubicación, imagen, video,
-// archivo o grupo de medias. Memoizado porque la lista puede tener muchos mensajes.
+
+
 const MessageItem = React.memo(({
   item, 
   isMe, 
@@ -55,13 +55,13 @@ const MessageItem = React.memo(({
     }).start();
   }, [isChecked]);
 
-  // --- Swipe-to-reply (deslizar el mensaje hacia la derecha, como WhatsApp) ---
+  
   const swipeX = useRef(new Animated.Value(0)).current;
   const replyIconOpacity = useRef(new Animated.Value(0)).current;
 
-  // El PanResponder se crea una sola vez (useRef), así que guardamos los props
-  // "vivos" en un ref aparte para que sus callbacks no queden con valores viejos
-  // de item/selectedIds/onSwipeReply de la primera renderización.
+  
+  
+  
   const liveRef = useRef({ item, selectedIds, onSwipeReply });
   useEffect(() => {
     liveRef.current = { item, selectedIds, onSwipeReply };
@@ -73,11 +73,11 @@ const MessageItem = React.memo(({
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponderCapture: () => false,
-      // Solo "roba" el gesto de la lista/Pressable si el movimiento es
-      // claramente horizontal hacia la derecha (evita interferir con el
-      // scroll vertical del FlatList o con el tap/long-press normal).
+      
+      
+      
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        if (liveRef.current.selectedIds.length > 0) return false; // no deslizar en modo selección
+        if (liveRef.current.selectedIds.length > 0) return false; 
         const { dx, dy } = gestureState;
         return dx > 12 && dx > Math.abs(dy) * 2;
       },
@@ -122,7 +122,7 @@ const MessageItem = React.memo(({
     setShowMsgInfo(false);
   };
 
-  // En modo selección, tocar la miniatura selecciona el mensaje en vez de abrir el visor
+  
   const handleMediaPress = () => {
     if (selectedIds.length > 0) {
       onToggleSelect(item.id);
@@ -133,7 +133,7 @@ const MessageItem = React.memo(({
 
   return (
     <View style={{ width: '100%' }} {...panResponder.panHandlers}>
-      {/* Ícono de responder que aparece detrás de la burbuja al deslizar */}
+      {}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -161,7 +161,7 @@ const MessageItem = React.memo(({
         { backgroundColor: rowBgColor, transform: [{ translateX: swipeX }] },
         isEditing && { backgroundColor: 'rgba(255,193,7,0.18)' },
       ]}>
-        {/* CHECKBOX — visible solo en modo multi-selección */}
+        {}
         {selectedIds.length > 0 && (
           <TouchableOpacity
             onPress={() => onToggleSelect(item.id)}
@@ -193,7 +193,7 @@ const MessageItem = React.memo(({
             ) : (
               <Ionicons
                 name="person-circle-outline"
-                size={28} // Tamaño idéntico al círculo (32)
+                size={28} 
                 color="#94BA46"
               />
             )}
@@ -297,7 +297,7 @@ const MessageItem = React.memo(({
                             if (selectedIds.length > 0) {
                               onToggleSelect(item.id);
                             } else {
-                              // Abre el visor directamente en la foto tocada dentro del grupo
+                              
                               onOpenMedia(item, idx);
                             }
                           }}

@@ -20,7 +20,7 @@ export default function PresentationScreen({ navigation, route }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -107,7 +107,7 @@ export default function PresentationScreen({ navigation, route }) {
         </Text>
       </View>
 
-      {/* TOAST */}
+      {}
       {toastMessage !== '' && (
         <Animated.View
           style={[

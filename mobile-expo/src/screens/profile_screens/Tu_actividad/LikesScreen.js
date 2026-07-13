@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Tu_actividad/LikesScreen.js
+
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -28,7 +28,7 @@ export default function LikesScreen({ navigation }) {
       const q = query(collection(db, 'likes'), where('userId', '==', user.uid));
       const snapshot = await getDocs(q);
       const items = snapshot.docs.map(d => ({ docId: d.id, ...d.data() }));
-      // Ordenar por fecha descendente
+      
       items.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       setPosts(items);
     } catch (e) {

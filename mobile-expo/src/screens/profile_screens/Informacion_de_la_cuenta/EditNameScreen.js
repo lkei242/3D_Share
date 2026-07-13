@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Informacion_de_la_cuenta/EditNameScreen.js
+
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -22,7 +22,7 @@ export default function EditNameScreen({ route, navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -178,7 +178,7 @@ export default function EditNameScreen({ route, navigation }) {
         )}
       </TouchableOpacity>
 
-      {/* TOAST */}
+      {}
       {toastMessage !== '' && (
         <Animated.View
           style={[

@@ -18,7 +18,7 @@ export default function MessageRequestsScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  const [activeTab, setActiveTab] = useState(0); // 0 = Recibidos, 1 = Enviados
+  const [activeTab, setActiveTab] = useState(0); 
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,7 @@ export default function MessageRequestsScreen({ navigation }) {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Listener: solicitudes ENVIADAS (senderId === user.uid) — todos los estados
+    
     const sentQuery = query(
       collection(db, 'messageRequests'),
       where('senderId', '==', user.uid)
@@ -85,7 +85,7 @@ export default function MessageRequestsScreen({ navigation }) {
       setSentRequests(requests);
     });
 
-    // Listener: solicitudes RECIBIDAS (receiverId === user.uid) — solo pendientes
+    
     const receivedQuery = query(
       collection(db, 'messageRequests'),
       where('receiverId', '==', user.uid),
@@ -110,7 +110,7 @@ export default function MessageRequestsScreen({ navigation }) {
       setLoading(false);
     });
 
-    // Listener: solicitudes APROBADAS (receiverId === user.uid, status === 'approved')
+    
     const approvedQuery = query(
       collection(db, 'messageRequests'),
       where('receiverId', '==', user.uid),
@@ -144,7 +144,7 @@ export default function MessageRequestsScreen({ navigation }) {
   const handleApprove = async (item) => {
     try {
       await approveMessageRequest(item.id);
-      // Crear chat si no existe
+      
       const user = auth.currentUser;
       const chatsRef = collection(db, 'chats');
       const q = query(chatsRef, where('participants', 'array-contains', user.uid));
@@ -301,7 +301,7 @@ export default function MessageRequestsScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {}
       <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 8 }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -309,7 +309,7 @@ export default function MessageRequestsScreen({ navigation }) {
         <Text style={[styles.headerTitle, { color: colors.text }]}>Solicitudes de mensaje</Text>
       </View>
 
-      {/* Tabs */}
+      {}
       <View style={styles.tabContainer}>
         {['Recibidos', 'Enviados', 'Aprobadas'].map((label, index) => {
           const isActive = activeTab === index;
@@ -343,7 +343,7 @@ export default function MessageRequestsScreen({ navigation }) {
         })}
       </View>
 
-      {/* List */}
+      {}
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
         {loading ? (
           <ActivityIndicator size="large" color={v1} style={{ marginTop: 50 }} />
@@ -367,7 +367,7 @@ export default function MessageRequestsScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
           />
         )}
-                {/* Modal de confirmación para quitar permiso */}
+                {}
         {confirmRemoveVisible && (
             <Animated.View style={[styles.confirmOverlay, { opacity: confirmOpacity }]}>
             <TouchableWithoutFeedback onPress={closeRemoveConfirm}>

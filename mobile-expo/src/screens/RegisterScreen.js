@@ -1,4 +1,4 @@
-// src/screens/RegisterScreen.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@react-navigation/native';
 import { auth, db } from './config/firebase';
@@ -33,10 +33,10 @@ export default function RegisterScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Control de pasos del registro (0 = Selección, 1 = Datos Obligatorios, 2 = Datos Opcionales)
+  
   const [step, setStep] = useState(0);
 
-  // Paso 1: Campos obligatorios
+  
   const [profileName, setProfileName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -46,14 +46,14 @@ export default function RegisterScreen({ navigation }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [birthDate, setBirthDate] = useState('');
 
-  // Paso 2: Campos opcionales y adicionales
+  
   const [image, setImage] = useState(null);
   const [presentation, setPresentation] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [showOptions, setShowOptions] = useState(false);
 
-  // Control de UI
+  
   const [loading, setLoading] = useState(false);
   const [behavior, setBehavior] = useState(undefined);
   const [errors, setErrors] = useState({});
@@ -65,10 +65,10 @@ export default function RegisterScreen({ navigation }) {
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
 
-  // DatePicker
+  
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerDate, setDatePickerDate] = useState(new Date(2000, 0, 1));
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -114,7 +114,7 @@ export default function RegisterScreen({ navigation }) {
       .replace(/"/g, '')
       .replace(/'/g, '');
   };
-  // Validaciones en tiempo real al salir del campo (onBlur)
+  
   const validateProfileNameOnBlur = () => {
     const v = profileName.trim();
     if (!v) return showToast('El nombre de perfil es obligatorio.');
@@ -163,7 +163,7 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
-  // Seleccionar la foto de perfil usando el carrete del dispositivo
+  
   const pickProfileImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -174,7 +174,7 @@ export default function RegisterScreen({ navigation }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
-      aspect: [1, 1], // Foto de perfil cuadrada
+      aspect: [1, 1], 
       quality: 0.7,
     });
 
@@ -199,11 +199,11 @@ export default function RegisterScreen({ navigation }) {
     setImage(null);
   };
 
-  // Validaciones y avance al Paso 2
+  
   const handleContinue = () => {
     const newErrors = {};
 
-    // ProfileName
+    
     const cleanProfileName = profileName.trim();
     if (!cleanProfileName) {
       newErrors.profileName = 'El nombre de perfil es obligatorio.';
@@ -215,7 +215,7 @@ export default function RegisterScreen({ navigation }) {
       newErrors.profileName = 'Caracteres no permitidos.';
     }
 
-    // Username
+    
     const cleanUsername = username.trim();
     if (!cleanUsername) {
       newErrors.username = 'El nombre de usuario es obligatorio.';
@@ -231,7 +231,7 @@ export default function RegisterScreen({ navigation }) {
       newErrors.username = 'Este usuario ya está en uso.';
     }
 
-    // Email
+    
     const cleanEmail = email.trim();
     const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
     if (!cleanEmail) {
@@ -242,7 +242,7 @@ export default function RegisterScreen({ navigation }) {
       newErrors.email = 'Formato de correo no válido.';
     }
 
-    // Password
+    
     if (!password) {
       newErrors.password = 'La contraseña es obligatoria.';
     } else if (password.length < 6) {
@@ -257,14 +257,14 @@ export default function RegisterScreen({ navigation }) {
       newErrors.password = 'Debe tener un carácter especial (!@#$...).';
     }
 
-    // Confirm Password
+    
     if (!confirmPassword) {
       newErrors.confirmPassword = 'Confirmá tu contraseña.';
     } else if (confirmPassword !== password) {
       newErrors.confirmPassword = 'Las contraseñas no coinciden.';
     }
 
-    // BirthDate - ya validada y formateada por el DateTimePicker
+    
     if (!birthDate.trim()) {
       newErrors.birthDate = 'La fecha de nacimiento es obligatoria.';
     }
@@ -278,7 +278,7 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
-  // Crear la cuenta en Firebase y guardar detalles adicionales en Firestore
+  
   const handleRegister = async () => {
     if (presentation.trim().length > 200) {
       showToast('La presentación no puede superar los 200 caracteres.');
@@ -286,14 +286,14 @@ export default function RegisterScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      // 1. Crear usuario
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
       const token = await user.getIdToken();
 
       let profilePictureUrl = null;
 
-      // 2. Subir imagen (usuario aún logueado)
+      
       if (image) {
         const formData = new FormData();
         const blob = await new Promise((resolve, reject) => {
@@ -315,7 +315,7 @@ export default function RegisterScreen({ navigation }) {
         if (res.ok) profilePictureUrl = uploadData.url;
       }
 
-      // 3. Guardar en Firestore (usuario aún logueado)
+      
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         profileName: sanitizeInput(profileName.trim()),
@@ -327,7 +327,7 @@ export default function RegisterScreen({ navigation }) {
         createdAt: new Date(),
       });
 
-      // 4. Guardar cuenta en AsyncStorage y cerrar sesión
+      
       try {
         const raw = await AsyncStorage.getItem('stored_accounts');
         let accounts = raw ? JSON.parse(raw) : [];
@@ -557,7 +557,7 @@ export default function RegisterScreen({ navigation }) {
                     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
                     const year = selectedDate.getFullYear();
                     const formatted = `${day}/${month}/${year}`;
-                    // Validar edad mínima
+                    
                     const today = new Date();
                     let age = today.getFullYear() - selectedDate.getFullYear();
                     const monthDiff = today.getMonth() - selectedDate.getMonth();

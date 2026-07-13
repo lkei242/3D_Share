@@ -1,4 +1,4 @@
-// src/screens/profile_screens/AccountSwitcherScreen.js
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -26,7 +26,7 @@ export default function AccountSwitcherScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [storedAccounts, setStoredAccounts] = useState([]);
 
-  // --- Multi-select state ---
+  
   const [selectMode, setSelectMode] = useState(false);
   const [selectedUids, setSelectedUids] = useState([]);
 
@@ -132,7 +132,7 @@ export default function AccountSwitcherScreen({ navigation }) {
                 await signInWithEmailAndPassword(auth, account.email, account.password);
                 navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
               } else {
-                // Es cuenta de Google → usar Google Sign-In
+                
                 signInWithGoogle(
                   () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] }),
                   (msg) => {
@@ -158,13 +158,13 @@ export default function AccountSwitcherScreen({ navigation }) {
     );
   };
 
-  // Entra en modo selección y selecciona la cuenta presionada
+  
   const handleLongPress = (account) => {
     setSelectMode(true);
     setSelectedUids([account.uid]);
   };
 
-  // Tap en modo selección: toggle del uid
+  
   const handleSelectToggle = (account) => {
     setSelectedUids((prev) => {
       const next = prev.includes(account.uid)
@@ -239,7 +239,7 @@ export default function AccountSwitcherScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {}
       <View style={[styles.header, { borderBottomColor: isDark ? '#222' : '#E5E5E5' }]}>
         <TouchableOpacity onPress={selectMode ? handleCancelSelect : () => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color={colors.text} />
@@ -247,7 +247,7 @@ export default function AccountSwitcherScreen({ navigation }) {
         <Text style={[styles.title, { color: colors.textnegrita }]}>
           {selectMode ? `${selectedUids.length} seleccionada${selectedUids.length !== 1 ? 's' : ''}` : 'Cambiar cuenta'}
         </Text>
-        {/* Botón eliminar en modo selección */}
+        {}
         {selectMode ? (
           <TouchableOpacity onPress={handleDeleteSelected} disabled={selectedUids.length === 0}>
             <Ionicons
@@ -265,7 +265,7 @@ export default function AccountSwitcherScreen({ navigation }) {
         <ActivityIndicator size="large" color="#546F1C" style={{ flex: 1 }} />
       ) : (
         <>
-          {/* Perfil actual */}
+          {}
           <View style={styles.profileSection}>
             {userData?.profilePicture ? (
               <Image
@@ -284,7 +284,7 @@ export default function AccountSwitcherScreen({ navigation }) {
               @{userData?.username || 'usuario'}
             </Text>
 
-            {/* Stats */}
+            {}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={[styles.statNumber, { color: colors.text }]}>{stats.posts}</Text>
@@ -305,7 +305,7 @@ export default function AccountSwitcherScreen({ navigation }) {
 
           <View style={[styles.separator, { backgroundColor: isDark ? '#222' : '#E5E5E5' }]} />
 
-          {/* Cuentas */}
+          {}
           <View style={styles.accountsSection}>
             <Text style={[styles.sectionTitle, { color: isDark ? '#888' : '#666' }]}>Cuentas</Text>
 
@@ -369,7 +369,7 @@ export default function AccountSwitcherScreen({ navigation }) {
               );
             })}
 
-            {/* Agregar cuenta — oculto en modo selección */}
+            {}
             {!selectMode && (
               <TouchableOpacity
                 style={[styles.accountButton, { backgroundColor: colors.card, borderColor: isDark ? '#333' : '#E0E0E0' }]}
@@ -383,7 +383,7 @@ export default function AccountSwitcherScreen({ navigation }) {
             )}
           </View>
 
-          {/* Cerrar sesión — oculto en modo selección */}
+          {}
           {!selectMode && (
             <View style={styles.logoutSection}>
               <TouchableOpacity

@@ -1,4 +1,4 @@
-// src/screens/PostDetailScreen.js
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -31,7 +31,7 @@ import CommentModal from './CommentModal';
 import PostMenuModal from './PostMenuModal';
 import PostInfoModal from './PostInfoModal';
 import MediaViewerModal from '../chats_screens/Mediaviewer';
-import { useVideoPlayer, VideoView } from 'expo-video'; // ← NUEVO
+import { useVideoPlayer, VideoView } from 'expo-video'; 
 import {
   doc,
   getDoc,
@@ -59,15 +59,15 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const coverAspectCache = new Map();
 const savedStatusCache = new Map();
 
-// COMPONENTE: VideoThumbnail (miniatura estática, no interactiva)
-// El toque para reproducir/ver en grande lo maneja el TouchableOpacity
-// exterior del carrusel, igual que con las imágenes: así abrir un video
-// se siente idéntico a abrir una imagen (mismo modal, mismo gesto).
+
+
+
+
 const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
   const player = useVideoPlayer(uri, (playerInstance) => {
     playerInstance.loop = false;
     playerInstance.muted = true;
-    // No reproducir aca: esto es solo una miniatura (primer frame).
+    
   });
 
   return (
@@ -82,7 +82,7 @@ const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
         pointerEvents="none"
       />
 
-      {/* Ícono de play puramente visual (no capta toques) */}
+      {}
       <View style={styles.playButtonOverlay} pointerEvents="none">
         <MaterialCommunityIcons
           name="play-circle"
@@ -94,7 +94,7 @@ const VideoThumbnail = React.memo(function VideoThumbnail({ uri, style }) {
   );
 });
 
-// COMPONENTE: PostItem (un post individual, autónomo)
+
 const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, displayHandle, authorProfilePicture, colors, isDark, pageHeight, onOpenComments, onAuthorPress, onMorePress, onOpenMediaViewer, onShare }) {
   const currentUser = auth.currentUser;
   const [liked, setLiked] = useState(false);
@@ -121,7 +121,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
   const mediaList = post.media && post.media.length > 0 ? post.media : [{ url: post.image, type: 'image' }];
   const postViews = post.views || 0;
 
-  // 🆕 Relación de aspecto de la imagen de portada: usa cache si ya se conoce
+  
   const DEFAULT_ASPECT_RATIO = 4 / 5;
   const [coverAspectRatio, setCoverAspectRatio] = useState(
     () => coverAspectCache.get(mediaList[0]?.url) || DEFAULT_ASPECT_RATIO
@@ -196,7 +196,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
 
   return (
     <View style={{ backgroundColor: colors.background, position: 'relative' }}>
-      {/* USER INFO */}
+      {}
       <TouchableOpacity style={styles.userInfoRow} onPress={onAuthorPress} activeOpacity={0.7}>
         <View style={[styles.avatarContainer, { borderColor: colors.avatarborder }]}>
           {authorProfilePicture ? (
@@ -224,9 +224,9 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* CONTENIDO SCROLLEABLE INTERNO */}
+      {}
       <View>
-        {/* POST MEDIA CAROUSEL */}
+        {}
         <View style={[styles.imageWrapper, { height: mediaHeight }]}>
           <FlatList
             data={mediaList}
@@ -277,7 +277,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
           )}
         </View>
 
-        {/* INTERACTION BAR */}
+        {}
         <View style={styles.interactionBar}>
           <View style={styles.leftIcons}>
             <TouchableOpacity onPress={handleLike} style={styles.iconButton}>
@@ -302,7 +302,7 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
           </TouchableOpacity>
         </View>
 
-        {/* DESCRIPTION */}
+        {}
         <View style={[styles.descriptionCard, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5' }]}>
           <Text style={[styles.descriptionTitle, { color: colors.text }]}>{post.title}</Text>
           <Text style={[styles.descriptionText, { color: isDark ? '#ccc' : '#444' }]}>
@@ -332,15 +332,15 @@ const PostItem = React.memo(function PostItem({ post, isOwnPost, displayName, di
   );
 });
 
-// ============================================================
-// COMPONENTE PRINCIPAL: PostDetailScreen
-// ============================================================
+
+
+
 export default function PostDetailScreen({ route, navigation }) {
   const { post, posts = [] } = route.params;
 
-  // 🔧 El guard de "post inválido" tiene que ir ANTES de cualquier hook.
-  // Estaba después de ~24 hooks y antes de otros ~16, violando las
-  // Reglas de los Hooks (podía tirar "Rendered fewer hooks than expected").
+  
+  
+  
   if (!post) return null;
 
   const insets = useSafeAreaInsets();
@@ -375,12 +375,12 @@ export default function PostDetailScreen({ route, navigation }) {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportPostData, setReportPostData] = useState(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deletePostData, setDeletePostData] = useState(null); // 🔧 guarda el post a borrar (menuPost se vacía antes de confirmar)
+  const [deletePostData, setDeletePostData] = useState(null); 
   const [toastMessage, setToastMessage] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
 
-  // --- Compartir publicación ---
+  
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [shareContacts, setShareContacts] = useState([]);
   const [loadingShareContacts, setLoadingShareContacts] = useState(false);
@@ -397,7 +397,7 @@ export default function PostDetailScreen({ route, navigation }) {
   };
 
   const handleDeletePost = async () => {
-    if (!deletePostData) return; // 🔧 sin post guardado no hay nada que borrar
+    if (!deletePostData) return; 
     try {
       const postId = deletePostData.id;
       await deleteDoc(doc(db, 'posts', postId));
@@ -426,7 +426,7 @@ export default function PostDetailScreen({ route, navigation }) {
     }
   };
 
-  // --- Compartir publicación por chat ---
+  
   const handleOpenShare = useCallback(async () => {
     setShareModalVisible(true);
     setLoadingShareContacts(true);
@@ -466,7 +466,7 @@ export default function PostDetailScreen({ route, navigation }) {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Buscar si ya existe un chat con este contacto
+      
       const chatsRef = collection(db, 'chats');
       const q = query(chatsRef, where('participants', 'array-contains', user.uid));
       const snap = await getDocs(q);
@@ -485,7 +485,7 @@ export default function PostDetailScreen({ route, navigation }) {
         }
       }
 
-      // Si no existe, crear el chat ahora
+      
       if (!targetChatId) {
         const newChatRef = await addDoc(collection(db, 'chats'), {
           participants: [user.uid, contact.uid],
@@ -498,7 +498,7 @@ export default function PostDetailScreen({ route, navigation }) {
         targetChatId = newChatRef.id;
       }
 
-      // Enviar la publicación como mensaje tipo 'post'
+      
       const messagesRef = collection(db, `chats/${targetChatId}/messages`);
       const chatRef = doc(db, `chats/${targetChatId}`);
       const postMsg = {
@@ -526,7 +526,7 @@ export default function PostDetailScreen({ route, navigation }) {
         lastSender: user.uid,
       });
 
-      // Navegar al chat (el post ya se envió)
+      
       navigation.navigate('ChatDetail', {
         chatId: targetChatId,
         name: targetChatName,
@@ -660,7 +660,7 @@ export default function PostDetailScreen({ route, navigation }) {
       });
       if (newDocs.length > 0) {
         setPostsList(prev => {
-          const existingIds = new Set(prev.map(p => p.id)); // 🆕 evita duplicados aunque se cuele una carga doble
+          const existingIds = new Set(prev.map(p => p.id)); 
           const uniqueNewDocs = newDocs.filter(d => !existingIds.has(d.id));
           return [...prev, ...uniqueNewDocs];
         });
@@ -758,7 +758,7 @@ export default function PostDetailScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.container, { backgroundColor: colors.card, paddingTop: insets.top }]} onLayout={(e) => setContainerH(e.nativeEvent.layout.height)}>
-        {/* HEADER */}
+        {}
         <View onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)} style={[styles.header, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={26} color={colors.text} />
@@ -857,8 +857,8 @@ export default function PostDetailScreen({ route, navigation }) {
                   text: 'Bloquear',
                   style: 'destructive',
                   onPress: () => {
-                    // Actualización optimista: avisamos y salimos ya mismo,
-                    // sin esperar a que vuelvan las llamadas a Firestore.
+                    
+                    
                     const targetUid = menuPost.author;
                     emitBlockUser(targetUid);
                     setMenuPost(null);
@@ -884,7 +884,7 @@ export default function PostDetailScreen({ route, navigation }) {
             });
           }
           if (key === 'delete') {
-            setDeletePostData(menuPost); // 🔧 se captura ANTES de vaciar menuPost
+            setDeletePostData(menuPost); 
             setMenuPost(null);
             setDeleteModalVisible(true);
           }
@@ -1013,7 +1013,7 @@ export default function PostDetailScreen({ route, navigation }) {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* MODAL COMPARTIR PUBLICACIÓN */}
+      {}
       <Modal visible={shareModalVisible} transparent animationType="slide" onRequestClose={() => setShareModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setShareModalVisible(false)}>
           <View style={styles.shareOverlay}>
@@ -1093,9 +1093,9 @@ export default function PostDetailScreen({ route, navigation }) {
   );
 }
 
-// ============================================================
-// ESTILOS
-// ============================================================
+
+
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
@@ -1138,7 +1138,7 @@ const styles = StyleSheet.create({
   toast: { position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#27AE60', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, gap: 10, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
   toastText: { color: '#FFF', fontSize: 14, fontFamily: 'Nunito-Bold', flex: 1 },
 
-  // Compartir publicación
+  
   shareOverlay: { flex: 1, justifyContent: 'flex-end' },
   shareModal: { maxHeight: '80%', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 30 },
   shareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },

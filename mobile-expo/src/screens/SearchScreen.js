@@ -1,4 +1,4 @@
-// src/screens/SearchScreen.js
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
@@ -26,7 +26,7 @@ import { getBlockedUids } from './config/userActions';
 import { getMutedUids } from './config/userActions';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
-// 🆕 SDK de Google AdMob para anuncios nativos
+
 import mobileAds, {
   NativeAd,
   NativeAdView,
@@ -36,28 +36,28 @@ import mobileAds, {
   TestIds,
 } from 'react-native-google-mobile-ads';
 
-// 🆕 ID del bloque de anuncios "Nativo avanzado".
-// Mientras probás, usa el ID de test de Google (TestIds.NATIVE).
-// Cuando AdMob apruebe tu bloque real, reemplazá el string de producción.
+
+
+
 const NATIVE_AD_UNIT_ID = __DEV__
   ? TestIds.NATIVE
-  : 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY'; // TODO: poné aquí tu ID real
+  : 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY'; 
 
-// 🆕 Cuántos anuncios nativos mantener precargados en memoria
+
 const AD_POOL_TARGET = 4;
 
-// 🆕 Genera un número entero al azar entre min y max (inclusive)
+
 const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-// 🆕 TEMPORAL PARA TESTING: bajá este rango mientras tengas pocos posts de prueba.
-// Con 12-20 posts necesitás al menos ~14-22 posts cargados para ver un solo anuncio.
-// Cuando tengas más contenido real, volvé a subirlo (ej: 12, 20).
+
+
+
 const AD_GAP_MIN = 3;
 const AD_GAP_MAX = 5;
 
-// ============================================================
-// 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
-// ============================================================
+
+
+
 const VideoPreview = React.memo(function VideoPreview({ uri, isVisible }) {
   const player = useVideoPlayer(uri, (playerInstance) => {
     playerInstance.loop = true;
@@ -101,15 +101,15 @@ export default function SearchScreen({ navigation }) {
   const [mutedUids, setMutedUids] = useState([]);
   const [visibleItems, setVisibleItems] = useState(new Set());
 
-  // 🆕 Pool de anuncios nativos precargados. Usamos un ref para tener siempre
-  // el valor más reciente dentro del efecto que construye la grilla, y un
-  // contador (nativeAdsVersion) para forzar la reconstrucción cuando llega uno nuevo.
+  
+  
+  
   const nativeAdsRef = useRef([]);
   const [nativeAdsVersion, setNativeAdsVersion] = useState(0);
 
-  // 🆕 Cronograma de "gaps" (cada cuántos posts va un anuncio). Se genera una
-  // sola vez y crece de forma perezosa, para que la posición de cada anuncio
-  // sea siempre la misma aunque reconstruyamos toda la grilla varias veces.
+  
+  
+  
   const adScheduleRef = useRef([]);
   const getScheduledGap = (idx) => {
     while (adScheduleRef.current.length <= idx) {
@@ -119,11 +119,11 @@ export default function SearchScreen({ navigation }) {
   };
   const [gridRows, setGridRows] = useState([]);
 
-  // 🆕 Pide un anuncio nativo nuevo a AdMob y lo agrega al pool
+  
   const loadOneNativeAd = async () => {
     try {
       const ad = await NativeAd.createForAdRequest(NATIVE_AD_UNIT_ID, {
-        requestNonPersonalizedAdsOnly: true, // TODO: ajustar según el consentimiento real del usuario (GDPR/ATT)
+        requestNonPersonalizedAdsOnly: true, 
       });
       nativeAdsRef.current = [...nativeAdsRef.current, ad];
       setNativeAdsVersion((v) => v + 1);
@@ -132,7 +132,7 @@ export default function SearchScreen({ navigation }) {
     }
   };
 
-  // 🆕 Inicializa el SDK de AdMob y precarga el pool de anuncios nativos
+  
   useEffect(() => {
     mobileAds()
       .initialize()
@@ -144,7 +144,7 @@ export default function SearchScreen({ navigation }) {
       .catch((err) => console.log('[ADS] Error inicializando mobileAds():', err));
 
     return () => {
-      // Importante: liberar los anuncios al desmontar para evitar memory leaks
+      
       nativeAdsRef.current.forEach((ad) => ad.destroy && ad.destroy());
     };
   }, []);
@@ -312,13 +312,13 @@ export default function SearchScreen({ navigation }) {
     [users, blockedUids, searchQuery]
   );
 
-  // 🆕 Construye "filas" para la grilla: la mayoría son filas normales de 3 posts,
-  // pero cada tanto (según el cronograma) se inserta una fila especial con el
-  // anuncio ocupando 2x2 celdas + 2 posts normales apilados al costado.
-  // 🆕 Se reconstruye TODA la grilla en cada cambio (posts o anuncios nuevos),
-  // en vez de ir "sellando" filas de a poco — así, si un anuncio llega después
-  // de que los posts ya se hayan renderizado como fila normal, igual se inserta
-  // en su posición programada la próxima vez que se recalcula.
+  
+  
+  
+  
+  
+  
+  
   useEffect(() => {
     const isSearching = searchQuery.trim() !== '';
     const rows = [];
@@ -345,7 +345,7 @@ export default function SearchScreen({ navigation }) {
         sinceLastAd = 0;
         gapCount += 1;
 
-        // Si el pool se está agotando, pedimos otro anuncio para el próximo turno
+        
         if (adIndex >= nativeAdsRef.current.length - 1) {
           loadOneNativeAd();
         }
@@ -358,11 +358,11 @@ export default function SearchScreen({ navigation }) {
     }
 
     setGridRows(rows);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [filteredPosts, searchQuery, nativeAdsVersion]);
 
-  // 🆕 Detectar qué items son visibles (para autoplay).
-  // Ahora cada item del FlatList es una "fila" que puede contener varios posts.
+  
+  
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     const visibleIds = new Set();
     viewableItems.forEach((v) => {
@@ -373,7 +373,7 @@ export default function SearchScreen({ navigation }) {
         row.side.forEach((p) => visibleIds.add(p.id));
       }
     });
-    // Solo actualiza el estado si los IDs visibles realmente cambiaron
+    
     setVisibleItems(prev => {
       if (prev.size === visibleIds.size && [...visibleIds].every(id => prev.has(id))) return prev;
       return visibleIds;
@@ -384,9 +384,9 @@ export default function SearchScreen({ navigation }) {
     itemVisiblePercentThreshold: 50
   });
 
-  // 🆕 Contenido de una card individual (post normal), extraído para poder
-  // reutilizarlo tanto en las filas normales como en los 2 huecos que quedan
-  // al costado del anuncio.
+  
+  
+  
   const renderPostCard = (item) => {
     const firstMedia = item.media[0];
     const isFirstMediaVideo = firstMedia?.type === 'video';
@@ -399,7 +399,7 @@ export default function SearchScreen({ navigation }) {
         onPress={() => navigation.navigate('PostDetail', { post: item, posts: filteredPosts })}
       >
         <View style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* 🆕 Si el primer elemento es video, reproducirlo; si no, mostrar imagen */}
+          {}
           {isFirstMediaVideo ? (
             <VideoPreview uri={firstMedia.url} isVisible={isVisible} />
           ) : (
@@ -409,7 +409,7 @@ export default function SearchScreen({ navigation }) {
             />
           )}
 
-          {/* 🆕 Badge de video solo si el primer elemento es video */}
+          {}
           {isFirstMediaVideo && (
             <View style={styles.videoBadge}>
               <MaterialCommunityIcons name="video" size={12} color="#FFF" />
@@ -442,8 +442,8 @@ export default function SearchScreen({ navigation }) {
     );
   };
 
-  // 🆕 Fila especial con el anuncio nativo ocupando 2x2 celdas (4 cuadrículas)
-  // y 2 posts normales apilados en la columna restante.
+  
+  
   const renderAdRow = (row) => {
     const { ad, side } = row;
     return (
@@ -495,7 +495,7 @@ export default function SearchScreen({ navigation }) {
     );
   };
 
-  // 🆕 Renderiza cada item del FlatList: una fila normal de 3 posts, o la fila del anuncio
+  
   const renderGridRow = ({ item }) => {
     if (item.type === 'ad') return renderAdRow(item);
     return <View style={styles.postsRow}>{item.items.map(renderPostCard)}</View>;
@@ -544,7 +544,7 @@ export default function SearchScreen({ navigation }) {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior="padding"
     >
-      {/* Header */}
+      {}
       <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <Image
           source={require('../../assets/logo.png')}
@@ -587,7 +587,7 @@ export default function SearchScreen({ navigation }) {
         )}
       </View>
 
-      {/* Tabs */}
+      {}
       <View style={[styles.tabsContainer, { borderBottomColor: isDark ? '#2C2C2C' : '#E0E0E0' }]}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'posts' && { borderBottomColor: '#9DBD3F' }]}
@@ -607,7 +607,7 @@ export default function SearchScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Resultados */}
+      {}
       {activeTab === 'posts' ? (
         <FlatList
           key="posts-grid"
@@ -622,7 +622,7 @@ export default function SearchScreen({ navigation }) {
           maxToRenderPerBatch={15}
           windowSize={7}
           initialNumToRender={18}
-          // 🆕 Detectar items visibles
+          
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig.current}
           refreshControl={
@@ -734,12 +734,12 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     padding: 1,
   },
-  // 🆕 Fila normal de 3 posts (reemplaza al numColumns={3} del FlatList)
+  
   postsRow: {
     flexDirection: 'row',
     width: '100%',
   },
-  // 🆕 Fila especial: anuncio (2x2) + columna con 2 posts apilados
+  
   adRow: {
     flexDirection: 'row',
     width: '100%',
@@ -814,7 +814,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // 🆕 Badge de video
+  
   videoBadge: {
     position: 'absolute',
     top: 4,

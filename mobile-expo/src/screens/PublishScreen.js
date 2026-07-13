@@ -1,4 +1,4 @@
-// src/screens/PublishScreen.js
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@react-navigation/native';
 import {
@@ -30,13 +30,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 4;
 const ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * 4) / 3;
 
-// ============================================================
-// COMPONENTE: MediaPreviewItem (preview individual con video autoplay)
-// ============================================================
+
+
+
 const MediaPreviewItem = React.memo(function MediaPreviewItem({ item, onRemove, index }) {
   const isVideo = item.type === 'video';
 
-  // Hook de video para previsualización (muted, loop, autoplay)
+  
   const player = useVideoPlayer(item.uri, (playerInstance) => {
     playerInstance.loop = true;
     playerInstance.muted = true;
@@ -84,19 +84,19 @@ const MediaPreviewItem = React.memo(function MediaPreviewItem({ item, onRemove, 
         <CachedImage uri={item.uri} style={styles.mediaImage} />
       )}
 
-      {/* Badge de tipo (video) */}
+      {}
       {isVideo && (
         <View style={styles.videoBadge}>
           <MaterialCommunityIcons name="video" size={12} color="#FFF" />
         </View>
       )}
 
-      {/* Badge de número de orden */}
+      {}
       <View style={styles.orderBadge}>
         <Text style={styles.orderBadgeText}>{index + 1}</Text>
       </View>
 
-      {/* Botón de quitar */}
+      {}
       <TouchableOpacity
         style={styles.removeButton}
         onPress={() => onRemove(index)}
@@ -109,9 +109,9 @@ const MediaPreviewItem = React.memo(function MediaPreviewItem({ item, onRemove, 
   );
 });
 
-// ============================================================
-// COMPONENTE PRINCIPAL: PublishScreen
-// ============================================================
+
+
+
 export default function PublishScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -124,7 +124,7 @@ export default function PublishScreen({ navigation }) {
   const [mediaItems, setMediaItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -149,9 +149,9 @@ export default function PublishScreen({ navigation }) {
     }, 3000);
   };
 
-  // ============================================================
-  // SELECCIÓN DE MEDIA (fotos + videos)
-  // ============================================================
+  
+  
+  
   const pickMedia = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -245,9 +245,9 @@ export default function PublishScreen({ navigation }) {
     });
   };
 
-  // ============================================================
-  // VALIDACIONES
-  // ============================================================
+  
+  
+  
   const validateWebLink = (url) => {
     if (!url.trim()) return null;
     try {
@@ -264,9 +264,9 @@ export default function PublishScreen({ navigation }) {
     }
   };
 
-  // ============================================================
-  // UPLOAD
-  // ============================================================
+  
+  
+  
   const uploadSingleFile = async (uri, fileType, token) => {
     const formData = new FormData();
     const blob = await new Promise((resolve, reject) => {
@@ -296,9 +296,9 @@ export default function PublishScreen({ navigation }) {
     return data.url;
   };
 
-  // ============================================================
-  // PUBLICAR
-  // ============================================================
+  
+  
+  
   const handlePublish = async () => {
     if (!titulo.trim()) {
       showToast('Por favor ingresa un título');
@@ -354,16 +354,16 @@ export default function PublishScreen({ navigation }) {
     }
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
+  
+  
+  
   const hasMedia = mediaItems.length > 0;
   const canAddMore = mediaItems.length < 5;
   const totalMB = mediaItems.reduce((sum, m) => sum + (m.fileSize || 0), 0) / (1024 * 1024);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* HEADER */}
+      {}
       <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Feather name="arrow-left" size={22} color={colors.text} />
@@ -379,7 +379,7 @@ export default function PublishScreen({ navigation }) {
         extraScrollHeight={100}
         enableOnAndroid
       >
-        {/* GRID DE MEDIA */}
+        {}
         <View style={styles.mediaGridContainer}>
           <View style={styles.mediaGrid}>
             {mediaItems.map((item, index) => (
@@ -391,7 +391,7 @@ export default function PublishScreen({ navigation }) {
               />
             ))}
 
-            {/* Botones agregar (cámara + galería) */}
+            {}
             {canAddMore && (
               <>
                 <TouchableOpacity
@@ -430,7 +430,7 @@ export default function PublishScreen({ navigation }) {
             )}
           </View>
 
-          {/* Contador + info */}
+          {}
           {hasMedia && (
             <View style={styles.mediaInfoRow}>
               <View style={styles.mediaInfoLeft}>
@@ -446,7 +446,7 @@ export default function PublishScreen({ navigation }) {
           )}
         </View>
 
-        {/* FORMULARIO */}
+        {}
         <View style={styles.formContainer}>
           <Text style={[styles.label, { color: colors.text }]}>Título *</Text>
           <TextInput
@@ -527,7 +527,7 @@ export default function PublishScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Botón publicar grande (abajo también) */}
+          {}
           <TouchableOpacity
             style={[
               styles.publishButton,
@@ -551,7 +551,7 @@ export default function PublishScreen({ navigation }) {
         </View>
       </KeyboardAwareScrollView>
 
-      {/* TOAST */}
+      {}
       {toastMessage !== '' && (
         <Animated.View
           style={[
@@ -592,9 +592,9 @@ export default function PublishScreen({ navigation }) {
   );
 }
 
-// ============================================================
-// ESTILOS
-// ============================================================
+
+
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
 

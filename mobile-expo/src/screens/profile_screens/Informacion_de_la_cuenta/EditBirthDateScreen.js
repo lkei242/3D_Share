@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Informacion_de_la_cuenta/EditBirthDateScreen.js
+
 import React, { useState } from 'react';
 import {
   View,
@@ -17,7 +17,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 export default function EditBirthDateScreen({ route, navigation }) {
   const { currentBirthDate } = route.params || {};
 
-  // Función para parsear fecha string DD/MM/AAAA a Date de JS
+  
   const parseDate = (dateStr) => {
     if (!dateStr) return new Date();
     const parts = dateStr.split('/');
@@ -56,7 +56,7 @@ export default function EditBirthDateScreen({ route, navigation }) {
     try {
       const user = auth.currentUser;
       if (user) {
-        // Formatear a DD/MM/AAAA para consistencia
+        
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();

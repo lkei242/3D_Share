@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Informacion_de_la_cuenta/EditPhoneScreen.js
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -21,7 +21,7 @@ export default function EditPhoneScreen({ route, navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -109,7 +109,7 @@ export default function EditPhoneScreen({ route, navigation }) {
         )}
       </TouchableOpacity>
 
-      {/* TOAST */}
+      {}
       {toastMessage !== '' && (
         <Animated.View
           style={[

@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Informacion_de_la_cuenta/EditProfileInfoScreen.js
+
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -23,7 +23,7 @@ export default function EditProfileInfoScreen({ navigation }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
 
-  // Cargar datos actuales desde Firestore
+  
   const fetchUserData = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -66,7 +66,7 @@ export default function EditProfileInfoScreen({ navigation }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {/* Nombre de perfil */}
+        {}
         <TouchableOpacity
           style={styles.field}
           onPress={() => navigation.navigate('EditNameScreen', { currentProfileName: profileName, currentUsername: username.replace('@', '') })}
@@ -82,7 +82,7 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Nombre de usuario */}
+        {}
         <TouchableOpacity
           style={styles.field}
           onPress={() => navigation.navigate('EditNameScreen', { currentProfileName: profileName, currentUsername: username.replace('@', '') })}
@@ -98,7 +98,7 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Email */}
+        {}
         {isGoogleUser ? (
           <View style={styles.field}>
             <View style={styles.labelRow}>
@@ -131,7 +131,7 @@ export default function EditProfileInfoScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Teléfono */}
+        {}
         <TouchableOpacity
           style={styles.field}
           onPress={() => navigation.navigate('EditPhoneScreen', { currentPhone: phone })}
@@ -147,7 +147,7 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Fecha de nacimiento */}
+        {}
         <TouchableOpacity
           style={styles.field}
           onPress={() => navigation.navigate('EditBirthDateScreen', { currentBirthDate: birthDate })}
@@ -163,7 +163,7 @@ export default function EditProfileInfoScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Link a Información Avanzada */}
+        {}
         <TouchableOpacity
           style={[styles.advancedLink, { borderTopColor: isDark ? '#2C2C2C' : '#E5E5E5' }]}
           onPress={() => navigation.navigate('AdvancedInfoScreen')}

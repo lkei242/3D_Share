@@ -15,7 +15,7 @@ import { useTheme } from '@react-navigation/native';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const POPOVER_WIDTH = 220;
-const MARGIN = 10; // margen mínimo al borde de la pantalla
+const MARGIN = 10; 
 
 const MENU_ITEMS_OTHER = [
   { key: 'mute',   label: 'Silenciar usuario',  icon: 'volume-mute-outline',    color: null, bold: false },
@@ -33,16 +33,7 @@ const MENU_ITEMS_OWN = [
 const ITEM_HEIGHT = 48;
 const ARROW_SIZE = 8;
 
-/**
- * PostMenuModal — popover anclado al botón de tres puntitos.
- *
- * Props:
- *   visible       — boolean
- *   onClose       — () => void
- *   isOwnPost     — boolean
- *   onOptionPress — (key: string) => void
- *   anchorPosition — { x, y, width, height }  ← posición del botón en pantalla
- */
+
 export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, isBlocked, reportLabel, onOptionPress, anchorPosition }) {
   const { colors } = useTheme();
   const isDark = colors.text === '#FFFFFF';
@@ -94,15 +85,15 @@ export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, is
     }
   }, [visible]);
 
-  // ── Calcular posición del popover ──────────────────────────────
+  
   const anchor = anchorPosition || { x: SCREEN_W - 50, y: 60, width: 30, height: 30 };
 
-  // El popover aparece debajo del botón por defecto
-  const popoverH = items.length * ITEM_HEIGHT + 2; // +2 para los divisores
+  
+  const popoverH = items.length * ITEM_HEIGHT + 2; 
   const spaceBelow = SCREEN_H - (anchor.y + anchor.height);
   const showAbove  = spaceBelow < popoverH + MARGIN + ARROW_SIZE + 20;
 
-  // Posición horizontal: alinear el borde derecho con el botón, sin salirse de pantalla
+  
   let popoverLeft = anchor.x + anchor.width - POPOVER_WIDTH + 20;
   if (popoverLeft < MARGIN) popoverLeft = MARGIN;
   if (popoverLeft + POPOVER_WIDTH > SCREEN_W - MARGIN) popoverLeft = SCREEN_W - MARGIN - POPOVER_WIDTH;
@@ -111,13 +102,13 @@ export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, is
     ? anchor.y - popoverH - ARROW_SIZE - 4
     : anchor.y + anchor.height + ARROW_SIZE + 20;
 
-  // Posición de la flecha respecto al contenedor del popover
+  
   const arrowLeft = Math.min(
     Math.max(anchor.x + anchor.width / 2 - popoverLeft - ARROW_SIZE, 10),
     POPOVER_WIDTH - ARROW_SIZE * 2 - 10,
   );
 
-  // Colores
+  
   const popoverBg = isDark ? '#1C1C1E' : '#FFFFFF';
   const dividerC  = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)';
   const shadowC   = isDark ? '#000' : '#555';
@@ -141,7 +132,7 @@ export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, is
                       scale: scaleAnim,
                     },
                     {
-                      // punto de transformación: esquina superior derecha (donde está el botón)
+                      
                       translateX: scaleAnim.interpolate({
                         inputRange: [0.85, 1],
                         outputRange: [POPOVER_WIDTH * 0.075, 0],
@@ -157,14 +148,14 @@ export default function PostMenuModal({ visible, onClose, isOwnPost, isMuted, is
                 },
               ]}
             >
-              {/* Flecha */}
+              {}
               {showAbove ? (
                 <View style={[styles.arrowDown, { left: arrowLeft, borderTopColor: popoverBg }]} />
               ) : (
                 <View style={[styles.arrowUp, { left: arrowLeft, borderBottomColor: popoverBg }]} />
               )}
 
-              {/* Ítems */}
+              {}
               {items.map((item, index) => (
                 <React.Fragment key={item.key}>
                   <TouchableOpacity
@@ -216,7 +207,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 13,
     overflow: 'visible',
-    // Sombra
+    
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
     shadowRadius: 16,

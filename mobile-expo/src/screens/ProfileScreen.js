@@ -1,4 +1,4 @@
-// src/screens/ProfileScreen.js
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -33,9 +33,9 @@ const { width: screenWidth } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (screenWidth - 18) / 3;
 const TABS = ['Publicaciones', 'Contactos'];
 
-// ============================================================
-// 🆕 COMPONENTE: VideoPreview (autoplay muted, loop)
-// ============================================================
+
+
+
 const VideoPreview = React.memo(function VideoPreview({ uri, isVisible }) {
   const player = useVideoPlayer(uri, (playerInstance) => {
     playerInstance.loop = true;
@@ -80,7 +80,7 @@ export default function ProfileScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('Publicaciones');
   const [pinnedPosts, setPinnedPosts] = useState([]);
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
-  const [visibleItems, setVisibleItems] = useState(new Set()); // 🆕 Trackear visibles
+  const [visibleItems, setVisibleItems] = useState(new Set()); 
 
   const [otherProfiles, setOtherProfiles] = useState([]);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
@@ -110,7 +110,7 @@ export default function ProfileScreen({ navigation }) {
     navigation.navigate('PostDetail', { post, posts });
   };
 
-  // Cargar perfil dinámico desde Firestore
+  
   const fetchUserProfile = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -153,7 +153,7 @@ export default function ProfileScreen({ navigation }) {
     }
   }, []);
 
-  // Cache en memoria para las publicaciones del perfil
+  
   const postsCache = useRef({});
 
   const fetchUserPosts = useCallback(async () => {
@@ -213,7 +213,7 @@ export default function ProfileScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  // Contar seguidores y seguidos
+  
   const fetchFollowCounts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -258,7 +258,7 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // 🆕 Detectar qué items son visibles (para autoplay)
+  
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
     const visibleIds = new Set(viewableItems.map(item => item.item.id));
     setVisibleItems(visibleIds);
@@ -268,7 +268,7 @@ export default function ProfileScreen({ navigation }) {
     itemVisiblePercentThreshold: 50
   });
 
-  // Renderizar grid de publicaciones
+  
   const renderGrid = () => {
     if (loading) {
       return <ActivityIndicator size="large" color="#9DBD3F" style={{ marginTop: 40 }} />;
@@ -285,7 +285,7 @@ export default function ProfileScreen({ navigation }) {
     const unpinned = posts.filter(p => !pinnedPosts.includes(p.id));
     const sorted = [...pinned, ...unpinned];
 
-    // 🆕 Convertir a FlatList para usar onViewableItemsChanged
+    
     return (
       <FlatList
         data={sorted}
@@ -297,13 +297,13 @@ export default function ProfileScreen({ navigation }) {
           const isFirstMediaVideo = firstMedia?.type === 'video';
           const isVisible = visibleItems.has(item.id);
 
-          const column = (index % 3) + 1; // 1, 2, 3
+          const column = (index % 3) + 1; 
 
           return (
             <TouchableOpacity
               style={[
                 styles.gridItem,
-                column === 1 && { marginLeft: 1.5 }, // 👈 primera columna (izquierda)
+                column === 1 && { marginLeft: 1.5 }, 
               ]}
               activeOpacity={0.85}
               onPress={() => handlePostPress(item)}
@@ -349,7 +349,7 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           );
         }}
-        // 🆕 Detectar items visibles
+        
         onViewableItemsChanged={onViewableItemsChanged.current}
         viewabilityConfig={viewabilityConfig.current}
         scrollEnabled={false}
@@ -358,7 +358,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // Tarjeta de contacto (estilo UserProfileScreen)
+  
   const renderContactCard = (icon, label, value, onPress, color) => {
     const hasValue = value !== null && value !== '';
     return (
@@ -391,7 +391,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // Botón de red social (estilo UserProfileScreen)
+  
   const handleWhatsApp = () => {
     if (userContacts.whatsapp) {
       const phone = userContacts.whatsapp.replace(/\D/g, '');
@@ -481,7 +481,7 @@ export default function ProfileScreen({ navigation }) {
     const hasValue = !!getSocialValue(platform);
 
     if (!hasValue) {
-      // Si no está configurado, abrimos el modal para agregarlo
+      
       openSocialEdit(platform);
       return;
     }
@@ -635,7 +635,7 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // Renderizar pestaña de contactos
+  
   const renderContactsTab = () => {
     const hasAnyContact =
       userContacts.whatsapp ||
@@ -647,7 +647,7 @@ export default function ProfileScreen({ navigation }) {
 
     return (
       <View style={styles.contactsContainer}>
-        {/* Redes sociales */}
+        {}
         <View style={styles.contactsSection}>
           <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
             Redes sociales
@@ -664,7 +664,7 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Tus otros perfiles */}
+        {}
         <View style={styles.contactsSection}>
           <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
             Tus otros perfiles
@@ -700,7 +700,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // Renderizar contenido según la pestaña activa
+  
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Publicaciones':
@@ -714,7 +714,7 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* HEADER FIJO */}
+      {}
       <View
         style={[
           styles.header,
@@ -773,7 +773,7 @@ export default function ProfileScreen({ navigation }) {
         }
         ListHeaderComponent={() => (
           <View style={styles.profileSection}>
-            {/* Fila: avatar + stats */}
+            {}
             <View style={styles.avatarStatsRow}>
               <TouchableOpacity style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]} onPress={() => profilePicture && setImagePreviewVisible(true)}>
                 {profileLoading ? null : profilePicture ? (
@@ -827,14 +827,14 @@ export default function ProfileScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Bio / Presentación */}
+            {}
             {presentation && presentation.trim().length > 0 ? (
               <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
                 {presentation}
               </Text>
             ) : null}
 
-            {/* Botones acción */}
+            {}
             <View style={styles.buttonsRow}>
               <TouchableOpacity
                 style={styles.btnPrimary}
@@ -895,7 +895,7 @@ export default function ProfileScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Modal para agregar/editar perfil */}
+      {}
       <Modal visible={profileModalVisible} transparent animationType="fade" onRequestClose={() => setProfileModalVisible(false)}>
         <KeyboardAvoidingView style={styles.modalKeyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setProfileModalVisible(false)}>
@@ -943,7 +943,7 @@ export default function ProfileScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal para agregar/editar red social */}
+      {}
       <Modal visible={socialModalVisible} transparent animationType="fade" onRequestClose={() => setSocialModalVisible(false)}>
         <KeyboardAvoidingView style={styles.modalKeyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSocialModalVisible(false)}>
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  // HEADER
+  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1040,7 +1040,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // PERFIL
+  
   profileSection: {
     paddingHorizontal: 16,
     paddingTop: 20,
@@ -1099,14 +1099,14 @@ const styles = StyleSheet.create({
     marginTop: 3,
     textAlign: 'center',
   },
-  // BIO
+  
   bioText: {
     fontSize: 14,
     fontFamily: 'Nunito-Regular',
     lineHeight: 20,
     marginBottom: 16,
   },
-  // BOTONES
+  
   buttonsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Bold',
     fontSize: 14,
   },
-  // TABS
+  
   tabsContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Nunito-Bold',
   },
-  // CONTENIDO
+  
   tabContent: {
     paddingHorizontal: 5,
     paddingTop: 4,
@@ -1185,7 +1185,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // 🆕 Badge de video
+  
   videoBadge: {
     position: 'absolute',
     top: 4,
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Nunito-Regular',
   },
-  // CONTACTOS (estilo UserProfileScreen)
+  
   contactsContainer: {
     paddingHorizontal: 12,
     paddingTop: 16,
@@ -1275,7 +1275,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Nunito-Bold',
   },
-  // REDES SOCIALES (estilo UserProfileScreen)
+  
   socialGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1328,7 +1328,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito-Regular',
     marginTop: 2,
   },
-  // Tus otros perfiles
+  
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1365,7 +1365,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Nunito-Bold',
   },
-  // Modal de perfiles
+  
   modalKeyboardView: {
     flex: 1,
   },

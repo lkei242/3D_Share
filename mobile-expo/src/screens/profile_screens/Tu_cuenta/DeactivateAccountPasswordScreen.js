@@ -26,12 +26,12 @@ export default function DeactivateAccountPasswordScreen({ navigation }) {
     const checkProviders = (user) => {
       if (user) {
         const providers = user.providerData.map((p) => p.providerId);
-        // Misma lógica: si tiene Google, mostramos el botón de Google
+        
         setIsGoogleOnly(providers.includes('google.com'));
       }
     };
 
-    // Verificación síncrona inicial
+    
     checkProviders(auth.currentUser);
     
     const unsubscribe = onAuthStateChanged(auth, checkProviders);

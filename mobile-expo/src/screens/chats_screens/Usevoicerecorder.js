@@ -13,18 +13,18 @@ import { auth, db } from '../config/firebase';
 import { API_URL } from '../config/api';
 import { formatTime } from './Chatconstants';
 
-// Encapsula TODO el estado y la lógica de grabación de notas de voz:
-// estados de UI (bloqueado/pausado/grabando), animaciones (waveform, bounce
-// del candado, slide de cancelar), el cronómetro sincronizado con el grabador
-// real, y el flujo de subida + envío del mensaje de audio a Firestore.
-//
-// Recibe `ensureChatId`, una función async que devuelve el id del chat activo
-// y lo crea si todavía no existe (por ejemplo, si la nota de voz es el primer
-// mensaje de la conversación). No recibe el chatId "crudo" para evitar mandar
-// el audio a un chat que nunca se creó.
-//
-// Se usa así dentro de ChatDetailsScreen.js:
-//   const recorder = useVoiceRecorder(ensureChatId);
+
+
+
+
+
+
+
+
+
+
+
+
 export default function useVoiceRecorder(ensureChatId, customSaveCallback = null) {
   const [isLocked, setIsLocked] = useState(false);
   const waveBarAnims = useRef(
@@ -55,9 +55,9 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     });
   };
 
-  // Cronómetro sincronizado con el grabador real (vía addRecordBackListener).
-  // El listener deja de emitir mientras la grabación está en pausa, así que
-  // recordSeconds se congela solo, sin necesidad de chequear isPaused a mano.
+  
+  
+  
   useEffect(() => {
     if (!isRecording) {
       setRecordSeconds(0);
@@ -76,7 +76,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     };
   }, [isRecording]);
 
-  // useEffect 2 — resetear barras al pausar/detener
+  
   useEffect(() => {
     const isActive = isRecording && !isPaused;
 
@@ -88,7 +88,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     }
   }, [isRecording, isPaused]);
 
-  // Animación de "rebote" del indicador de bloqueo (sugiere deslizar hacia arriba)
+  
   useEffect(() => {
     let loopAnim;
     if (isRecording && !isLocked) {
@@ -126,7 +126,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     }
   }, [isLocked]);
 
-  // --- Permisos y modo de audio (esto sigue siendo de expo-audio) ---
+  
   useEffect(() => {
     (async () => {
       const status = await AudioModule.requestRecordingPermissionsAsync();
@@ -145,9 +145,9 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
       setIsPaused(false);
       setIsLocked(false);
       const uri = await Sound.startRecorder(
-        undefined,  // path por defecto
-        undefined,  // audioSet por defecto
-        true        //  meteringEnabled
+        undefined,  
+        undefined,  
+        true        
       );
       if (!uri) throw new Error('No se obtuvo URI');
       setIsRecording(true);
@@ -174,12 +174,12 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
         return;
       }
 
-      // Subir archivo de audio a Cloudinary a través del Backend
+      
       const user = auth.currentUser;
       const token = await user.getIdToken();
 
-      // nitro-sound devuelve .m4a en iOS y .mp4 en Android — usamos la
-      // extensión real del archivo en vez de asumir siempre m4a
+      
+      
       const extension = uri.split('.').pop() || 'm4a';
 
       const uploadRes = await new Promise((resolve, reject) => {
@@ -253,12 +253,12 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
   const handleTouchStart = (e) => {
     touchStartY.current = e.nativeEvent.pageY;
     touchStartX.current = e.nativeEvent.pageX;
-    isCancellingRef.current = false; // 👈
+    isCancellingRef.current = false; 
     startRecording();
   };
 
   const handleTouchMove = (e) => {
-    if (isLocked || isCancellingRef.current) return; // 👈 agregá isCancellingRef.current
+    if (isLocked || isCancellingRef.current) return; 
 
     const currentY = e.nativeEvent.pageY;
     const currentX = e.nativeEvent.pageX;
@@ -276,7 +276,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     }
 
     if (deltaX > 80) {
-      isCancellingRef.current = true; // 👈 marcar antes de animar
+      isCancellingRef.current = true; 
       Animated.timing(cancelSlideAnim, {
         toValue: -300,
         duration: 200,
@@ -292,7 +292,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     if (isCancellingRef.current) return;
     if (!isLocked) {
       const deltaX = touchStartX.current - (cancelSlideAnim._value ? -cancelSlideAnim._value : 0);
-      // Volver a posición original con spring
+      
       Animated.spring(cancelSlideAnim, {
         toValue: 0,
         useNativeDriver: true,
@@ -305,7 +305,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
 
 
   return {
-    // Estado para renderizar la UI de grabación
+    
     isLocked,
     isRecording,
     isPaused,
@@ -315,7 +315,7 @@ export default function useVoiceRecorder(ensureChatId, customSaveCallback = null
     lockSlideAnim,
     lockOpacityAnim,
     cancelSlideAnim,
-    // Acciones
+    
     togglePauseRecording,
     stopAndSendRecording,
     handleTouchStart,

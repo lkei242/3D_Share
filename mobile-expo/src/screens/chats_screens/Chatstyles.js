@@ -67,13 +67,13 @@ const styles = StyleSheet.create({
   deleteConfirmBtn: {flex: 1,flexDirection: 'row',alignItems: 'center',justifyContent: 'center',gap: 6,paddingVertical: 12,borderRadius: 12,},
   deleteConfirmBtnText: {fontSize: 15,fontFamily: 'Nunito-Bold',},
 
-  // --- Miniaturas dentro de la burbuja del chat ---
+  
   mediaThumb: { width: 250, height: 250, borderRadius: 12, backgroundColor: '#0002' },
   mediaPlayOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   fileCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, maxWidth: 220 },
   fileName: { fontSize: 14, fontFamily: 'Nunito-Bold', flexShrink: 1 },
 
-  // --- Visor de media a pantalla completa ---
+  
   mediaViewerContainer: { flex: 1, backgroundColor: '#121212' },
   mediaViewerHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
   mediaViewerCloseBtn: { padding: 6 },
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   mediaTimeBadge: {position: 'absolute',bottom: 6,right: 6,flexDirection: 'row',alignItems: 'center',backgroundColor: 'rgba(0,0,0,0.45)',borderRadius: 10,paddingHorizontal: 6,paddingVertical: 2,},
   mediaTimeBadgeText: {color: '#FFF',fontSize: 11,fontFamily: 'Nunito-Regular',},
 
-  // --- Responder mensaje (swipe-to-reply, estilo WhatsApp) ---
+  
   replyPreviewBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, marginHorizontal: 10, marginBottom: 6, paddingVertical: 6, paddingHorizontal: 10, overflow: 'hidden' },
   replyPreviewAccent: { width: 3, alignSelf: 'stretch', backgroundColor: GREEN_ACCENT, borderRadius: 2, marginRight: 8 },
   replyPreviewTextWrap: { flex: 1 },

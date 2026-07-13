@@ -1,4 +1,4 @@
-// src/screens/profile_screens/ContactsScreen.js
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Dimensions,
@@ -23,7 +23,7 @@ import { subscribeBlockUser } from '../config/BlockBus';
 const { width } = Dimensions.get('window');
 const PAGE_WIDTH = width - 40;
 
-// Paleta de Colores
+
 const COLORS = {
   GREEN_PRIMARY: '#546F1C',
   GREEN_ACCENT: '#9DBD3F',
@@ -69,12 +69,12 @@ export default function ContactsScreen({ navigation, route }) {
   const [blocked, setBlocked] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Estados para la búsqueda
+  
   const [searchFollowers, setSearchFollowers] = useState('');
   const [searchFollowing, setSearchFollowing] = useState('');
   const [searchBlocked, setSearchBlocked] = useState('');
 
-  // Filtrar datos según la búsqueda
+  
   const filteredFollowers = followers.filter(user =>
     user.name.toLowerCase().includes(searchFollowers.toLowerCase()) ||
     user.username.toLowerCase().includes(searchFollowers.toLowerCase())
@@ -90,7 +90,7 @@ export default function ContactsScreen({ navigation, route }) {
     user.username.toLowerCase().includes(searchBlocked.toLowerCase())
   );
 
-  // Obtener lista de seguidos
+  
   const fetchFollowing = useCallback(async () => {
     if (!profileUserId) return;
     try {
@@ -122,7 +122,7 @@ export default function ContactsScreen({ navigation, route }) {
     }
   }, [profileUserId]);
 
-  // Obtener lista de seguidores
+  
   const fetchFollowers = useCallback(async () => {
     if (!profileUserId) return;
     try {
@@ -154,7 +154,7 @@ export default function ContactsScreen({ navigation, route }) {
     }
   }, [profileUserId]);
 
-  // Obtener lista de bloqueados
+  
   const fetchBlocked = useCallback(async () => {
     if (!currentUser) return;
     try {
@@ -198,15 +198,15 @@ export default function ContactsScreen({ navigation, route }) {
 
   useEffect(() => {
     const unsub = subscribeBlockUser((blockedUid) => {
-      // Actualización optimista: sacamos al usuario bloqueado de las listas
-      // ya mismo, sin esperar el refetch a Firestore (que puede tardar,
-      // sobre todo con muchos contactos).
+      
+      
+      
       if (blockedUid) {
         setFollowers(prev => prev.filter(u => u.uid !== blockedUid));
         setFollowing(prev => prev.filter(u => u.uid !== blockedUid));
       }
-      // Refetch en segundo plano para traer los datos completos
-      // (por ejemplo, para que aparezca en la pestaña de bloqueados).
+      
+      
       fetchFollowers();
       fetchFollowing();
       if (isOwnProfile) fetchBlocked();
@@ -321,7 +321,7 @@ export default function ContactsScreen({ navigation, route }) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? COLORS.BLACK_DARK : COLORS.WHITE, paddingTop: insets.top + 10 }]}>
-      {/* Header */}
+      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
@@ -331,7 +331,7 @@ export default function ContactsScreen({ navigation, route }) {
         </Text>
       </View>
 
-      {/* Estadísticas */}
+      {}
       <View style={[styles.statsContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: isDark ? COLORS.WHITE : COLORS.BLACK }]}>{followers.length}</Text>
@@ -353,7 +353,7 @@ export default function ContactsScreen({ navigation, route }) {
         )}
       </View>
 
-      {/* Indicador de Pestañas (Tabs) */}
+      {}
       <View style={[styles.tabContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_100 }]}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 0 && styles.activeTab]}
@@ -399,7 +399,7 @@ export default function ContactsScreen({ navigation, route }) {
           }}
           style={styles.scrollView}
         >
-          {/* Página 1: Seguidores */}
+          {}
           <View style={{ width: PAGE_WIDTH }}>
             <View style={[styles.searchContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>
               <Ionicons name="search" size={20} color={isDark ? COLORS.GRAY_500 : COLORS.GRAY_400} style={styles.searchIcon} />
@@ -428,7 +428,7 @@ export default function ContactsScreen({ navigation, route }) {
             />
           </View>
 
-          {/* Página 2: Seguidos */}
+          {}
           <View style={{ width: PAGE_WIDTH }}>
             <View style={[styles.searchContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>
               <Ionicons name="search" size={20} color={isDark ? COLORS.GRAY_500 : COLORS.GRAY_400} style={styles.searchIcon} />
@@ -457,7 +457,7 @@ export default function ContactsScreen({ navigation, route }) {
             />
           </View>
 
-          {/* Página 3: Bloqueados (solo perfil propio) */}
+          {}
           {isOwnProfile && (
           <View style={{ width: PAGE_WIDTH }}>
             <View style={[styles.searchContainer, { backgroundColor: isDark ? COLORS.GRAY_900 : COLORS.GRAY_50 }]}>

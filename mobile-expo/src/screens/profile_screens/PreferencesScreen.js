@@ -1,4 +1,4 @@
-// src/screens/profile_screens/PreferencesScreen.js
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '@react-navigation/native';
@@ -9,8 +9,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function PreferencesScreen({ navigation }) {
   const { colors } = useTheme();
-  // isDark y setDarkMode vienen del ThemeContext: este switch ahora
-  // cambia el tema real de toda la app (y se guarda).
+  
+  
   const { isDark, themeMode, setThemeMode } = useAppTheme();
 
   const [videoPreview, setVideoPreview] = useState(true);
@@ -52,7 +52,7 @@ export default function PreferencesScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
@@ -61,7 +61,7 @@ export default function PreferencesScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {/* Modo Oscuro */}
+        {}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Modo Oscuro</Text>
           <TouchableOpacity
@@ -75,7 +75,7 @@ export default function PreferencesScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Permitir mensajes sin follow mutuo */}
+        {}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Permitir mensajes sin follow mutuo</Text>
           <Switch
@@ -85,19 +85,19 @@ export default function PreferencesScreen({ navigation }) {
           />
         </View>
 
-        {/* Vista previa */}
+        {}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Vista previa de videos</Text>
           <Switch value={videoPreview} onValueChange={setVideoPreview} />
         </View>
 
-        {/* Imágenes HQ */}
+        {}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Imágenes de Alta Calidad</Text>
           <Switch value={highQualityImages} onValueChange={setHighQualityImages} />
         </View>
 
-        {/* Videos HQ */}
+        {}
         <View style={[styles.row, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
           <Text style={[styles.label, { color: colors.text }]}>Videos de alta calidad</Text>
           <Switch value={highQualityVideos} onValueChange={setHighQualityVideos} />

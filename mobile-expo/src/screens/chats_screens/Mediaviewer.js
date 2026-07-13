@@ -11,12 +11,12 @@ import styles from './Chatstyles';
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 
-// Umbral mínimo de inclinación para considerar que el celular realmente se giró
-// (evita que tiemble si está casi plano sobre una mesa).
+
+
 const TILT_THRESHOLD = 0.35;
 
-// Una sola "página" del visor: imagen o video con pinch-to-zoom + pan,
-// y doble-tap como atajo rápido para alternar zoom.
+
+
 const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   const baseScale = useRef(new Animated.Value(1)).current;
   const pinchScale = useRef(new Animated.Value(1)).current;
@@ -27,12 +27,12 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   const translateY = useRef(new Animated.Value(0)).current;
   const lastOffset = useRef({ x: 0, y: 0 });
 
-  // Rotación por orientación física del celular (solo para imágenes).
+  
   const rotation = useRef(new Animated.Value(0)).current;
   const currentAngleRef = useRef(0);
 
-  // Factor de escala extra que se activa solo al rotar 90°/-90°, para que
-  // una imagen muy alta (o muy ancha) entre completa en la pantalla al girarla.
+  
+  
   const orientationScale = useRef(new Animated.Value(1)).current;
 
   const [zoomed, setZoomed] = useState(false);
@@ -49,18 +49,18 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     }
   });
 
-  // Altura real usable, descontando status bar y barra de navegación del sistema
+  
     const mediaHeight = (SCREEN_HEIGHT - (insets?.top || 0) - (insets?.bottom || 0)) * 1.1653;
 
-  // Si el aspect ratio de la imagen coincide con el de la pantalla (ej: una captura
-  // de pantalla), la mostramos a pantalla completa en vez de con margen arriba/abajo.
+  
+  
   const screenRatio = SCREEN_WIDTH / SCREEN_HEIGHT;
   const imageRatio = naturalSize ? naturalSize.width / naturalSize.height : null;
   const isScreenFormat = imageRatio !== null && Math.abs(imageRatio - screenRatio) < 0.03;
   const imageHeight = isScreenFormat ? SCREEN_HEIGHT : mediaHeight;
 
-  // El listener del acelerómetro se registra una sola vez, así que necesitamos
-  // un ref para poder leer el imageHeight más reciente dentro de ese callback.
+  
+  
   const imageHeightRef = useRef(imageHeight);
   useEffect(() => {
     imageHeightRef.current = imageHeight;
@@ -80,28 +80,28 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     onZoomChange?.(zoomed);
   }, [zoomed]);
 
-  // Suscripción al acelerómetro: solo mientras la página de imagen esté activa.
-  // Detecta hacia qué lado quedó el celular (izquierda/derecha/boca abajo) y
-  // rota la imagen para "compensar", como hace la app de Fotos nativa.
+  
+  
+  
   useEffect(() => {
     if (item.type !== 'image' || !isActive) return;
 
     Accelerometer.setUpdateInterval(350);
     const subscription = Accelerometer.addListener(({ x, y }) => {
       const magnitude = Math.sqrt(x * x + y * y);
-      if (magnitude < TILT_THRESHOLD) return; // celular casi plano, ignoramos
+      if (magnitude < TILT_THRESHOLD) return; 
 
       const angleRad = Math.atan2(-x, y);
       const angleDeg = angleRad * (180 / Math.PI);
 
-      // Redondeamos a la posición más cercana entre 0°, 90°, 180°, -90°
+      
       let snapped = Math.round(angleDeg / 90) * 90;
       if (snapped === -180) snapped = 180;
 
       if (snapped !== currentAngleRef.current) {
         currentAngleRef.current = snapped;
-        // Invertimos el signo: la convención de ejes del acelerómetro queda
-        // "al revés" respecto a como Animated interpreta un rotate positivo.
+        
+        
         Animated.spring(rotation, {
           toValue: -snapped,
           friction: 8,
@@ -109,14 +109,14 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
           useNativeDriver: true,
         }).start();
 
-        // Si quedó "de costado" (90° o -90°), el alto de la imagen pasa a ocupar
-        // el ancho de la pantalla. Si la imagen es muy alta, eso no entra, así que
-        // calculamos cuánto hay que achicarla para que quepa completa.
+        
+        
+        
         const isSideways = Math.abs(snapped) === 90;
         let targetScale = 1;
         if (isSideways) {
-          const Hc = imageHeightRef.current; // alto actual del contenedor (vertical)
-          const Wc = SCREEN_WIDTH; // ancho actual del contenedor
+          const Hc = imageHeightRef.current; 
+          const Wc = SCREEN_WIDTH; 
           targetScale = Math.min(SCREEN_WIDTH / Hc, mediaHeight / Wc, 1);
         }
         Animated.spring(orientationScale, {
@@ -133,7 +133,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     };
   }, [isActive, item.type]);
 
-  // Si dejamos de ver la imagen, la volvemos a dejar derecha (y a tamaño normal) para la próxima vez.
+  
   useEffect(() => {
     if (!isActive) {
       currentAngleRef.current = 0;
@@ -154,8 +154,8 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     setZoomed(false);
   };
 
-  // Calcula cuánto se puede mover la imagen en cada eje sin dejar ver "el borde"
-  // (la mitad del extra de tamaño que agrega el zoom respecto al tamaño original).
+  
+  
   const getMaxOffset = (scaleValue) => {
     const currentHeight = item.type === 'image' && isScreenFormat ? SCREEN_HEIGHT : mediaHeight;
     return {
@@ -164,8 +164,8 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     };
   };
 
-  // Recorta lastOffset dentro de los límites válidos para el scale actual
-  // y aplica el resultado a los Animated.Value (sin animación, es instantáneo).
+  
+  
   const clampOffset = (scaleValue) => {
     const { maxX, maxY } = getMaxOffset(scaleValue);
     const clampedX = Math.max(-maxX, Math.min(lastOffset.current.x, maxX));
@@ -193,7 +193,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
         resetZoom();
       } else {
         setZoomed(true);
-        clampOffset(newScale); // si veníamos movidos y el nuevo scale achica el margen, lo recorta
+        clampOffset(newScale); 
       }
     }
   };
@@ -230,14 +230,14 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
     outputRange: ['-180deg', '0deg', '180deg'],
   });
 
-  // Escala total = zoom manual (pinch/doble-tap) combinado con el achique automático
-  // por orientación (que solo entra en juego cuando la imagen está de costado).
+  
+  
   const totalScale = Animated.multiply(scale, orientationScale);
 
-  // El orden acá es clave: translateX/Y deben ir ANTES que rotate en la lista para que
-  // el arrastre (pan) se aplique siempre en coordenadas de pantalla, sin importar el
-  // ángulo actual de rotación de la imagen. Si rotate va antes, el desplazamiento del
-  // dedo termina "rotado" junto con la imagen y el drag se siente invertido/cruzado.
+  
+  
+  
+  
   const zoomStyle = {
     transform: [{ translateX }, { translateY }, { rotate: rotateInterpolate }, { scale: totalScale }],
   };
@@ -331,7 +331,7 @@ const MediaViewerItem = ({ item, isActive, insets, onZoomChange }) => {
   );
 };
 
-// Modal con swipe horizontal entre todas las fotos/videos/archivos del chat
+
 const MediaViewerModal = ({ visible, items, initialIndex, onClose, hideCounter }) => {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);

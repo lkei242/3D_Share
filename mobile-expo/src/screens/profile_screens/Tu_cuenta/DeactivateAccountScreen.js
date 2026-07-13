@@ -24,14 +24,14 @@ export default function DeactivateAccountScreen({ navigation }) {
     const checkProviders = (user) => {
       if (user) {
         const providers = user.providerData.map((p) => p.providerId);
-        // Si tiene Google, usamos la ruta de Google.
-        // Quitamos la restricción de "!providers.includes('password')" 
-        // porque a veces Firebase lo vincula internamente.
+        
+        
+        
         setIsGoogleOnly(providers.includes('google.com'));
       }
     };
 
-    // Verificación síncrona inicial para evitar que se muestre la opción de contraseña por error
+    
     checkProviders(auth.currentUser);
     
     const unsubscribe = onAuthStateChanged(auth, checkProviders);

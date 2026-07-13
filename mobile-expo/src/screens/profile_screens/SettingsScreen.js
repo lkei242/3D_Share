@@ -34,8 +34,8 @@ export default function SettingsScreen({ navigation }) {
   
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Borra la sesión local de Firebase
-      // Resetea el historial de pantallas y manda al usuario a Welcome
+      await signOut(auth); 
+      
       navigation.reset({
         index: 0,
         routes: [{ name: 'Welcome' }],
@@ -46,7 +46,7 @@ export default function SettingsScreen({ navigation }) {
   };
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
@@ -78,7 +78,7 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Las opciones ahora usan colors.border de React Navigation de manera limpia */}
+        {}
         <TouchableOpacity
           style={[styles.option, { borderBottomColor: colors.border }]}
           onPress={() => navigation.navigate('Account')}

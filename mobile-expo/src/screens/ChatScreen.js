@@ -58,7 +58,7 @@ export default function ChatScreen({ navigation }) {
   const [followingUsers, setFollowingUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
 
-  // --- Grupos y listas de difusión ---
+  
   const [groupChatsList, setGroupChatsList] = useState([]);
   const [broadcastLists, setBroadcastLists] = useState([]);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
@@ -69,9 +69,9 @@ export default function ChatScreen({ navigation }) {
   const [groupNameInput, setGroupNameInput] = useState('');
   const [broadcastNameInput, setBroadcastNameInput] = useState('');
 
-  // --- Modal de confirmación propio de la app (reemplaza los Alert.alert de
-  // borrado de chat, tanto en handleDeleteChat como en checkAndDelete) ---
-  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+  
+  
+  const [confirmModal, setConfirmModal] = useState(null); 
   const confirmOpacity = useRef(new Animated.Value(0)).current;
   const confirmScale = useRef(new Animated.Value(0.9)).current;
 
@@ -91,7 +91,7 @@ export default function ChatScreen({ navigation }) {
     });
   };
 
-  // --- Toast propio de la app (avisos cortos dentro de los modales, ej. campos faltantes) ---
+  
   const [groupToast, setGroupToast] = useState('');
   const groupToastOpacity = useRef(new Animated.Value(0)).current;
   const groupToastTimer = useRef(null);
@@ -111,7 +111,7 @@ export default function ChatScreen({ navigation }) {
     }, [])
   );
 
-  // Cargar usuarios a los que sigue
+  
   const handleOpenNewChat = async () => {
     setShowNewChatModal(true);
     setFetchingUsers(true);
@@ -119,16 +119,16 @@ export default function ChatScreen({ navigation }) {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Consultar la colección 'followers' donde soy el seguidor
+      
       const q = query(collection(db, 'followers'), where('followerId', '==', user.uid));
       const snapshot = await getDocs(q);
       const followingIds = snapshot.docs.map(doc => doc.data().userId);
 
       const usersData = [];
       for (const uid of followingIds) {
-        // 1. Verificar si ya tenemos una sala de chat con este usuario
+        
         const hasExistingChat = chats.some(c => c.kind !== 'group' && c.participants && c.participants.includes(uid));
-        if (hasExistingChat) continue; // Si ya existe el chat, salta al siguiente seguidor (no lo muestra)
+        if (hasExistingChat) continue; 
         const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -148,7 +148,7 @@ export default function ChatScreen({ navigation }) {
           });
         }
       }
-      // Filtrar usuarios con restricción de mensajes
+      
       const filteredUsers = [];
       for (const u of usersData) {
         const pref = await getUserMessagePreference(u.uid);
@@ -175,12 +175,12 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
-  // Al seleccionar un usuario para chatear — el chat se crea al enviar el primer mensaje
+  
   const handleSelectUser = async (targetUser) => {
     setShowNewChatModal(false);
     const user = auth.currentUser;
     if (!user) return;
-    // 1. Buscar en chats visibles (no eliminados por el usuario actual)
+    
     const existingChat = chats.find(c => c.kind !== 'group' && c.participants && c.participants.includes(targetUser.uid));
     if (existingChat) {
       navigation.navigate('ChatDetail', {
@@ -192,7 +192,7 @@ export default function ChatScreen({ navigation }) {
       });
       return;
     }
-    // Verificar si el usuario destino tiene restricción de mensajes
+    
     const targetPref = await getUserMessagePreference(targetUser.uid);
     if (!targetPref) {
       const isMutual = await checkMutualFollow(user.uid, targetUser.uid);
@@ -223,7 +223,7 @@ export default function ChatScreen({ navigation }) {
         }
       }
     }
-    // Buscar en Firestore un chat eliminado por el usuario actual (para restaurar)
+    
     try {
       const q = query(collection(db, 'chats'), where('participants', 'array-contains', user.uid));
       const snap = await getDocs(q);
@@ -236,10 +236,10 @@ export default function ChatScreen({ navigation }) {
         const deletedBy = deletedChatDoc.data().deletedBy || [];
         const bothDeleted = deletedBy.includes(targetUser.uid);
         if (bothDeleted) {
-          // Ambos eliminaron y el doc aún existe (debería haberse borrado) → borrar y crear nuevo
+          
           await permanentlyDeleteChat(deletedChatDoc.id);
         } else {
-          // Solo el usuario actual eliminó → restaurar quitando su UID de deletedBy
+          
           await updateDoc(deletedChatDoc.ref, { deletedBy: arrayRemove(user.uid) });
           navigation.navigate('ChatDetail', {
             chatId: deletedChatDoc.id,
@@ -254,7 +254,7 @@ export default function ChatScreen({ navigation }) {
     } catch (err) {
       console.log('Error buscando chat eliminado:', err);
     }
-    // 3. No existe chat previo → crear nuevo
+    
     navigation.navigate('ChatDetail', {
       chatId: null,
       name: targetUser.name,
@@ -265,7 +265,7 @@ export default function ChatScreen({ navigation }) {
     });
   };
 
-  // --- Cargar seguidos para seleccionar miembros (grupos y difusión) ---
+  
   const fetchFollowingUsers = async () => {
     setFetchingSelectable(true);
     try {
@@ -337,7 +337,7 @@ export default function ChatScreen({ navigation }) {
         lastMessage: '',
         lastMessageTime: null,
       });
-      setShowNewGroupModal(false); // cierra el modal "Nuevo grupo" al crearlo
+      setShowNewGroupModal(false); 
       navigation.navigate('ChatDetailGroup', {
         chatId: newChatRef.id,
         groupName: groupNameInput.trim(),
@@ -365,7 +365,7 @@ export default function ChatScreen({ navigation }) {
         lastMessageTime: null,
       });
       setShowNewBroadcastModal(false);
-      // TODO: pendiente definir la pantalla/comportamiento de envío de difusión
+      
       navigation.navigate('BroadcastDetail', {
         broadcastId: newListRef.id,
         name: broadcastNameInput.trim(),
@@ -488,7 +488,7 @@ export default function ChatScreen({ navigation }) {
       const chatRef = doc(db, 'chats', chat.id);
       const otherUid = chat.otherUid;
 
-      // Leer datos FRESCOS de Firestore (no confiar en el estado)
+      
       const chatSnap = await getDoc(chatRef);
       if (!chatSnap.exists()) return;
       const freshDeletedBy = chatSnap.data().deletedBy || [];
@@ -507,7 +507,7 @@ export default function ChatScreen({ navigation }) {
         
       }
 
-      // Si no se cumplen las condiciones: solo marcar como eliminado por este usuario
+      
       await updateDoc(chatRef, { deletedBy: arrayUnion(user.uid) });
     } catch (err) {
       console.log('Error al verificar borrado:', err);
@@ -519,12 +519,12 @@ export default function ChatScreen({ navigation }) {
       const messagesRef = collection(db, `chats/${chatId}/messages`);
       const messagesSnap = await getDocs(messagesRef);
 
-      // 1. Recopilar todas las URLs de Cloudinary a eliminar
+      
       const cloudinaryDeletions = [];
       for (const d of messagesSnap.docs) {
         const data = d.data();
 
-        // Mensajes con un solo archivo (image, video, audio, file)
+        
         if (data.mediaUrl) {
           cloudinaryDeletions.push(
             deleteMediaFromCloudinary(data.mediaUrl).catch(e =>
@@ -533,7 +533,7 @@ export default function ChatScreen({ navigation }) {
           );
         }
 
-        // Mensajes con múltiples archivos (media_group)
+        
         if (Array.isArray(data.mediaItems)) {
           for (const item of data.mediaItems) {
             if (item.url) {
@@ -547,17 +547,17 @@ export default function ChatScreen({ navigation }) {
         }
       }
 
-      // Esperar a que Cloudinary elimine todo
+      
       await Promise.all(cloudinaryDeletions);
 
-      // 2. Eliminar todos los mensajes de Firestore en paralelo
+      
       await Promise.all(
         messagesSnap.docs.map(d =>
           deleteDoc(doc(db, `chats/${chatId}/messages/${d.id}`))
         )
       );
 
-      // 3. Eliminar el documento del chat
+      
       await deleteDoc(doc(db, 'chats', chatId));
 
       console.log('Chat borrado exitosamente (Firestore + Cloudinary)');
@@ -634,7 +634,7 @@ export default function ChatScreen({ navigation }) {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Consulta de salas de chat donde el usuario actual sea un participante
+    
     const chatsRef = collection(db, 'chats');
     const q = query(chatsRef, where('participants', 'array-contains', user.uid));
 
@@ -642,7 +642,7 @@ export default function ChatScreen({ navigation }) {
       const chatPromises = snapshot.docs.map(async (docSnapshot) => {
         const data = docSnapshot.data();
 
-        // --- Chat individual ---
+        
         const otherParticipantUid = data.participants?.find(uid => uid !== user.uid);
         
         let otherParticipantName = 'Usuario';
@@ -689,10 +689,10 @@ export default function ChatScreen({ navigation }) {
         };
       });
 
-      // Resolver TODOS los datos antes de usarlos
+      
       const resolvedChats = await Promise.all(chatPromises);
 
-      // 1. Background cleanup: datos crudos (antes del filtro)
+      
       for (const chat of resolvedChats) {
         const deletedBy = chat.deletedBy || [];
         if (deletedBy.length >= 2 && deletedBy.includes(user.uid)) {
@@ -705,7 +705,7 @@ export default function ChatScreen({ navigation }) {
         }
       }
 
-      // 2. Filtrar los chats donde el usuario actual ya eliminó (solo se ocultan de la vista)
+      
       const chatList = resolvedChats.filter(c => !(c.deletedBy || []).includes(user.uid));
 
       setChats(chatList);
@@ -715,7 +715,7 @@ export default function ChatScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  // --- Grupos (colección separada: groupchats) ---
+  
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -751,7 +751,7 @@ export default function ChatScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  // --- Listas de difusión (colección separada: solo el dueño las ve) ---
+  
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -783,7 +783,7 @@ export default function ChatScreen({ navigation }) {
     return unsubscribe;
   }, []);
 
-  // chats solo contiene individuales; groupChatsList viene de su propio listener
+  
   const individualChats = useMemo(() => chats, [chats]);
   const currentList = activeTab === 0 ? individualChats : activeTab === 1 ? groupChatsList : broadcastLists;
   const filteredList = useMemo(() => {
@@ -883,7 +883,7 @@ export default function ChatScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      {}
       <View style={[styles.header, { backgroundColor: isDark ? '#1C1C1C' : '#F5F5F5', paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
@@ -896,7 +896,7 @@ export default function ChatScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Filtros animados */}
+      {}
       <View style={styles.filterContainer}>
         {['Mensajes', 'Grupos', 'Difusión'].map((label, index) => {
           const isActive = activeTab === index;
@@ -906,7 +906,7 @@ export default function ChatScreen({ navigation }) {
           });
           const caretTranslateY = caretAnims[index].interpolate({
             inputRange: [0, 1],
-            outputRange: [6, 0],   // sube desde abajo al activarse
+            outputRange: [6, 0],   
           });
           const caretOpacity = caretAnims[index].interpolate({
             inputRange: [0, 1],
@@ -919,7 +919,7 @@ export default function ChatScreen({ navigation }) {
               activeOpacity={0.7}
               onPress={() => switchTab(index)}
             >
-              {/* Caret encima del texto, animado */}
+              {}
               <Animated.View style={{
                 alignItems: 'center',
                 opacity: caretOpacity,
@@ -941,7 +941,7 @@ export default function ChatScreen({ navigation }) {
       </View>
       
     <View style={{ flex: 1 }} {...panResponder.panHandlers}>
-      {/* Buscador */}
+      {}
       {isDark ? (
         <LinearGradient
           colors={[v1, '#121212']}
@@ -966,7 +966,7 @@ export default function ChatScreen({ navigation }) {
         </LinearGradient>
       )}
 
-      {/* Lista de Chats (individual / grupos / difusión según la pestaña activa) */}
+      {}
       {loading ? (
         <ActivityIndicator size="large" color={v1} style={{ marginTop: 50 }} />
       ) : filteredList.length === 0 ? (
@@ -992,14 +992,14 @@ export default function ChatScreen({ navigation }) {
       )}
     </View>
 
-      {/* OVERLAY DE GESTIÓN DE CHAT */}
+      {}
       {showManagement && (
         <Animated.View style={[styles.managementOverlay, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: managementOpacity }]}>
           <TouchableWithoutFeedback onPress={() => closeManagementCard()}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <Animated.View style={[styles.managementCard, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', transform: [{ translateY: managementSlide }] }]}>
-            {/* Info del chat seleccionado */}
+            {}
             <View style={styles.managementChatInfo}>
               {selectedChat?.profilePicture ? (
                 <Image source={{ uri: selectedChat.profilePicture }} style={[styles.managementAvatar, { borderColor: isDark ? '#2A2A2A' : '#E0E0E0' }]} />
@@ -1018,7 +1018,7 @@ export default function ChatScreen({ navigation }) {
               </View>
             </View>
 
-            {/* 5 botones de acción */}
+            {}
             <View style={styles.managementActions}>
               <TouchableOpacity style={styles.managementBtn} onPress={handlePin}>
                 <MaterialCommunityIcons name="pin" size={24} color={colors.text} />
@@ -1047,7 +1047,7 @@ export default function ChatScreen({ navigation }) {
         </Animated.View>
       )}
 
-      {/* Botón flotante: abre el flujo de creación según la pestaña activa */}
+      {}
       <TouchableOpacity
         style={[styles.fabButton, { backgroundColor: v1 }]}
         activeOpacity={0.8}
@@ -1064,7 +1064,7 @@ export default function ChatScreen({ navigation }) {
         />
       </TouchableOpacity>
 
-      {/* Modal para iniciar chat con seguidos */}
+      {}
       <Modal
         visible={showNewChatModal}
         animationType="slide"
@@ -1073,7 +1073,7 @@ export default function ChatScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1C' : '#FFF' }]}>
-            {/* Cabecera del modal */}
+            {}
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Iniciar chat</Text>
               <TouchableOpacity onPress={() => setShowNewChatModal(false)}>
@@ -1081,7 +1081,7 @@ export default function ChatScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Listado */}
+            {}
             {fetchingUsers ? (
               <ActivityIndicator size="large" color={v1} style={{ marginTop: 40 }} />
             ) : followingUsers.length === 0 ? (
@@ -1126,7 +1126,7 @@ export default function ChatScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal para crear un grupo nuevo */}
+      {}
       <Modal
         visible={showNewGroupModal}
         animationType="slide"
@@ -1230,7 +1230,7 @@ export default function ChatScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal para crear una lista de difusión nueva */}
+      {}
       <Modal
         visible={showNewBroadcastModal}
         animationType="slide"
@@ -1327,7 +1327,7 @@ export default function ChatScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal de confirmación propio de la app (borrado de chat) */}
+      {}
       {confirmModal && (
         <Animated.View style={[styles.confirmOverlay, { opacity: confirmOpacity }]}>
           <TouchableWithoutFeedback onPress={() => closeConfirmModal()}>

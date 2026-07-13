@@ -46,7 +46,7 @@ export default function WelcomeScreen({ navigation }) {
   }));
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ... todo tu código JSX original ... */}
+      {}
       <View style={styles.logoContainer}>
         <Animated.Image
           source={require('../../assets/logo.png')}

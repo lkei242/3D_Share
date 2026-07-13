@@ -1,4 +1,4 @@
-// src/screens/profile_screens/AccountScreen.js
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '@react-navigation/native';

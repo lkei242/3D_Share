@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-// ===================== SEGUIR / DEJAR DE SEGUIR =====================
+
 
 export const checkIfFollowing = async (followerUid, targetUid) => {
   if (!followerUid || !targetUid || followerUid === targetUid) return false;
@@ -52,19 +52,19 @@ export const getFollowersCount = async (targetUid) => {
   }
 };
 
-// ===================== DENUNCIAR USUARIO =====================
+
 
 export const reportUser = async (reporterUid, reportedUid, reason) => {
   if (!reporterUid || !reportedUid) return false;
   try {
-    // Usamos addDoc (ID autogenerado) en vez de setDoc con ID fijo.
-    // Con un ID fijo (`${reporterUid}_${reportedUid}`), la segunda vez que el
-    // mismo usuario denuncia al mismo usuario, Firestore ya no lo trata como
-    // "create" sino como "update" (el doc ya existe), y como las reglas de
-    // /userReports solo permiten create/read/delete (no update), la escritura
-    // se rechaza con "Missing or insufficient permissions". Con addDoc cada
-    // denuncia es siempre un documento nuevo, así que siempre pasa por la
-    // regla de "create".
+    
+    
+    
+    
+    
+    
+    
+    
     await addDoc(collection(db, 'userReports'), {
       reporterId: reporterUid,
       reportedId: reportedUid,
@@ -78,7 +78,7 @@ export const reportUser = async (reporterUid, reportedUid, reason) => {
   }
 };
 
-// ===================== DENUNCIAR PUBLICACIÓN =====================
+
 
 export const reportPost = async (reporterUid, postId, reason) => {
   if (!reporterUid || !postId) return false;
@@ -96,7 +96,7 @@ export const reportPost = async (reporterUid, postId, reason) => {
   }
 };
 
-// ===================== SILENCIAR / DESILENCIAR =====================
+
 
 export const checkIfMuted = async (mutedByUid, targetUid) => {
   if (!mutedByUid || !targetUid) return false;
@@ -147,7 +147,7 @@ export const getMutedUids = async (mutedByUid) => {
   }
 };
 
-// ===================== BLOQUEAR / DESBLOQUEAR =====================
+
 
 export const checkIfBlocked = async (blockerUid, targetUid) => {
   if (!blockerUid || !targetUid) return false;
@@ -198,7 +198,7 @@ export const getBlockedUids = async (blockerUid) => {
   }
 };
 
-// ===================== SOLICITUDES DE MENSAJE =====================
+
 
 export const sendMessageRequest = async (senderId, receiverId) => {
   if (!senderId || !receiverId) return false;

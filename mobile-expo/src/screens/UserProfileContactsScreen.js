@@ -267,7 +267,7 @@ export default function UserProfileContactsScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#FFF', paddingTop: insets.top }]}>
-      {/* Header */}
+      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={28} color={colors.text} />
@@ -277,7 +277,7 @@ export default function UserProfileContactsScreen({ route, navigation }) {
         </Text>
       </View>
 
-      {/* Stats Tabs */}
+      {}
       <View style={styles.statsRow}>
         <TouchableOpacity style={styles.statTab} onPress={() => handleTabPress(0)}>
           <Text style={[styles.statNumber, { color: colors.text }]}>{mutualFriends.length}</Text>
@@ -293,7 +293,7 @@ export default function UserProfileContactsScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
+      {}
       <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1A1A1A' : '#F0F0F0' }]}>
         <Ionicons name="search" size={20} color={isDark ? '#666' : '#999'} />
         <TextInput
@@ -305,7 +305,7 @@ export default function UserProfileContactsScreen({ route, navigation }) {
         />
       </View>
 
-      {/* Content */}
+      {}
       {loading ? (
         <ActivityIndicator size="large" color="#546F1C" style={{ marginTop: 40 }} />
       ) : (

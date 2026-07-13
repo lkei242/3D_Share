@@ -58,7 +58,7 @@ console.warn = (...args) => {
       msg.includes('Ended a touch event which was not counted in') ||
       msg.includes('trackedTouchCount')
     )
-  ) return; // Ignorar estos warnings específicos
+  ) return; 
   _warn(...args);
 };
 
@@ -67,7 +67,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isDark = colors.text === '#FFFFFF';
   
-  // Recuperar los datos pasados desde ChatScreen
+  
   const { 
     chatId, 
     name: chatName, 
@@ -80,7 +80,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [currentChatId, setCurrentChatId] = useState(chatId);
   const [messages, setMessages] = useState([]);
   
-  // Inicializamos el estado directamente con lo que viene del listado anterior (instantáneo)
+  
   const [otherUser, setOtherUser] = useState({
     uid: otherUid || '',
     name: chatName,
@@ -196,10 +196,10 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const [showCustomCamera, setShowCustomCamera] = useState(false);
 
-  // --- Visor de media a pantalla completa ---
+  
   const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
-  // Lista plana de todos los items de media para el visor (expande media_group)
+  
   const flatMediaItems = React.useMemo(() => {
     const result = [];
     messages.forEach(m => {
@@ -221,7 +221,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const openMediaViewer = useCallback((item, groupIdx = 0) => {
     if (item.type === 'media_group') {
-      // Buscar el índice de la primera foto de este grupo en flatMediaItems
+      
       const firstId = `${item.id}_0`;
       const baseIdx = flatMediaItems.findIndex(m => m.id === firstId);
       setMediaViewerIndex(baseIdx >= 0 ? baseIdx + groupIdx : 0);
@@ -272,11 +272,11 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
-  // Crea el documento del chat si todavía no existe (primer mensaje de cualquier
-  // tipo: texto, imagen, video, ubicación, audio, etc.) y devuelve el id activo.
-  // Se reutiliza en handleSend, en useVoiceRecorder y en todos los handlers de
-  // envío de media, para que un chat también pueda arrancar con contenido
-  // multimedia sin necesidad de un mensaje de texto previo.
+  
+  
+  
+  
+  
   const ensureChatId = async () => {
     if (currentChatId) return currentChatId;
 
@@ -298,12 +298,12 @@ export default function ChatDetailScreen({ route, navigation }) {
     return newChatRef.id;
   };
 
-  // --- Grabación de notas de voz (estado, animaciones, gestos y envío) ---
-  // Todo lo relacionado a grabar audio vive ahora en este hook; acá solo
-  // desestructuramos con los MISMOS nombres que usaba el código original
-  // para no tener que tocar el JSX de más abajo.
-  // Le pasamos ensureChatId (no chatId a secas) para que el hook pueda crear
-  // el chat sobre la marcha si la nota de voz es el primer mensaje.
+  
+  
+  
+  
+  
+  
   const {
     isLocked,
     isRecording,
@@ -328,7 +328,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         const firstSender = messages.find(m => m.id === prev[0])?.sender;
         const newSender = messages.find(m => m.id === id)?.sender;
         if (firstSender && newSender && firstSender !== newSender) {
-          return prev; // ignora el toque: es de otro remitente
+          return prev; 
         }
       }
       return [...prev, id];
@@ -349,7 +349,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
   const selectionSender = selectedIds.length > 0 ? messages.find(m => m.id === selectedIds[0])?.sender : null;
 
-  // Escuchar mensajes en tiempo real desde Firestore
+  
   useEffect(() => {
     if (!currentChatId) return;
 
@@ -404,7 +404,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       setMessages(msgs);
       setLoading(false);
 
-      // marcar como leidos y entregados los mensajes que me envió el otro
+      
       const unreadMsgs = snapshot.docs.filter(docSnapshot => {
         const data = docSnapshot.data();
         return data.sender !== auth.currentUser?.uid && data.read !== true && !docSnapshot.metadata.hasPendingWrites;
@@ -417,7 +417,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         Promise.all(batch).catch(err => console.log('Error marcando lectura:', err));
       }
 
-      // sincronizar lastMessage del chat con el ultimo mensaje real de la lista
+      
       if (msgs.length > 0) {
         const lastMsg = msgs[msgs.length - 1];
         let lastMsgText = lastMsg.text || '';
@@ -460,16 +460,16 @@ export default function ChatDetailScreen({ route, navigation }) {
     setShowAttachmentMenu(false);
   };
 
-  // Enviar o editar mensaje en Firestore
-  // Enviar o editar mensaje en Firestore — si es nuevo chat, lo crea automáticamente
+  
+  
   const handleSend = async () => {
     const textToSend = inputText.trim();
     if (textToSend === '') return;
 
     setInputText('');
     setEditingMessageId(null);
-    // Capturamos el mensaje al que se está respondiendo ANTES de limpiar el
-    // estado, para poder adjuntarlo al documento sin que la UI espere a Firestore.
+    
+    
     const replySnapshot = replyingTo;
     setReplyingTo(null);
 
@@ -515,7 +515,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
-  // Auto-enviar publicación compartida desde PostDetailScreen
+  
   const sharedPostSent = useRef(false);
   useEffect(() => {
     if (!initialSharedPost || sharedPostSent.current) return;
@@ -602,7 +602,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const user = auth.currentUser;
   const token = await user.getIdToken();
 
-  // Subir todos los assets
+  
   const uploaded = [];
   for (const asset of assets) {
     const uri = asset.uri;
@@ -642,7 +642,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const chatRef = doc(db, `chats/${activeChatId}`);
 
   if (uploaded.length === 1) {
-    // Mensaje individual (igual que antes)
+    
     const { url, type } = uploaded[0];
     const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'] };
     const [text, lastMsg] = labels[type] || ['Archivo', '📎 Archivo'];
@@ -665,12 +665,12 @@ export default function ChatDetailScreen({ route, navigation }) {
       }),
     ]);
   } else {
-    // Mensaje grupo de medias
+    
     await Promise.all([
       addDoc(messagesRef, {
         text: caption || '📷 Fotos',
         type: 'media_group',
-        mediaItems: uploaded, // [{ url, type }]
+        mediaItems: uploaded, 
         caption: caption || null,
         sender: user.uid,
         createdAt: serverTimestamp(),
@@ -714,7 +714,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     const { latitude, longitude } = loc.coords;
     const user = auth.currentUser;
     const token = await user.getIdToken();
-// Obtener nombre del lugar (geocoding inverso)
+
   let locationName = 'Ubicación compartida';
   let locationAddress = '';
   try {
@@ -751,15 +751,15 @@ export default function ChatDetailScreen({ route, navigation }) {
   ]);
 };
 
-  // Handler genérico que sube a Cloudinary y manda el mensaje
+  
   const handleUploadAndSendMedia = async (asset) => {
     try {
       const user = auth.currentUser;
       const token = await user.getIdToken();
       const uri = asset.uri;
 
-      // asset.type del ImagePicker solo trae la categoría ("image"/"video"), no
-      // un MIME real. Priorizamos mimeType (ImagePicker y DocumentPicker lo traen).
+      
+      
       const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
       const category = getMediaCategory(mimeType);
       const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
@@ -828,7 +828,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       const user = auth.currentUser;
       const token = await user.getIdToken();
 
-      // 1. Subir TODOS los archivos a Cloudinary en paralelo
+      
       const uploadedItems = await Promise.all(
         mediaList.map(async (item) => {
           const uri = item.uri;
@@ -861,7 +861,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         })
       );
 
-      // Filtrar los que fallaron
+      
       const validItems = uploadedItems.filter(Boolean);
       if (validItems.length === 0) return;
 
@@ -869,11 +869,11 @@ export default function ChatDetailScreen({ route, navigation }) {
       const messagesRef = collection(db, `chats/${activeChatId}/messages`);
       const chatRef = doc(db, `chats/${activeChatId}`);
 
-      // 2. Usar el caption del primer item (el campo de comentario del editor)
+      
       const caption = mediaList[0]?.caption || '';
 
       if (validItems.length === 1) {
-        // Solo 1 archivo → mensaje normal image/video
+        
         const single = validItems[0];
         const isVideo = single.type === 'video';
         await Promise.all([
@@ -895,13 +895,13 @@ export default function ChatDetailScreen({ route, navigation }) {
           }),
         ]);
       } else {
-        // Más de 1 archivo → un solo mensaje media_group
+        
         await Promise.all([
           addDoc(messagesRef, {
             text: caption || '🖼️ Multimedia',
             caption: caption || null,
             type: 'media_group',
-            mediaItems: validItems,  // [{ url, type }]
+            mediaItems: validItems,  
             sender: user.uid,
             createdAt: serverTimestamp(),
             read: false,
@@ -921,8 +921,8 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
-  // Punto único para entrar en "modo respuesta": lo usan tanto el ícono de
-  // responder de la barra de selección como el swipe-to-reply de cada burbuja.
+  
+  
   const startReply = useCallback((msg) => {
     if (!msg) return;
     setEditingMessageId(null);
@@ -937,7 +937,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     startReply(activeMsg);
   };
 
-  // Se llama desde MessageItem cuando el usuario desliza un mensaje hacia la derecha
+  
   const handleSwipeReply = useCallback((item) => {
     startReply(item);
   }, [startReply]);
@@ -1006,14 +1006,14 @@ export default function ChatDetailScreen({ route, navigation }) {
           const msgRef = doc(db, `chats/${chatId}/messages/${msg.id}`);
 
           if (msg.sender !== 'me') {
-            // Borrar para mí: NO se toca el documento real, solo se marca con mi uid
+            
             await updateDoc(msgRef, {
               deletedFor: arrayUnion(auth.currentUser.uid),
             });
             return;
           }
 
-          // Mensajes propios: se borran de verdad (para ambos), como antes
+          
           try {
             if (msg?.mediaUrl) await deleteMediaFromCloudinary(msg.mediaUrl);
             if (msg?.type === 'media_group' && msg.mediaItems) {
@@ -1040,10 +1040,10 @@ export default function ChatDetailScreen({ route, navigation }) {
     closeDeleteConfirm();
   };
 
-  // Botón de flecha del header en modo selección: si el cartel de confirmación
-  // de borrado está abierto, hay que cerrarlo (animado) ANTES de limpiar la
-  // selección — si no, el cartel queda "huérfano" en pantalla aunque ya no
-  // haya mensajes seleccionados.
+  
+  
+  
+  
   const handleExitSelection = () => {
     if (showDeleteConfirm) {
       closeDeleteConfirm(clearSelection);
@@ -1062,7 +1062,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       duration: 250,
       useNativeDriver: true,
     }).start(() => {
-      // Escribir al clipboard después de que el toast de la app ya se vea
+      
       setTimeout(() => {
         Clipboard.setStringAsync(activeMsg.text);
       }, 1000);
@@ -1129,7 +1129,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   }, []);
 
   const handleGoToUserProfile = () => {
-    if (!otherUser.uid) return; // Validación por seguridad
+    if (!otherUser.uid) return; 
     navigation.navigate('UserProfile', {
       userId: otherUser.uid,
       profileName: otherUser.name,
@@ -1143,10 +1143,10 @@ export default function ChatDetailScreen({ route, navigation }) {
       <TouchableWithoutFeedback onPress={closeAllMenus}>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
         
-        {/* HEADER MULTI-SELECCIÓN O NORMAL */}
+        {}
         {selectedIds.length > 0 ? (
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
-            {/* Flecha + contador */}
+            {}
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={handleExitSelection} style={{ paddingRight: 12 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -1156,7 +1156,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               </Text>
             </View>
 
-            {/* Acciones — varían según si el mensaje es mío o del otro */}
+            {}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
 
               {selectedIds.length === 1 && (
@@ -1169,7 +1169,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={28} color={colors.text} />
               </TouchableOpacity>
 
-              {/* Editar: solo si es 1 mensaje Y es mío */}
+              {}
               {selectedIds.length === 1 && activeMsg?.sender === 'me' && canEditMessage(activeMsg) && (
                 <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
                   <Ionicons name="pencil" size={28} color={colors.text} />
@@ -1195,13 +1195,13 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
               
-              {/* Envoltura táctil que redirige al perfil del usuario */}
+              {}
               <TouchableOpacity 
                 activeOpacity={0.7} 
                 onPress={handleGoToUserProfile} 
                 style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
               >
-                {/* Foto de perfil o silueta Ionicons centrada */}
+                {}
                 <View style={[
                   styles.avatarCircle, 
                   { 
@@ -1245,7 +1245,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
         )}
 
-                {/* DETALLE DE INFO DEL MENSAJE (Leído por / Entregado a) */}
+                {}
         {showMsgInfo && activeMsg && selectedIds.length === 0 && (
           <View style={[styles.infoOverlay, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
             <Text style={[styles.infoTitle, { color: colors.text }]}>Información del mensaje</Text>
@@ -1265,7 +1265,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* MENÚ DESPLEGABLE DEL HEADER (3 Puntos) */}
+        {}
         {showHeaderMenu && (
           <View style={[styles.dropdownMenu, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: isDark ? '#333' : '#CCC' }]}>
             <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); Alert.alert('Nuevo Grupo', 'Crear nuevo grupo'); }}>
@@ -1284,7 +1284,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               <Text style={[styles.dropdownItemText, { color: colors.text }]}>Tema del chat</Text>
             </TouchableOpacity>
             
-            {/* Opción MÁS */}
+            {}
             <TouchableOpacity 
               style={[styles.dropdownItem, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} 
               onPress={() => setShowMoreSubMenu(!showMoreSubMenu)}
@@ -1293,7 +1293,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               <Ionicons name="chevron-forward" size={16} color={colors.text} />
             </TouchableOpacity>
 
-            {/* SUB-MENÚ MÁS */}
+            {}
             {showMoreSubMenu && (
               <View style={[styles.subDropdownMenu, { backgroundColor: isDark ? '#2C2C2C' : '#F5F5F5', borderColor: isDark ? '#444' : '#DDD' }]}>
                 <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); setMessages([]); }}>
@@ -1313,7 +1313,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* LISTA DE MENSAJES */}
+        {}
         {loading ? (
           <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ flex: 1 }} />
         ) : (
@@ -1339,9 +1339,9 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* INPUT DE MENSAJE */}
+        {}
 
-          {/* Menú desplegable de Clip (Adjuntos) */}
+          {}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border, bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 58 }]}>
               <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
@@ -1368,7 +1368,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           )}
 
           {isLocked ? (
-            // 🔒 VISTA DE GRABACIÓN BLOQUEADA (Imagen 2)
+            
             <Animated.View style={[styles.lockedRecordContainer, {
                 backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
                 borderColor: isDark ? '#2C2C2C' : '#E0E0E0',
@@ -1381,7 +1381,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                   {formatTime(recordSeconds)}
                 </Text>
 
-                {/* Waveform oscilante */}
+                {}
                 <View style={styles.waveformContainer}>
                   {waveBarAnims.map((anim, i) => (
                     <Animated.View
@@ -1395,9 +1395,9 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </View>
               </View>
 
-              {/* Botones de acción inferiores */}
+              {}
               <View style={styles.recordActionRow}>
-                {/* Descartar */}
+                {}
                 <TouchableOpacity
                   onPress={() => stopAndSendRecording(true)}
                   style={[styles.recordDiscardButton, { backgroundColor: isDark ? 'rgba(255,59,48,0.15)' : 'rgba(255,59,48,0.10)' }]}
@@ -1405,7 +1405,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                   <Ionicons name="trash-outline" size={24} color="#FF3B30" />
                 </TouchableOpacity>
 
-                {/* Pausar / Reanudar */}
+                {}
                 <TouchableOpacity
                   onPress={togglePauseRecording}
                   style={[styles.recordPausePill, { backgroundColor: isDark ? '#2C2C2C' : '#E4E4E4' }]}
@@ -1416,16 +1416,16 @@ export default function ChatDetailScreen({ route, navigation }) {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Enviar */}
+                {}
                 <TouchableOpacity onPress={() => stopAndSendRecording(false)} style={[styles.recordSendButton, { backgroundColor: GREEN_ACCENT }]}>
                   <Feather name="arrow-up" size={28} color="#FFF" />
                 </TouchableOpacity>
               </View>
             </Animated.View>
           ) : (
-            // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
+            
             <>
-              {/* Vista previa de edición — mismo estilo que la de respuesta */}
+              {}
               {!!editingMessageId && (
                 <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
                   <View style={styles.replyPreviewAccent} />
@@ -1443,7 +1443,7 @@ export default function ChatDetailScreen({ route, navigation }) {
                 </View>
               )}
 
-              {/* Vista previa de respuesta — estilo WhatsApp, arriba del input */}
+              {}
               {!!replyingTo && (
                 <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
                   <View style={styles.replyPreviewAccent} />
@@ -1462,7 +1462,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               )}
               <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
               {isRecording ? (
-                // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
+                
                 <Animated.View style={[styles.recordHintBar, {
                     backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
                     transform: [{ translateX: cancelSlideAnim }],
@@ -1500,7 +1500,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               )}
 
               {!isRecording && inputText.trim().length > 0 ? (
-                // Botón Enviar texto normal
+                
                 <TouchableOpacity 
                   onPress={handleSend}
                   style={[styles.actionButton, { backgroundColor: GREEN_ACCENT }]}
@@ -1508,8 +1508,8 @@ export default function ChatDetailScreen({ route, navigation }) {
                   <Feather name="arrow-up" size={28} color="#FFF" />
                 </TouchableOpacity>
               ) : (
-                // Botón Micrófono: SIEMPRE el mismo elemento (no se desmonta al
-                // empezar a grabar), para no perder el gesto de touchMove/touchEnd
+                
+                
                 <View style={{ position: 'relative' }}>
                   {isRecording && (
                     <Animated.View
@@ -1592,7 +1592,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
       <Modal visible={!!mediaPreview} animationType="slide" transparent={false} onRequestClose={() => setMediaPreview(null)}>
         <View style={{ flex: 1, backgroundColor: '#111' }}>
-          {/* Header */}
+          {}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
             <TouchableOpacity onPress={() => setMediaPreview(null)}>
               <Ionicons name="close" size={28} color="#FFF" />
@@ -1603,7 +1603,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             <View style={{ width: 28 }} />
           </View>
 
-          {/* Preview principal */}
+          {}
           <FlatList
             data={mediaPreview?.assets || []}
             keyExtractor={(_, i) => String(i)}
@@ -1629,7 +1629,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             }}
           />
 
-          {/* Thumbnails si hay más de 1 */}
+          {}
           {(mediaPreview?.assets?.length || 0) > 1 && (
             <FlatList
               data={mediaPreview?.assets || []}
@@ -1647,7 +1647,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             />
           )}
 
-          {/* Input de caption + botón enviar */}
+          {}
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',

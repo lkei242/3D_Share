@@ -83,7 +83,7 @@ export default function EditPostScreen({ route, navigation }) {
         webLink: webLink.trim() || null,
       });
 
-      // Avisar a la pantalla anterior para que se actualice de inmediato, sin esperar un refetch
+      
       route.params?.onSave?.(post.id, {
         title: titulo.trim(),
         description: descripcion.trim(),
@@ -103,7 +103,7 @@ export default function EditPostScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* Header */}
+      {}
       <View style={[styles.header, { backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />

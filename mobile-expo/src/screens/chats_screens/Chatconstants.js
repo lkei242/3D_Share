@@ -1,10 +1,10 @@
 import { Dimensions } from 'react-native';
 
-// --- Constantes globales del chat ---
+
 export const GREEN_ACCENT = '#546F1C';
 export const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Clasifica el mimeType real en 'image' | 'video' | 'file'
+
 export const getMediaCategory = (mimeType) => {
   if (!mimeType) return 'file';
   if (mimeType.startsWith('image/')) return 'image';
@@ -12,11 +12,11 @@ export const getMediaCategory = (mimeType) => {
   return 'file';
 };
 
-// Cloudinary genera automáticamente un frame del video como thumbnail
-// si pedís la misma URL pero con extensión .jpg
+
+
 export const getVideoThumbnail = (url) => url.replace(/\.\w+$/, '.jpg');
 
-// Formatea segundos a "m:ss" (usado en grabación de audio)
+
 export const formatTime = (secs) => {
   const minutes = Math.floor(secs / 60);
   const seconds = secs % 60;
@@ -25,10 +25,10 @@ export const formatTime = (secs) => {
 
 export const canEditMessage = (msg) => {
   if (!msg) return false;
-  // Tipos que nunca se editan
+  
   if (msg.type === 'location' || msg.type === 'file' || msg.type === 'audio') return false;
-  // Media sin caption = no tiene texto que editar
+  
   if ((msg.type === 'image' || msg.type === 'video' || msg.type === 'media_group') && !msg.caption) return false;
-  // Texto plano o media con caption = editable
+  
   return true;
 };

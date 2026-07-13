@@ -1,4 +1,4 @@
-// src/screens/profile_screens/Tu_actividad/SavedScreen.js
+
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,

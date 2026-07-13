@@ -4,8 +4,8 @@ import { auth, db } from './firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Constants from 'expo-constants';
 
-// IMPORTANTE: este debe ser el "Web client (auto creado por Google Service)",
-// el mismo que usa Firebase Auth, NO el "Web client 2".
+
+
 const webClientId = Constants.expoConfig?.extra?.googleClientId;
 
 GoogleSignin.configure({
@@ -15,12 +15,12 @@ GoogleSignin.configure({
 export async function signInWithGoogle(onSuccess, onError) {
   try {
     await GoogleSignin.hasPlayServices();
-    // Cerrar sesión previa de Google para forzar el selector de cuentas
+    
     await GoogleSignin.signOut();
     const response = await GoogleSignin.signIn();
 
     if (!isSuccessResponse(response)) {
-      // El usuario canceló el flujo, no es un error real
+      
       return;
     }
 

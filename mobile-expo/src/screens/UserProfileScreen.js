@@ -1,4 +1,4 @@
-// src/screens/UserProfileScreen.js
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -100,7 +100,7 @@ export default function UserProfileScreen({ route, navigation }) {
         setPresentation(data.presentation || '');
         setPinnedPosts(data.pinnedPosts || []);
         
-        // Cargar contactos del usuario
+        
         if (data.contacts) {
           setUserContacts({
             whatsapp: data.contacts.whatsapp || null,
@@ -270,7 +270,7 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
-  // Funciones para manejar contactos
+  
   const handleWhatsApp = () => {
     if (userContacts.whatsapp) {
       const phone = userContacts.whatsapp.replace(/\D/g, '');
@@ -294,7 +294,7 @@ export default function UserProfileScreen({ route, navigation }) {
       showToast('Para mandar un mensaje a cualquier usuario primero debes seguirlo', false);
       return;
     }
-    // Verificar restricción de mensajes del usuario destino
+    
     const targetPref = await getUserMessagePreference(userId);
     if (!targetPref) {
       const isMutual = await checkMutualFollow(currentUser.uid, userId);
@@ -305,7 +305,7 @@ export default function UserProfileScreen({ route, navigation }) {
           return;
         }
         if (existingRequest && existingRequest.status === 'approved') {
-          // Proceder normalmente
+          
         } else {
           setRequestModalVisible(true);
           return;(
@@ -328,7 +328,7 @@ export default function UserProfileScreen({ route, navigation }) {
       }
     }
     try {
-      // Buscar un chat existente con esta persona
+      
       const q = query(
         collection(db, 'chats'),
         where('participants', 'array-contains', currentUser.uid)
@@ -559,7 +559,7 @@ export default function UserProfileScreen({ route, navigation }) {
 
         return (
           <View style={styles.contactsContainer}>
-            {/* Información de contacto directa */}
+            {}
             {(userContacts.phone || userContacts.email || userContacts.whatsapp || userContacts.website || userContacts.location) && (
               <View style={styles.contactsSection}>
                 <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
@@ -613,7 +613,7 @@ export default function UserProfileScreen({ route, navigation }) {
               </View>
             )}
 
-            {/* Redes sociales */}
+            {}
             {Object.values(userContacts.socialMedia).some(v => v !== null) && (
               <View style={styles.contactsSection}>
                 <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
@@ -628,7 +628,7 @@ export default function UserProfileScreen({ route, navigation }) {
               </View>
             )}
 
-            {/* Tus otros perfiles */}
+            {}
             {otherProfiles.length > 0 && (
               <View style={styles.contactsSection}>
                 <Text style={[styles.contactsSectionTitle, { color: colors.text }]}>
@@ -680,7 +680,7 @@ export default function UserProfileScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* HEADER FIJO */}
+      {}
       <View style={[
         styles.header,
         {
@@ -720,7 +720,7 @@ export default function UserProfileScreen({ route, navigation }) {
         keyExtractor={(_, i) => String(i)}
         ListHeaderComponent={() => (
           <View style={styles.profileSection}>
-            {/* Fila: avatar + stats */}
+            {}
             <View style={styles.avatarStatsRow}>
               <View style={[styles.avatarWrapper, { borderColor: isDark ? '#222' : '#E0E0E0' }]}>
                 {profilePicture ? (
@@ -761,7 +761,7 @@ export default function UserProfileScreen({ route, navigation }) {
               </View>
             </View>
 
-            {/* Nombre y Bio (solo si hay presentación) */}
+            {}
             {presentation && presentation.trim().length > 0 ? (
               <>
                 <Text style={[styles.bioText, { color: isDark ? '#BBB' : '#555' }]}>
@@ -770,7 +770,7 @@ export default function UserProfileScreen({ route, navigation }) {
               </>
             ) : null}
 
-            {/* Botones acción */}
+            {}
             {currentUser?.uid !== userId ? (
               isBlocked ? (
                 <View style={styles.buttonsRow}>
@@ -897,7 +897,7 @@ export default function UserProfileScreen({ route, navigation }) {
             <TouchableWithoutFeedback>
               <View style={[styles.reportModal, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
                 
-                {/* Botón de cerrar */}
+                {}
                 <TouchableOpacity 
                   style={styles.reportCloseBtn} 
                   onPress={() => setReportModalVisible(false)} 
@@ -906,7 +906,7 @@ export default function UserProfileScreen({ route, navigation }) {
                   <Ionicons name="close-circle" size={26} color={isDark ? '#48484A' : '#C7C7CC'} />
                 </TouchableOpacity>
 
-                {/* Encabezado con ícono */}
+                {}
                 <View style={styles.reportHeader}>
                   <View style={[styles.reportIconBadge, { backgroundColor: isDark ? '#3A2020' : '#FFEBEE' }]}>
                     <Feather name="flag" size={22} color="#E53935" />
@@ -917,7 +917,7 @@ export default function UserProfileScreen({ route, navigation }) {
                   </Text>
                 </View>
 
-                {/* Lista de opciones agrupada */}
+                {}
                 <View style={[styles.reportOptionsWrapper, { backgroundColor: isDark ? '#2C2C2E' : '#F8F8F8' }]}>
                   {[
                     'Acoso o intimidación',
@@ -978,9 +978,9 @@ export default function UserProfileScreen({ route, navigation }) {
                 <TouchableOpacity
                   style={{ backgroundColor: '#E53935', borderRadius: 12, paddingVertical: 16, marginHorizontal: 12, marginTop: 8 }}
                   onPress={() => {
-                    // Actualización optimista: cerramos el modal y reflejamos
-                    // el bloqueo al instante; las llamadas a Firestore se
-                    // resuelven en segundo plano.
+                    
+                    
+                    
                     const wasFollowing = isFollowing;
                     setIsBlocked(true);
                     setBlockModalVisible(false);
@@ -1008,7 +1008,7 @@ export default function UserProfileScreen({ route, navigation }) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-            {/* Modal de solicitud de mensaje (restricción) */}
+            {}
       <Modal visible={requestModalVisible} transparent animationType="slide" onRequestClose={() => setRequestModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setRequestModalVisible(false)}>
           <View style={styles.reportOverlay}>

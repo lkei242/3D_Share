@@ -47,7 +47,7 @@ export default function LoginScreen({ navigation, route }) {
   const [behavior, setBehavior] = useState(undefined);
   const passwordRef = useRef(null);
 
-  // Toast
+  
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -78,7 +78,7 @@ export default function LoginScreen({ navigation, route }) {
       (msg) => showToast(translateAuthError(msg))
     );
   };
-  // Prellenar email si viene del AccountSwitcher
+  
   useEffect(() => {
     if (route?.params?.email) {
       setEmail(route.params.email);
@@ -103,17 +103,17 @@ const handleLogin = async () => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Imprimir token en consola para copiarlo en Postman/Thunder Client y probar el endpoint AUTENTICADO en .NET
+    
     user.getIdToken().then(token => {
-      console.log("\n🔑 [TEST AUTENTICADO] TOKEN DE FIREBASE PARA POSTMAN:");
+      console.log("\n🔑 [TEST AUTENTICADO] TOKEN DE FIREBASE:");
       console.log(token);
       console.log("------------------------------------------------------------------\n");
     }).catch(() => {});
 
-    // ✅ Navegar de inmediato, sin esperar nada más
+    
     navigation.replace('MainTabs');
 
-    // ✅ Guardar en AsyncStorage en segundo plano (sin await)
+    
     saveAccountToStorage(user, password);
 
   } catch (error) {
@@ -121,7 +121,7 @@ const handleLogin = async () => {
   }
 };
 
-// Función separada, se ejecuta después de navegar
+
 const saveAccountToStorage = async (user, password) => {
   try {
     const snap = await getDoc(doc(db, 'users', user.uid));
@@ -149,16 +149,16 @@ const saveAccountToStorage = async (user, password) => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }} // <-- Fondo dinámico
+      style={{ flex: 1, backgroundColor: colors.background }} 
       behavior={behavior}
     >
       <ScrollView
         style={{ flex: 1, width: '100%' }}
-        contentContainerStyle={[styles.container, { backgroundColor: colors.background }]} // <-- Fondo dinámico
+        contentContainerStyle={[styles.container, { backgroundColor: colors.background }]} 
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: colors.text }]}> {/* <-- Texto dinámico */}
+        <Text style={[styles.title, { color: colors.text }]}> {}
           Iniciar Sesión
         </Text>
         
@@ -262,17 +262,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 30,
     textAlign: 'center',
-    marginBottom: 30, // Margen normal hacia abajo
+    marginBottom: 30, 
     fontFamily: 'Nunito-Bold',
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 20, // Margen normal hacia abajo
+    marginBottom: 20, 
   },
   logo: {
     width: 220,
     height: 220,
-    resizeMode: 'contain', // Se mantiene escalado de forma limpia
+    resizeMode: 'contain', 
   },
 
   input: {

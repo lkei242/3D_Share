@@ -1,4 +1,3 @@
-// App.js
 import React, { useState, useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -6,23 +5,17 @@ import { auth } from './src/screens/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-// Color fondo
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { Platform, StatusBar } from 'react-native';
-// Expo-navigation-bar
 import * as NavigationBar from 'expo-navigation-bar';
-// Bottom Bar
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import BottomTabBar from './src/screens/components/BottomTabBar';
-// Tema (controlado desde Preferencias)
 import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
-// Pantallas de autenticación
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 
-// Pantallas principales
 import HomeScreen from './src/screens/HomeScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import SearchScreen from './src/screens/SearchScreen';
@@ -64,7 +57,7 @@ const MiTemaClaro = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: '#FFFFFF', // Fondo blanco para modo claro
+    background: '#FFFFFF',
     inputBackground: '#E8E8E8',
     letraschicas: '#546F1C',
     avatarborder: '#cfcece',
@@ -74,12 +67,12 @@ const MiTemaClaro = {
     botonrojo: '#a70d0d',
   },
 };
-// 2. Defines tus colores para el Modo Oscuro
+
 const MiTemaOscuro = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: '#121212', // Fondo oscuro
+    background: '#121212',
     inputBackground: '#ffffff',
     letraschicas: '#94BA46',
     avatarborder: '#2C2C2C',
@@ -96,7 +89,7 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <BottomTabBar {...props} />}  // tu componente custom
+      tabBar={(props) => <BottomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -115,7 +108,6 @@ function AppContent() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!authReady) {
-        // Solo en el primer disparo decidimos la ruta inicial
         setInitialRoute(user ? 'MainTabs' : 'Welcome');
         setAuthReady(true);
       }
@@ -124,7 +116,6 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    // ... tu código de NavigationBar/StatusBar igual que antes
     const isDark = scheme === 'dark';
     if (Platform.OS === 'android') {
       StatusBar.setTranslucent(true);
@@ -144,7 +135,6 @@ function AppContent() {
   }, [scheme]);
 
   if (!authReady) {
-    // Pantalla de carga mientras Firebase determina si hay sesión
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: scheme === 'dark' ? '#121212' : '#FFFFFF' }}>
         <ActivityIndicator size="large" color="#546F1C" />

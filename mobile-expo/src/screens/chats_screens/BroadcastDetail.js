@@ -111,7 +111,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }, 2200);
   };
 
-  // --- Nuevos estados (funcionalidad tipo ChatDetailGroup) ---
+  
   const [selectedIds, setSelectedIds] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -124,7 +124,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
-  // --- Visor de media a pantalla completa ---
+  
   const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
 
@@ -171,7 +171,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
 
   const activeMsg = selectedIds.length === 1 ? sentMessages.find(m => m.id === selectedIds[0]) : null;
 
-  // --- Marcar presencia ---
+  
   useFocusEffect(
     useCallback(() => {
       const user = auth.currentUser;
@@ -184,7 +184,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }, [broadcastId])
   );
 
-  // --- Escuchar en tiempo real datos de la lista ---
+  
   useEffect(() => {
     if (!broadcastId) return;
     const ref = doc(db, 'broadcastLists', broadcastId);
@@ -204,7 +204,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return unsubscribe;
   }, [broadcastId]);
 
-  // --- Resolver nombre/foto de cada destinatario ---
+  
   useEffect(() => {
     const uids = broadcastInfo.recipients || [];
     if (uids.length === 0) return;
@@ -222,7 +222,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
               }
               return [uid, { name: d.profileName || d.username || 'Usuario', username: d.username || '', profilePicture: picUrl }];
             }
-          } catch (e) { /* noop */ }
+          } catch (e) {  }
           return [uid, { name: 'Usuario', username: '', profilePicture: '' }];
         }));
         if (!cancelled) {
@@ -243,12 +243,12 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     throw new Error('No se encontró la lista de difusión');
   };
 
-  // --- Voice recorder (con callback para broadcast) ---
+  
   const onBroadcastAudioSave = useCallback(async (url, durationText) => {
     const user = auth.currentUser;
     if (!user) return;
     const recipients = broadcastInfo.recipients || [];
-    // Guardar en el historial propio de la lista
+    
     await addDoc(collection(db, `broadcastLists/${broadcastId}/messages`), {
       text: 'Nota de voz',
       type: 'audio',
@@ -265,7 +265,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
       lastMessage: `🎙️ Nota de voz (${durationText})`,
       lastMessageTime: serverTimestamp(),
     });
-    // Enviar a cada destinatario como mensaje privado
+    
     const results = await Promise.allSettled(recipients.map(async (uid) => {
       const chatId = await getOrCreateChatWithUser(uid);
       await addDoc(collection(db, `chats/${chatId}/messages`), {
@@ -308,7 +308,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     handleTouchEnd,
   } = useVoiceRecorder(ensureChatId, onBroadcastAudioSave);
 
-  // --- Selección de mensajes ---
+  
   const handleToggleSelect = useCallback((id) => {
     setSelectedIds(prev => {
       if (prev.includes(id)) return prev.filter(i => i !== id);
@@ -318,7 +318,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
-  // --- Buscar un chat 1 a 1 con este destinatario ---
+  
   const getOrCreateChatWithUser = async (otherUid) => {
     const user = auth.currentUser;
     if (!user) throw new Error('Usuario no autenticado');
@@ -347,7 +347,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return newChatRef.id;
   };
 
-  // --- Helper: guarda un mensaje en broadcast + lo replica a destinatarios ---
+  
   const saveBroadcastMessage = async (messageData) => {
     const user = auth.currentUser;
     const recipients = broadcastInfo.recipients || [];
@@ -387,7 +387,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return docRef.id;
   };
 
-  // --- Enviar mensaje de texto ---
+  
   const handleSend = async () => {
     const textToSend = inputText.trim();
     if (!textToSend) return;
@@ -423,7 +423,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }
   };
 
-  // --- Handlers de media ---
+  
   const handleOpenCamera = async () => {
     setShowAttachmentMenu(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -663,7 +663,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }
   };
 
-  // --- Reply / Edit ---
+  
   const startReply = useCallback((msg) => {
     if (!msg) return;
     setEditingMessageId(null);
@@ -698,7 +698,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }, 150);
   };
 
-  // --- Favoritos ---
+  
   const handleFavorite = async () => {
     if (selectedIds.length === 0) return;
     try {
@@ -714,7 +714,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     clearSelection();
   };
 
-  // --- Borrar mensajes ---
+  
   const handleDelete = () => {
     if (selectedIds.length === 0) return;
     setShowDeleteConfirm(true);
@@ -763,7 +763,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }
   };
 
-  // --- Copiar ---
+  
   const handleCopy = async () => {
     if (!activeMsg?.text) return;
     clearSelection();
@@ -777,12 +777,12 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     }, 900);
   };
 
-  // --- Cerrar menús al tocar fuera ---
+  
   const closeAllMenus = () => {
     setShowAttachmentMenu(false);
   };
 
-  // --- Escuchar en tiempo real el historial de broadcast ---
+  
   useEffect(() => {
     if (!broadcastId) return;
     const q = query(collection(db, `broadcastLists/${broadcastId}/messages`), orderBy('createdAt', 'asc'));
@@ -826,7 +826,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         });
       setSentMessages(msgs);
       setLoading(false);
-      // Sincronizar lastMessage
+      
       if (msgs.length > 0) {
         const lastMsg = msgs[msgs.length - 1];
         let lastMsgText = lastMsg.text || '';
@@ -856,7 +856,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return unsubscribe;
   }, [broadcastId]);
 
-  // --- Keyboard ---
+  
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
@@ -864,7 +864,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  // --- BackHandler ---
+  
   useEffect(() => {
     const onBackPress = () => {
       if (editingMessageId) { handleCancelEdit(); return true; }
@@ -875,7 +875,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     return () => subscription.remove();
   }, [editingMessageId, selectedIds, showDeleteConfirm]);
 
-  // --- Renderizar mensaje ---
+  
   const renderMessageItem = React.useCallback(({ item }) => {
     return (
       <MessageItem
@@ -897,7 +897,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     );
   }, [selectedIds, isDark, colors, broadcastInfo.name, openMediaViewer, handleSwipeReply, currentUserPic, editingMessageId]);
 
-  // --- Gestión de destinatarios (agregar / quitar) ---
+  
   const fetchSelectableUsers = async () => {
     setFetchingSelectable(true);
     try {
@@ -972,7 +972,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
     <View style={{ flex: 1 }}>
       <TouchableWithoutFeedback onPress={closeAllMenus}>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-          {/* HEADER MULTI-SELECCIÓN O NORMAL */}
+          {}
           {selectedIds.length > 0 ? (
             <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1018,7 +1018,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* LISTA DE MENSAJES */}
+          {}
           {loading ? (
             <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ flex: 1 }} />
           ) : sentMessages.length === 0 ? (
@@ -1049,8 +1049,8 @@ export default function BroadcastDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* INPUT DE MENSAJE */}
-          {/* Menú desplegable de Clip (Adjuntos) */}
+          {}
+          {}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border, bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 58 }]}>
               <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
@@ -1199,7 +1199,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </View>
       </TouchableWithoutFeedback>
 
-      {/* Toast */}
+      {}
       {toastMessage && (
         <Animated.View pointerEvents="none" style={[styles.toast, { opacity: toastOpacity }]}>
           <Ionicons name="checkmark-circle" size={18} color="#FFF" />
@@ -1207,7 +1207,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </Animated.View>
       )}
 
-      {/* Confirmación de borrado */}
+      {}
       {showDeleteConfirm && (
         <Animated.View style={[styles.deleteConfirm, {
           opacity: deleteConfirmOpacity,
@@ -1230,7 +1230,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </Animated.View>
       )}
 
-      {/* Modal de preview de media */}
+      {}
       <Modal visible={!!mediaPreview} animationType="slide" transparent={false} onRequestClose={() => setMediaPreview(null)}>
         <View style={{ flex: 1, backgroundColor: '#111' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
@@ -1293,7 +1293,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* Modal de Info */}
+      {}
       <Modal visible={showInfoModal} animationType="slide" transparent onRequestClose={() => setShowInfoModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', paddingBottom: insets.bottom }}>
           <View style={{ backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingTop: 16 }}>
@@ -1352,7 +1352,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* Modal agregar destinatarios */}
+      {}
       <Modal visible={showAddModal} animationType="slide" transparent onRequestClose={() => setShowAddModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '70%', paddingHorizontal: 16, paddingTop: 16 }}>
@@ -1415,7 +1415,7 @@ export default function BroadcastDetailScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* Visor de media a pantalla completa */}
+      {}
       <MediaViewerModal
         visible={mediaViewerVisible}
         items={flatMediaItems}

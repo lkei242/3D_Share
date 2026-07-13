@@ -53,7 +53,7 @@ export default function NewPasswordScreen({ navigation }) {
       </TouchableOpacity>
 
       <View style={styles.content}>
-        {/* Campo nueva contraseña */}
+        {}
         <View
           style={[
             styles.inputContainer,
@@ -83,7 +83,7 @@ export default function NewPasswordScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Campo repetir contraseña */}
+        {}
         <View
           style={[
             styles.inputContainer,
@@ -108,7 +108,7 @@ export default function NewPasswordScreen({ navigation }) {
             <Ionicons
               name={showConfirmPassword ? 'eye-off' : 'eye'}
               size={22}
-              color={colors.text}   // usa el color dinámico del tema
+              color={colors.text}   
             />
           </TouchableOpacity>
         </View>

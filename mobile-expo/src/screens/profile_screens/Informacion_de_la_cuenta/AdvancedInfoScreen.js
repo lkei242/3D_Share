@@ -85,7 +85,7 @@ export default function AdvancedInfoScreen({ navigation }) {
       if (!user) return;
       const token = await user.getIdToken();
 
-      // Borrar la imagen anterior de Cloudinary
+      
       if (profilePicture) {
         deleteMediaFromCloudinary(profilePicture).catch(() => {});
       }
@@ -132,7 +132,7 @@ export default function AdvancedInfoScreen({ navigation }) {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Borrar la imagen de Cloudinary
+      
       if (profilePicture) {
         deleteMediaFromCloudinary(profilePicture).catch(() => {});
       }

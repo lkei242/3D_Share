@@ -72,26 +72,26 @@ const VideoPreview = ({ uri }) => {
 export default function CustomCameraModal({ visible, onClose, onSend }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const [currentStep, setCurrentStep] = useState('camera'); // 'camera' | 'editor'
-  const [activeTab, setActiveTab] = useState('foto'); // 'foto' | 'video'
-  const [cameraMode, setCameraMode] = useState('picture'); // 'picture' | 'video'
+  const [currentStep, setCurrentStep] = useState('camera'); 
+  const [activeTab, setActiveTab] = useState('foto'); 
+  const [cameraMode, setCameraMode] = useState('picture'); 
   const [flash, setFlash] = useState('off');
   const [facing, setFacing] = useState('back');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingFromLongPress, setRecordingFromLongPress] = useState(false);
   
-  // Media capturada
-  const [capturedMedia, setCapturedMedia] = useState([]); // { uri, type: 'image'|'video', caption: '' }
+  
+  const [capturedMedia, setCapturedMedia] = useState([]); 
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Estados de Edición de la foto activa
-  const [editorMode, setEditorMode] = useState('none'); // 'none' | 'draw' | 'text' | 'crop'
-  const [paths, setPaths] = useState([]); // Array de trazos { color, points }
+  
+  const [editorMode, setEditorMode] = useState('none'); 
+  const [paths, setPaths] = useState([]); 
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushColor, setBrushColor] = useState('#25D366');
   
-  // Textos overlays
-  const [texts, setTexts] = useState([]); // { id, text, x, y, color }
+  
+  const [texts, setTexts] = useState([]); 
   const [showTextInput, setShowTextInput] = useState(false);
   const [textInputValue, setTextInputValue] = useState('');
   const [editingTextId, setEditingTextId] = useState(null);
@@ -138,7 +138,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
     );
   }
 
-  // --- Cámara ---
+  
   const toggleFlash = () => {
     setFlash(current => (current === 'off' ? 'on' : 'off'));
   };
@@ -165,8 +165,8 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
   const startRecording = async () => {
     if (!cameraRef.current) return;
 
-    // Grabar video requiere permiso de micrófono además del de cámara,
-    // aunque no se use audio. Sin esto, recordAsync() rechaza en silencio.
+    
+    
     let hasMicPermission = micPermission?.granted;
     if (!hasMicPermission) {
       const result = await requestMicPermission();
@@ -236,7 +236,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
     }
   };
 
-  // --- Edición ---
+  
   const handleTouchStart = (e) => {
     if (editorMode !== 'draw') return;
     const { locationX, locationY } = e.nativeEvent;
@@ -347,7 +347,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
     <Modal visible={visible} animationType="slide" transparent={false}>
       <SafeAreaView style={styles.modalContainer}>
         {currentStep === 'camera' ? (
-          // ================= PANTALLA 1: CÁMARA =================
+          
           <View style={styles.cameraContainer}>
             <CameraView
               ref={cameraRef}
@@ -357,7 +357,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               mode={cameraMode}
             />
 
-            {/* Controles superiores — posición absoluta, no compite por espacio flex */}
+            {}
             <View style={styles.topControls}>
               <TouchableOpacity onPress={() => {
                 if (capturedMedia.length > 0) {
@@ -376,11 +376,11 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               </TouchableOpacity>
             </View>
 
-            {/* Bloque inferior: captura+flip encima, tabs debajo (encima de la nav bar) */}
+            {}
             <View style={styles.bottomSection}>
-              {/* Controles de captura */}
+              {}
               <View style={styles.bottomControls}>
-                {/* Thumbnails de fotos ya tomadas */}
+                {}
                 {capturedMedia.length > 0 ? (
                   <TouchableOpacity style={styles.galleryPreview} onPress={() => setCurrentStep('editor')}>
                     <Image source={{ uri: capturedMedia[capturedMedia.length - 1].uri }} style={styles.galleryThumb} />
@@ -392,7 +392,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                   <View style={styles.galleryPlaceholder} />
                 )}
 
-                {/* Botón de Captura */}
+                {}
                 <TouchableOpacity
                   onPress={handleCapturePress}
                   onLongPress={handleCaptureLongPress}
@@ -406,13 +406,13 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                   ]} />
                 </TouchableOpacity>
 
-                {/* Cambiar cámara */}
+                {}
                 <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')} style={styles.flipBtn}>
                   <Ionicons name="camera-reverse" size={28} color="#FFF" />
                 </TouchableOpacity>
               </View>
 
-              {/* Selector de Pestañas Foto/Video — debajo de captura, encima de la nav bar */}
+              {}
               <View style={styles.tabContainer}>
                 <TouchableOpacity onPress={() => setActiveTab('video')} style={styles.tabItem}>
                   <Text style={[styles.tabText, activeTab === 'video' && styles.tabTextActive]}>Video</Text>
@@ -424,9 +424,9 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
             </View>
           </View>
         ) : (
-          // ================= PANTALLA 2: EDITOR / PREVISUALIZACIÓN =================
+          
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editorContainer}>
-            {/* Header de edición */}
+            {}
             <View style={styles.editorHeader}>
               <TouchableOpacity onPress={() => {
                 Alert.alert('Descartar', '¿Descartar todas las fotos tomadas?', [
@@ -454,7 +454,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               </View>
             </View>
 
-            {/* Menú de recorte */}
+            {}
             {editorMode === 'crop' && (
               <View style={styles.cropMenu}>
                 <TouchableOpacity onPress={() => handleCrop(null)} style={styles.cropItem}>
@@ -472,7 +472,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               </View>
             )}
 
-            {/* Menú de colores para el lápiz */}
+            {}
             {editorMode === 'draw' && (
               <View style={styles.colorPalette}>
                 {['#25D366', '#FF3B30', '#007AFF', '#FFD700', '#FFF'].map((color) => (
@@ -488,7 +488,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               </View>
             )}
 
-            {/* Visualizador de Contenido */}
+            {}
             <View style={styles.mediaContainer}>
               {capturedMedia[activeIdx]?.type === 'video' ? (
                 <VideoPreview uri={capturedMedia[activeIdx].uri} />
@@ -496,7 +496,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                 <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 0.9 }} style={StyleSheet.absoluteFill}>
                   <Image source={{ uri: capturedMedia[activeIdx]?.uri }} style={styles.mediaPreview} resizeMode="contain" />
 
-                  {/* Renderizado de trazos dibujados */}
+                  {}
                   <Svg style={StyleSheet.absoluteFill}>
                     {paths.map((p, idx) => (
                       <Path
@@ -511,7 +511,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                     ))}
                   </Svg>
 
-                  {/* Renderizado de textos overlays */}
+                  {}
                   {texts.map((t) => (
                     <TextItem
                       key={t.id}
@@ -527,7 +527,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                     />
                   ))}
 
-                  {/* Lienzo invisible para capturar gestos de dibujo */}
+                  {}
                   {editorMode === 'draw' && (
                     <View
                       style={StyleSheet.absoluteFill}
@@ -540,11 +540,11 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               )}
             </View>
 
-            {/* Footer: comentario, thumbnails y enviar */}
+            {}
             <View style={styles.editorFooter}>
-              {/* Fila superior: Input de Comentario + Botón Añadir Más */}
+              {}
               <View style={styles.commentRow}>
-                {/* Botón "+": Vuelve al paso 1 (cámara) para tomar otra foto */}
+                {}
                 <TouchableOpacity style={styles.addMoreBtn} onPress={() => setCurrentStep('camera')}>
                   <Ionicons name="image-outline" size={26} color="#FFF" />
                   <Ionicons name="add-circle" size={16} color="#25D366" style={styles.addIconMini} />
@@ -562,13 +562,13 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
                   />
                 </View>
 
-                {/* Botón Enviar */}
+                {}
                 <TouchableOpacity style={styles.sendBtn} onPress={handleSendAll}>
                   <Ionicons name="send" size={22} color="#FFF" />
                 </TouchableOpacity>
               </View>
 
-              {/* Fila inferior: Carrusel de fotos/videos tomados */}
+              {}
               <View style={styles.carouselRow}>
                 <FlatList
                   horizontal
@@ -610,7 +610,7 @@ export default function CustomCameraModal({ visible, onClose, onSend }) {
               </View>
             </View>
 
-            {/* Input Overlay para añadir texto */}
+            {}
             <Modal visible={showTextInput} transparent animationType="fade">
               <View style={styles.textModalContainer}>
                 <TextInput
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   permissionBtnText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   closeBtn: { position: 'absolute', top: 40, left: 20 },
 
-  // Cámara
+  
   cameraContainer: { flex: 1 },
   topControls: {
     position: 'absolute',
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 10,
   },
-  // Bloque inferior: pegado al fondo, respeta el inset de la nav bar via SafeAreaView
+  
   bottomSection: {
     position: 'absolute',
     bottom: 0,
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   tabText: { color: '#AAA', fontSize: 15, fontFamily: 'Nunito-Bold' },
   tabTextActive: { color: '#FFF', borderBottomWidth: 2, borderBottomColor: '#25D366', paddingBottom: 2 },
 
-  // Editor
+  
   editorContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'space-between' },
   editorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 50 },
   editorTools: { flexDirection: 'row', alignItems: 'center', gap: 20 },
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   mediaContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
   mediaPreview: { width: screenWidth, height: '100%' },
   
-  // Crop & Draw menus
+  
   cropMenu: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(0,0,0,0.8)', paddingVertical: 10 },
   cropItem: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 15, backgroundColor: '#222' },
   cropText: { color: '#FFF', fontSize: 14 },
@@ -699,14 +699,14 @@ const styles = StyleSheet.create({
   colorBubbleActive: { borderWidth: 3, borderColor: '#25D366' },
   undoBtn: { marginLeft: 15 },
 
-  // Draggable Text
+  
   textItem: { position: 'absolute', padding: 8, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
   textItemText: { fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
   textModalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   textModalInput: { fontSize: 32, fontWeight: 'bold', width: '100%', textAlign: 'center', marginBottom: 30 },
   textModalSave: { alignSelf: 'center' },
 
-  // Editor Footer
+  
   editorFooter: { paddingVertical: 12, paddingHorizontal: 14, backgroundColor: 'rgba(0,0,0,0.95)', borderTopWidth: 0.5, borderTopColor: '#333' },
   commentRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   addMoreBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', position: 'relative' },
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
   commentInput: { color: '#FFF', fontSize: 16 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#25D366', justifyContent: 'center', alignItems: 'center' },
   
-  // Thumbnails carrusel
+  
   carouselRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, justifyContent: 'space-between' },
   carouselList: { gap: 8 },
   thumbContainer: { width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#555', overflow: 'hidden', position: 'relative' },

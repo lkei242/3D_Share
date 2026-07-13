@@ -70,9 +70,9 @@ export default function EditEmailScreen({ route, navigation }) {
         } catch (signOutError) {
           console.log('Error signing out:', signOutError);
         } finally {
-          // Redirección explícita por si no hay un listener de auth
-          // que cambie de stack automáticamente al cerrar sesión.
-          // Reemplazá 'Login' por el nombre real de tu pantalla de login.
+          
+          
+          
           navigation.reset({
             index: 0,
             routes: [{ name: 'Login' }],

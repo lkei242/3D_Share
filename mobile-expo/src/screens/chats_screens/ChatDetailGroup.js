@@ -60,7 +60,7 @@ console.warn = (...args) => {
       msg.includes('Ended a touch event which was not counted in') ||
       msg.includes('trackedTouchCount')
     )
-  ) return; // Ignorar estos warnings específicos
+  ) return; 
   _warn(...args);
 };
 
@@ -69,10 +69,10 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const isDark = colors.text === '#FFFFFF';
 
-  // Recuperar los datos pasados desde ChatScreen (ver handleCreateGroup /
-  // renderChatItem -> navigation.navigate('ChatDetailGroup', ...)). A
-  // diferencia del chat 1 a 1, el documento del grupo SIEMPRE existe antes de
-  // llegar acá (se crea en handleCreateGroup con addDoc a 'groupchats').
+  
+  
+  
+  
   const {
     chatId,
     groupName: initialGroupName,
@@ -80,17 +80,17 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     participants: initialParticipants,
   } = route.params;
 
-  // Para un chat 1 a 1 "chatName" es la única identidad relevante; acá la
-  // reutilizamos como alias del nombre del grupo para no tener que renombrar
-  // cada referencia interna (replyTo, lastMessage, etc.).
+  
+  
+  
   const chatName = initialGroupName || 'Grupo';
 
   const [currentChatId] = useState(chatId);
   const [messages, setMessages] = useState([]);
 
-  // Info del grupo (nombre, foto, participantes, admins). Se inicializa con
-  // lo que ya trae la navegación (instantáneo) y se mantiene sincronizada en
-  // tiempo real con Firestore más abajo.
+  
+  
+  
   const [groupInfo, setGroupInfo] = useState({
     name: initialGroupName || 'Grupo',
     photo: initialGroupPhoto || '',
@@ -99,16 +99,16 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     createdBy: '',
   });
 
-  // Mapa uid -> { name, username, profilePicture } de cada integrante. En un
-  // chat 1 a 1 "el otro" es siempre la misma persona; en un grupo puede ser
-  // cualquiera de varios miembros, así que necesitamos poder resolver el
-  // nombre/foto de cualquier remitente para pintarlo en cada burbuja.
+  
+  
+  
+  
   const [membersMap, setMembersMap] = useState({});
   const [currentUserPic, setCurrentUserPic] = useState('');
 
-  // Ref con la última versión de membersMap, para poder leerla dentro del
-  // listener de mensajes (onSnapshot) sin tener que resuscribirlo cada vez
-  // que cambia el mapa de integrantes.
+  
+  
+  
   const membersMapRef = useRef({});
   useEffect(() => { membersMapRef.current = membersMap; }, [membersMap]);
 
@@ -128,11 +128,11 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     return 'member';
     }, [groupInfo.createdBy, groupInfo.admins]);
 
-  // Solo marcamos el chat como activo mientras la pantalla está enfocada
-  // (para presencia / notificaciones). A diferencia del chat 1 a 1, un grupo
-  // NUNCA se borra automáticamente al salir de la pantalla: solo se elimina
-  // cuando se queda sin participantes (ver handleConfirmLeaveGroup más abajo,
-  // igual que permanentlyDeleteGroup en ChatScreen).
+  
+  
+  
+  
+  
   useFocusEffect(
     useCallback(() => {
       const user = auth.currentUser;
@@ -147,7 +147,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     }, [currentChatId])
   );
 
-  // Escuchar en tiempo real los datos del grupo (nombre, foto, participantes, admins)
+  
   useEffect(() => {
     if (!currentChatId) return;
     const groupRef = doc(db, 'groupchats', currentChatId);
@@ -165,8 +165,8 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     return unsubscribe;
   }, [currentChatId, initialGroupName]);
 
-  // Resolver nombre/foto de cada integrante (incluido uno mismo) para poder
-  // mostrar quién mandó cada mensaje.
+  
+  
   useEffect(() => {
     const uids = groupInfo.participants || [];
     if (uids.length === 0) return;
@@ -213,7 +213,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     return () => { cancelled = true; };
   }, [groupInfo.participants]);
 
-  // Subtítulo del header con los nombres de los integrantes (estilo WhatsApp)
+  
   const membersSubtitle = React.useMemo(() => {
     const others = (groupInfo.participants || []).filter(uid => uid !== auth.currentUser?.uid);
     const names = others.map(uid => membersMap[uid]?.name).filter(Boolean);
@@ -228,10 +228,10 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const [showCustomCamera, setShowCustomCamera] = useState(false);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
 
-  // --- Visor de media a pantalla completa ---
+  
   const [mediaViewerVisible, setMediaViewerVisible] = useState(false);
   const [mediaViewerIndex, setMediaViewerIndex] = useState(0);
-  // Lista plana de todos los items de media para el visor (expande media_group)
+  
   const flatMediaItems = React.useMemo(() => {
     const result = [];
     messages.forEach(m => {
@@ -253,7 +253,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
 
   const openMediaViewer = useCallback((item, groupIdx = 0) => {
     if (item.type === 'media_group') {
-      // Buscar el índice de la primera foto de este grupo en flatMediaItems
+      
       const firstId = `${item.id}_0`;
       const baseIdx = flatMediaItems.findIndex(m => m.id === firstId);
       setMediaViewerIndex(baseIdx >= 0 ? baseIdx + groupIdx : 0);
@@ -286,25 +286,25 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const deleteConfirmOpacity = useRef(new Animated.Value(0)).current;
 
-  // A diferencia del chat 1 a 1, el grupo NUNCA se crea "sobre la marcha":
-  // ya existe en 'groupchats' desde que se creó en ChatScreen. Mantenemos el
-  // nombre "ensureChatId" (en vez de usar currentChatId a secas) solo para
-  // no tener que tocar la firma de useVoiceRecorder ni de los handlers de
-  // envío de media, que ya esperan una función async que resuelva el id.
+  
+  
+  
+  
+  
   const ensureChatId = async () => {
     if (currentChatId) return currentChatId;
     throw new Error('No se encontró el grupo');
   };
 
-  // --- Grabación de notas de voz (estado, animaciones, gestos y envío) ---
-  // Todo lo relacionado a grabar audio vive en este hook; acá solo
-  // desestructuramos con los MISMOS nombres que usaba el código original
-  // para no tener que tocar el JSX de más abajo.
-  // IMPORTANTE: si useVoiceRecorder escribe internamente en la colección
-  // 'chats/{id}/messages' de forma fija, hay que ajustarlo para que también
-  // pueda apuntar a 'groupchats/{id}/messages' (por ejemplo, aceptando la
-  // colección base como segundo parámetro), o las notas de voz enviadas
-  // desde un grupo quedarán guardadas en el chat 1 a 1 equivocado.
+  
+  
+  
+  
+  
+  
+  
+  
+  
   const {
     isLocked,
     isRecording,
@@ -329,7 +329,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
         const firstSender = messages.find(m => m.id === prev[0])?.sender;
         const newSender = messages.find(m => m.id === id)?.sender;
         if (firstSender && newSender && firstSender !== newSender) {
-          return prev; // ignora el toque: es de otro remitente
+          return prev; 
         }
       }
       return [...prev, id];
@@ -350,7 +350,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const activeMsg = selectedIds.length === 1 ? messages.find(m => m.id === selectedIds[0]) : null;
   const selectionSender = selectedIds.length > 0 ? messages.find(m => m.id === selectedIds[0])?.sender : null;
 
-  // Escuchar mensajes en tiempo real desde Firestore
+  
   useEffect(() => {
     if (!currentChatId) return;
 
@@ -381,14 +381,14 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           caption: data.caption || null,
           replyTo: data.replyTo ? {
             ...data.replyTo,
-            // En un grupo el remitente citado puede ser cualquier integrante,
-            // no siempre "el otro" fijo del chat 1 a 1.
+            
+            
             senderName: resolveMemberName(data.replyTo.senderId),
           } : null,
           sender: data.sender === auth.currentUser?.uid ? 'me' : 'other',
           rawSender: data.sender,
-          // Nombre y foto de quien mandó ESTE mensaje, para pintarlos en la
-          // burbuja (a diferencia del 1 a 1, acá "other" no es una sola persona).
+          
+          
           senderName: data.sender === auth.currentUser?.uid ? 'Tú' : resolveMemberName(data.sender),
           time: timeString,
           rawTime: data.createdAt || null,
@@ -402,7 +402,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       setMessages(msgs);
       setLoading(false);
 
-      // marcar como leidos y entregados los mensajes que me envió el otro
+      
       const unreadMsgs = snapshot.docs.filter(docSnapshot => {
         const data = docSnapshot.data();
         return data.sender !== auth.currentUser?.uid && data.read !== true && !docSnapshot.metadata.hasPendingWrites;
@@ -415,7 +415,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
         Promise.all(batch).catch(err => console.log('Error marcando lectura:', err));
       }
 
-      // sincronizar lastMessage del chat con el ultimo mensaje real de la lista
+      
       if (msgs.length > 0) {
         const lastMsg = msgs[msgs.length - 1];
         let lastMsgText = lastMsg.text || '';
@@ -458,15 +458,15 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     setShowAttachmentMenu(false);
   };
 
-  // Enviar o editar mensaje en Firestore
+  
   const handleSend = async () => {
     const textToSend = inputText.trim();
     if (textToSend === '') return;
 
     setInputText('');
     setEditingMessageId(null);
-    // Capturamos el mensaje al que se está respondiendo ANTES de limpiar el
-    // estado, para poder adjuntarlo al documento sin que la UI espere a Firestore.
+    
+    
     const replySnapshot = replyingTo;
     setReplyingTo(null);
 
@@ -553,7 +553,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const user = auth.currentUser;
   const token = await user.getIdToken();
 
-  // Subir todos los assets
+  
   const uploaded = [];
   for (const asset of assets) {
     const uri = asset.uri;
@@ -593,7 +593,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const chatRef = doc(db, `groupchats/${activeChatId}`);
 
   if (uploaded.length === 1) {
-    // Mensaje individual (igual que antes)
+    
     const { url, type } = uploaded[0];
     const labels = { image: ['Imagen', '🖼️ Imagen'], video: ['Video', '🎥 Video'] };
     const [text, lastMsg] = labels[type] || ['Archivo', '📎 Archivo'];
@@ -616,12 +616,12 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       }),
     ]);
   } else {
-    // Mensaje grupo de medias
+    
     await Promise.all([
       addDoc(messagesRef, {
         text: caption || '📷 Fotos',
         type: 'media_group',
-        mediaItems: uploaded, // [{ url, type }]
+        mediaItems: uploaded, 
         caption: caption || null,
         sender: user.uid,
         createdAt: serverTimestamp(),
@@ -665,7 +665,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     const { latitude, longitude } = loc.coords;
     const user = auth.currentUser;
     const token = await user.getIdToken();
-// Obtener nombre del lugar (geocoding inverso)
+
   let locationName = 'Ubicación compartida';
   let locationAddress = '';
   try {
@@ -702,15 +702,15 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   ]);
 };
 
-  // Handler genérico que sube a Cloudinary y manda el mensaje
+  
   const handleUploadAndSendMedia = async (asset) => {
     try {
       const user = auth.currentUser;
       const token = await user.getIdToken();
       const uri = asset.uri;
 
-      // asset.type del ImagePicker solo trae la categoría ("image"/"video"), no
-      // un MIME real. Priorizamos mimeType (ImagePicker y DocumentPicker lo traen).
+      
+      
       const mimeType = asset.mimeType || asset.type || (uri.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
       const category = getMediaCategory(mimeType);
       const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
@@ -779,7 +779,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       const user = auth.currentUser;
       const token = await user.getIdToken();
 
-      // 1. Subir TODOS los archivos a Cloudinary en paralelo
+      
       const uploadedItems = await Promise.all(
         mediaList.map(async (item) => {
           const uri = item.uri;
@@ -812,7 +812,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
         })
       );
 
-      // Filtrar los que fallaron
+      
       const validItems = uploadedItems.filter(Boolean);
       if (validItems.length === 0) return;
 
@@ -820,11 +820,11 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       const messagesRef = collection(db, `groupchats/${activeChatId}/messages`);
       const chatRef = doc(db, `groupchats/${activeChatId}`);
 
-      // 2. Usar el caption del primer item (el campo de comentario del editor)
+      
       const caption = mediaList[0]?.caption || '';
 
       if (validItems.length === 1) {
-        // Solo 1 archivo → mensaje normal image/video
+        
         const single = validItems[0];
         const isVideo = single.type === 'video';
         await Promise.all([
@@ -846,13 +846,13 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           }),
         ]);
       } else {
-        // Más de 1 archivo → un solo mensaje media_group
+        
         await Promise.all([
           addDoc(messagesRef, {
             text: caption || '🖼️ Multimedia',
             caption: caption || null,
             type: 'media_group',
-            mediaItems: validItems,  // [{ url, type }]
+            mediaItems: validItems,  
             sender: user.uid,
             createdAt: serverTimestamp(),
             read: false,
@@ -872,8 +872,8 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     }
   };
 
-  // Punto único para entrar en "modo respuesta": lo usan tanto el ícono de
-  // responder de la barra de selección como el swipe-to-reply de cada burbuja.
+  
+  
   const startReply = useCallback((msg) => {
     if (!msg) return;
     setEditingMessageId(null);
@@ -888,7 +888,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     startReply(activeMsg);
   };
 
-  // Se llama desde MessageItem cuando el usuario desliza un mensaje hacia la derecha
+  
   const handleSwipeReply = useCallback((item) => {
     startReply(item);
   }, [startReply]);
@@ -979,7 +979,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
             return;
           }
 
-          // Mensajes propios: se borran de verdad (para ambos), como antes
+          
           try {
             if (msg?.mediaUrl) await deleteMediaFromCloudinary(msg.mediaUrl);
             if (msg?.type === 'media_group' && msg.mediaItems) {
@@ -1006,10 +1006,10 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     closeDeleteConfirm();
   };
 
-  // Botón de flecha del header en modo selección: si el cartel de confirmación
-  // de borrado está abierto, hay que cerrarlo (animado) ANTES de limpiar la
-  // selección — si no, el cartel queda "huérfano" en pantalla aunque ya no
-  // haya mensajes seleccionados.
+  
+  
+  
+  
   const handleExitSelection = () => {
     if (showDeleteConfirm) {
       closeDeleteConfirm(clearSelection);
@@ -1028,7 +1028,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       duration: 250,
       useNativeDriver: true,
     }).start(() => {
-      // Escribir al clipboard después de que el toast de la app ya se vea
+      
       setTimeout(() => {
         Clipboard.setStringAsync(activeMsg.text);
       }, 1000);
@@ -1060,9 +1060,9 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
   const renderMessageItem = React.useCallback(({ item }) => {
     const isMe = item.sender === 'me';
     const isChecked = selectedIds.includes(item.id);
-    // En el 1 a 1 "el otro" es siempre la misma persona (otherProfilePicture
-    // fijo); en un grupo cada mensaje puede venir de un integrante distinto,
-    // así que resolvemos nombre/foto por mensaje usando rawSender.
+    
+    
+    
     const bubblePic = isMe ? currentUserPic : getMemberPic(item.rawSender);
     return (
       <MessageItem
@@ -1100,17 +1100,17 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  // A diferencia del chat 1 a 1 (que navega al perfil de "el otro"), tocar el
-  // header de un grupo abre un panel local con la info del grupo e integrantes.
+  
+  
   const handleOpenGroupInfo = () => {
     closeAllMenus();
     setShowGroupInfoModal(true);
   };
 
-  // Salir del grupo: quita al usuario actual de participants/admins en
-  // 'groupchats' y, si el grupo se queda sin integrantes, lo borra por
-  // completo (mensajes + media en Cloudinary), igual que
-  // permanentlyDeleteGroup en ChatScreen.
+  
+  
+  
+  
   const permanentlyDeleteThisGroup = async () => {
     try {
       const messagesRef = collection(db, `groupchats/${currentChatId}/messages`);
@@ -1182,7 +1182,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
 
       const usersData = [];
       for (const uid of followingIds) {
-        if (currentParticipants.includes(uid)) continue; // ya está en el grupo
+        if (currentParticipants.includes(uid)) continue; 
         const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -1289,10 +1289,10 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       <TouchableWithoutFeedback onPress={closeAllMenus}>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
         
-        {/* HEADER MULTI-SELECCIÓN O NORMAL */}
+        {}
         {selectedIds.length > 0 ? (
           <View style={[styles.toolHeader, { backgroundColor: isDark ? '#1C1C1C' : '#E0EAE0', paddingTop: insets.top + 8 }]}>
-            {/* Flecha + contador */}
+            {}
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={handleExitSelection} style={{ paddingRight: 12 }}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -1302,7 +1302,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               </Text>
             </View>
 
-            {/* Acciones — varían según si el mensaje es mío o del otro */}
+            {}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
 
               {selectedIds.length === 1 && (
@@ -1315,7 +1315,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                 <Ionicons name={activeMsg?.isFavorite ? "star" : "star-outline"} size={28} color={colors.text} />
               </TouchableOpacity>
 
-              {/* Editar: solo si es 1 mensaje Y es mío */}
+              {}
               {selectedIds.length === 1 && activeMsg?.sender === 'me' && canEditMessage(activeMsg) && (
                 <TouchableOpacity style={styles.toolIcon} onPress={handleStartEdit}>
                   <Ionicons name="pencil" size={28} color={colors.text} />
@@ -1341,13 +1341,13 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
               
-              {/* Envoltura táctil que abre la info del grupo (en vez del perfil de "el otro") */}
+              {}
               <TouchableOpacity 
                 activeOpacity={0.7} 
                 onPress={handleOpenGroupInfo} 
                 style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
               >
-                {/* Foto del grupo o silueta Ionicons centrada */}
+                {}
                 <View style={[
                   styles.avatarCircle, 
                   { 
@@ -1384,15 +1384,11 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           </View>
         )}
 
-                {/* DETALLE DE INFO DEL MENSAJE (Leído por / Entregado a) */}
+                {}
         {showMsgInfo && activeMsg && selectedIds.length === 0 && (
           <View style={[styles.infoOverlay, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border }]}>
             <Text style={[styles.infoTitle, { color: colors.text }]}>Información del mensaje</Text>
-            {/* Nota: como los mensajes solo guardan un booleano read/delivered
-                (no un detalle por integrante), acá mostramos un resumen
-                genérico en vez de nombres puntuales. Para una vista tipo
-                WhatsApp ("leído por Ana, Carlos...") habría que guardar un
-                array readBy/deliveredTo por mensaje. */}
+            {}
             <View style={styles.infoLine}>
               <Ionicons name="checkmark-done" size={16} color="#00A3FF" />
               <Text style={[styles.infoLabel, { color: colors.text }]}>Leído: </Text>
@@ -1409,7 +1405,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* MENÚ DESPLEGABLE DEL HEADER (3 Puntos) */}
+        {}
         {showHeaderMenu && (
           <View style={[styles.dropdownMenu, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: isDark ? '#333' : '#CCC' }]}>
             <TouchableOpacity style={styles.dropdownItem} onPress={handleOpenGroupInfo}>
@@ -1425,7 +1421,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               <Text style={[styles.dropdownItemText, { color: colors.text }]}>Silenciar notificaciones</Text>
             </TouchableOpacity>
             
-            {/* Opción MÁS */}
+            {}
             <TouchableOpacity 
               style={[styles.dropdownItem, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} 
               onPress={() => setShowMoreSubMenu(!showMoreSubMenu)}
@@ -1434,7 +1430,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               <Ionicons name="chevron-forward" size={16} color={colors.text} />
             </TouchableOpacity>
 
-            {/* SUB-MENÚ MÁS */}
+            {}
             {showMoreSubMenu && (
               <View style={[styles.subDropdownMenu, { backgroundColor: isDark ? '#2C2C2C' : '#F5F5F5', borderColor: isDark ? '#444' : '#DDD' }]}>
                 <TouchableOpacity style={styles.dropdownItem} onPress={() => { closeAllMenus(); setMessages([]); }}>
@@ -1451,7 +1447,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* LISTA DE MENSAJES */}
+        {}
         {loading ? (
           <ActivityIndicator size="large" color={GREEN_ACCENT} style={{ flex: 1 }} />
         ) : (
@@ -1461,9 +1457,9 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               data={messages}
               keyExtractor={(item) => item.id}
               renderItem={renderMessageItem}
-              // Fuerza el re-render de las burbujas ya montadas cuando
-              // terminan de cargar los nombres/fotos de los integrantes
-              // (membersMap llega async, después del primer render).
+              
+              
+              
               extraData={membersMap}
               contentContainerStyle={styles.messagesList}
               removeClippedSubviews={true}
@@ -1481,9 +1477,9 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* INPUT DE MENSAJE */}
+        {}
 
-          {/* Menú desplegable de Clip (Adjuntos) */}
+          {}
           {showAttachmentMenu && (
             <View style={[styles.attachmentTray, { backgroundColor: isDark ? '#1C1C1C' : '#FFF', borderColor: colors.border, bottom: Math.max(keyboardHeight + 60, insets.bottom + 10) + 58 }]}>
               <TouchableOpacity style={styles.attachmentItem} onPress={() => { setShowAttachmentMenu(false); setShowCustomCamera(true); }}>
@@ -1510,7 +1506,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
           )}
 
           {isLocked ? (
-            // 🔒 VISTA DE GRABACIÓN BLOQUEADA (Imagen 2)
+            
             <Animated.View style={[styles.lockedRecordContainer, {
                 backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
                 borderColor: isDark ? '#2C2C2C' : '#E0E0E0',
@@ -1523,7 +1519,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                   {formatTime(recordSeconds)}
                 </Text>
 
-                {/* Waveform oscilante */}
+                {}
                 <View style={styles.waveformContainer}>
                   {waveBarAnims.map((anim, i) => (
                     <Animated.View
@@ -1537,9 +1533,9 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                 </View>
               </View>
 
-              {/* Botones de acción inferiores */}
+              {}
               <View style={styles.recordActionRow}>
-                {/* Descartar */}
+                {}
                 <TouchableOpacity
                   onPress={() => stopAndSendRecording(true)}
                   style={[styles.recordDiscardButton, { backgroundColor: isDark ? 'rgba(255,59,48,0.15)' : 'rgba(255,59,48,0.10)' }]}
@@ -1547,7 +1543,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                   <Ionicons name="trash-outline" size={24} color="#FF3B30" />
                 </TouchableOpacity>
 
-                {/* Pausar / Reanudar */}
+                {}
                 <TouchableOpacity
                   onPress={togglePauseRecording}
                   style={[styles.recordPausePill, { backgroundColor: isDark ? '#2C2C2C' : '#E4E4E4' }]}
@@ -1558,16 +1554,16 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Enviar */}
+                {}
                 <TouchableOpacity onPress={() => stopAndSendRecording(false)} style={[styles.recordSendButton, { backgroundColor: GREEN_ACCENT }]}>
                   <Feather name="arrow-up" size={28} color="#FFF" />
                 </TouchableOpacity>
               </View>
             </Animated.View>
           ) : (
-            // ⌨️ FILA DE INPUT (texto normal o grabación activa sin bloquear)
+            
             <>
-              {/* Vista previa de edición — mismo estilo que la de respuesta */}
+              {}
               {!!editingMessageId && (
                 <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
                   <View style={styles.replyPreviewAccent} />
@@ -1585,7 +1581,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                 </View>
               )}
 
-              {/* Vista previa de respuesta — estilo WhatsApp, arriba del input */}
+              {}
               {!!replyingTo && (
                 <View style={[styles.replyPreviewBar, { backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2' }]}>
                   <View style={styles.replyPreviewAccent} />
@@ -1604,7 +1600,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               )}
               <View style={[styles.inputContainer, { paddingBottom: Math.max(keyboardHeight + 60, insets.bottom + 10) }]}>
               {isRecording ? (
-                // 🎙️ VISTA DE GRABACIÓN ACTIVA SIN BLOQUEAR (Imagen 1)
+                
                 <Animated.View style={[styles.recordHintBar, {
                     backgroundColor: isDark ? '#1C1C1C' : '#F2F2F2',
                     transform: [{ translateX: cancelSlideAnim }],
@@ -1642,7 +1638,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
               )}
 
               {!isRecording && inputText.trim().length > 0 ? (
-                // Botón Enviar texto normal
+                
                 <TouchableOpacity 
                   onPress={handleSend}
                   style={[styles.actionButton, { backgroundColor: GREEN_ACCENT }]}
@@ -1650,8 +1646,8 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
                   <Feather name="arrow-up" size={28} color="#FFF" />
                 </TouchableOpacity>
               ) : (
-                // Botón Micrófono: SIEMPRE el mismo elemento (no se desmonta al
-                // empezar a grabar), para no perder el gesto de touchMove/touchEnd
+                
+                
                 <View style={{ position: 'relative' }}>
                   {isRecording && (
                     <Animated.View
@@ -1737,7 +1733,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
 
       <Modal visible={!!mediaPreview} animationType="slide" transparent={false} onRequestClose={() => setMediaPreview(null)}>
         <View style={{ flex: 1, backgroundColor: '#111' }}>
-          {/* Header */}
+          {}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
             <TouchableOpacity onPress={() => setMediaPreview(null)}>
               <Ionicons name="close" size={28} color="#FFF" />
@@ -1748,7 +1744,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
             <View style={{ width: 28 }} />
           </View>
 
-          {/* Preview principal */}
+          {}
           <FlatList
             data={mediaPreview?.assets || []}
             keyExtractor={(_, i) => String(i)}
@@ -1774,7 +1770,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
             }}
           />
 
-          {/* Thumbnails si hay más de 1 */}
+          {}
           {(mediaPreview?.assets?.length || 0) > 1 && (
             <FlatList
               data={mediaPreview?.assets || []}
@@ -1792,7 +1788,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
             />
           )}
 
-          {/* Input de caption + botón enviar */}
+          {}
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -1830,7 +1826,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* INFO DEL GRUPO: foto, nombre, integrantes y opción de salir */}
+      {}
       <Modal visible={showGroupInfoModal} animationType="slide" transparent={false} onRequestClose={() => setShowGroupInfoModal(false)}>
         <View style={{ flex: 1, backgroundColor: isDark ? '#0B0B0B' : '#F5F5F5' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12 }}>
@@ -1958,7 +1954,7 @@ export default function ChatDetailGroupScreen({ route, navigation }) {
       </Modal>
 
       
-      {/* MODAL AGREGAR MIEMBRO */}
+      {}
       <Modal visible={showAddMemberModal} animationType="slide" transparent onRequestClose={() => setShowAddMemberModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{

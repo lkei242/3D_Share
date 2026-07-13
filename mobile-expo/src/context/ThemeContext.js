@@ -1,4 +1,4 @@
-// src/context/ThemeContext.js
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,14 +8,14 @@ const THEME_STORAGE_KEY = '@app_theme_preference';
 const ThemeContext = createContext(undefined);
 
 export function ThemeProvider({ children }) {
-  const systemScheme = useColorScheme(); // 'light' | 'dark' | null
+  const systemScheme = useColorScheme(); 
 
-  // null  -> todavía sigue el tema del sistema (no eligió nada en Preferencias)
-  // 'light' / 'dark' -> el usuario lo eligió a mano desde el switch
+  
+  
   const [override, setOverride] = useState(null);
   const [isReady, setIsReady] = useState(false);
 
-  // Cargar la preferencia guardada al iniciar la app
+  
   useEffect(() => {
     (async () => {
       try {
@@ -35,7 +35,7 @@ export function ThemeProvider({ children }) {
   const isDark = scheme === 'dark';
   const themeMode = override ?? 'auto';
 
-  // Esto es lo que llama el Switch de "Modo Oscuro" en PreferencesScreen
+  
   const setDarkMode = async (value) => {
     const next = value ? 'dark' : 'light';
     setOverride(next);
@@ -46,7 +46,7 @@ export function ThemeProvider({ children }) {
     }
   };
 
-  // Opcional: por si en algún momento agregás un botón "Usar tema del sistema"
+  
   const followSystem = async () => {
     setOverride(null);
     try {

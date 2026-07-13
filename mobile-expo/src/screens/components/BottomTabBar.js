@@ -36,7 +36,7 @@ function TabButton({ active, onPress, children, isDark }) {
       onPress={onPress}
       hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
     >
-      {/* Contenedor animable estándar para evitar fallos del driver nativo en LinearGradient */}
+      {}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity, borderRadius: 20, overflow: 'hidden' }]}>
         {isDark ? (
           <LinearGradient
@@ -87,8 +87,8 @@ export default function BottomTabBar({ state, navigation }) {
           }
         };
 
-        // Si está seleccionado, el icono es blanco (sobre el gradiente verde).
-        // Si no está seleccionado, usa el color de texto del tema con opacidad.
+        
+        
         const iconColor = isFocused
           ? (isDark ? '#FFFFFF' : '#2C2C2C')
           : (isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.6)');
