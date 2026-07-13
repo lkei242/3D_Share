@@ -103,6 +103,13 @@ const handleLogin = async () => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
+    // Imprimir token en consola para copiarlo en Postman/Thunder Client y probar el endpoint AUTENTICADO en .NET
+    user.getIdToken().then(token => {
+      console.log("\n🔑 [TEST AUTENTICADO] TOKEN DE FIREBASE PARA POSTMAN:");
+      console.log(token);
+      console.log("------------------------------------------------------------------\n");
+    }).catch(() => {});
+
     // ✅ Navegar de inmediato, sin esperar nada más
     navigation.replace('MainTabs');
 
