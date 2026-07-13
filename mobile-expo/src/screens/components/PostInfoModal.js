@@ -25,7 +25,7 @@ export default function PostInfoModal({ visible, onClose, postId }) {
         const col = COLLECTION_MAP[tab];
         const snap = await getDocs(query(collection(db, col), where('postId', '==', postId), limit(50)));
         const userIds = [...new Set(snap.docs.map(d => d.data().userId).filter(Boolean))];
-        if (!userIds.length) { setUsers([]); return; }
+        if (!userIds.length) { setLoading(false); return; }
         const userDocs = (await Promise.all(userIds.map(uid => getDocs(query(collection(db, 'users'), where('__name__', '==', uid))))))
           .map(s => { const d = s.docs[0]; return d ? { uid: d.id, ...d.data() } : null; })
           .filter(Boolean);
